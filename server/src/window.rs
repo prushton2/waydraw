@@ -16,7 +16,7 @@ use crate::mouse::{self, Mouse};
 
 pub struct Window {
     p2p: Arc<Mutex<Option<p2p::P2P>>>,
-    mouse_move_handle: Option<JoinHandle<i32>>,
+    // mouse_move_handle: Option<JoinHandle<i32>>,
     
     available_monitors: Vec<MonitorHandle>,
     selected_monitor: Option<usize>,
@@ -58,7 +58,7 @@ impl Window {
 
         let this = Self {
             p2p: Arc::new(Mutex::new(None)),
-            mouse_move_handle: None,
+            // mouse_move_handle: None,
 
             available_monitors: monitors,
             selected_monitor: None,
@@ -141,50 +141,50 @@ impl Window {
                 // the coordinates of the top left of the monitor to offset mouse_move
                 let coordinates = selected_monitor.position().clone();
 
-                let handle: JoinHandle<i32> = std::thread::spawn(move || {
-                    tokio::runtime::Runtime::new().unwrap().block_on(async move { 
+                // let handle: JoinHandle<i32> = std::thread::spawn(move || {
+                //     tokio::runtime::Runtime::new().unwrap().block_on(async move { 
                         
-                        let mut server_lock = p2p_arc.lock().await;
-                        let server = server_lock.as_mut().unwrap();
+                //         let mut server_lock = p2p_arc.lock().await;
+                //         let server = server_lock.as_mut().unwrap();
 
-                        let _ = server.send(&server_info_bytes).await;
+                //         let _ = server.send(&server_info_bytes).await;
 
-                        drop(server_lock);
+                //         drop(server_lock);
 
-                        let mut mouse: Box<dyn Mouse> = Box::new(mouse::DummyMouse::new());
-                        if !cfg!(debug_assertions) {
-                            mouse = Box::new(mouse::EnigoMouse::new());
-                        }
+                //         let mut mouse: Box<dyn Mouse> = Box::new(mouse::DummyMouse::new());
+                //         if !cfg!(debug_assertions) {
+                //             mouse = Box::new(mouse::EnigoMouse::new());
+                //         }
                         
-                        loop {
-                            let mut server_lock = p2p_arc.lock().await;
-                            let server = server_lock.as_mut().unwrap();
+                //         loop {
+                //             let mut server_lock = p2p_arc.lock().await;
+                //             let server = server_lock.as_mut().unwrap();
 
-                            let response = server.read().await.unwrap();
+                //             let response = server.read().await.unwrap();
                             
-                            // acquire and drop lock rapidly to let other threads use lock if needed
-                            drop(server_lock); 
+                //             // acquire and drop lock rapidly to let other threads use lock if needed
+                //             drop(server_lock); 
                             
-                            let parsed = p2p::protocol::FromBytes::parse(&response);
-                            match parsed {
-                                FromBytes::MouseMove(message) => {
-                                    mouse.move_mouse(coordinates.x as u32 + message.x, coordinates.y as u32 + message.y);
-                                }
-                                FromBytes::MouseClick(message) => {
-                                    mouse.click_mouse(message.button, message.state);
-                                }
-                                _ => {}
-                            }
-                        }
-                    })
-                });
+                //             let parsed = p2p::protocol::FromBytes::parse(&response);
+                //             match parsed {
+                //                 FromBytes::MouseMove(message) => {
+                //                     mouse.move_mouse(coordinates.x as u32 + message.x, coordinates.y as u32 + message.y);
+                //                 }
+                //                 FromBytes::MouseClick(message) => {
+                //                     mouse.click_mouse(message.button, message.state);
+                //                 }
+                //                 _ => {}
+                //             }
+                //         }
+                //     })
+                // });
 
-                self.mouse_move_handle = Some(handle);
+                // self.mouse_move_handle = Some(handle);
 
                 Task::none()
             },
             Message::Disconnect => {
-                self.mouse_move_handle = None;
+                // self.mouse_move_handle = None;
                 self.pin = None;
                 self.key = None;
                 self.error = String::from("");
@@ -220,9 +220,9 @@ impl Window {
     }
 
     pub fn view(&self) -> iced::Element<'_, Message> {
-        if self.mouse_move_handle.is_some() {
-            return button("Disconnect").on_press(Message::Disconnect).into();
-        }
+        // if self.mouse_move_handle.is_some() {
+        //     return button("Disconnect").on_press(Message::Disconnect).into();
+        // }
 
         let pin = self.pin.clone().unwrap_or("".to_owned());
         let key = self.key.clone().unwrap_or("".to_owned());
