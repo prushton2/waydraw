@@ -17,6 +17,7 @@ fn main() {
         window::Window::view
     )
         .theme(Theme::CatppuccinFrappe)
+        .subscription(window::subscription)
         .title("Waydraw Server")
         .run();
 }

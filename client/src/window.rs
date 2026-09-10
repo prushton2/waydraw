@@ -3,6 +3,7 @@ use std::sync::Arc;
 use iroh::EndpointId;
 
 use p2p::p2p::P2PError;
+use p2p::protocol::{ServerHello, ClientHello};
 use tokio::sync::Mutex;
 
 use iced::Alignment::Center;
@@ -15,7 +16,7 @@ use p2p::protocol::mouse_click::{MouseButton, MouseState};
 
 #[derive(Default)]
 pub struct Window {
-    server_info: Option<protocol::ServerInformation>,
+    server_info: Option<protocol::ServerHello>,
     p2p: Option<Arc<Mutex<p2p::P2P>>>,
 
     known_size: (usize, usize),
@@ -34,7 +35,7 @@ pub enum Message {
     WindowResized((usize, usize)),
 
     PinSubmitted,
-    P2PCreated(Result<(Arc<Mutex<p2p::P2P>>, protocol::ServerInformation), P2PError>),
+    P2PCreated(Result<(Arc<Mutex<p2p::P2P>>, protocol::ServerHello), P2PError>),
     
     PINTextbox(String),
     KeyTextbox(String),
@@ -60,7 +61,7 @@ impl Window {
                 };
 
                 let mouse_pct = (x / self.known_size.0 as f32, y / self.known_size.1 as f32);
-                let scaled_mouse_pos = (mouse_pct.0 * server_info.width as f32, mouse_pct.1 * server_info.height as f32);
+                let scaled_mouse_pos = (mouse_pct.0 * server_info.screen_width as f32, mouse_pct.1 * server_info.screen_height as f32);
 
                 let message = p2p::protocol::MouseMove {x: scaled_mouse_pos.0 as u32, y: scaled_mouse_pos.1 as u32};
 
@@ -97,6 +98,9 @@ impl Window {
                 let key_textbox = self.key_textbox.clone();
                 self.wait_reason = String::from("Connecting to server...");
                 self.error = String::from("");
+
+                let known_size_clone = self.known_size.clone();
+
                 Task::perform(
                     async move {
                         let key;
@@ -110,12 +114,21 @@ impl Window {
                         let parsed_key = key.parse::<EndpointId>().map_err(|_| P2PError::during("Error reading key", P2PError::InputError("Invalid key or pin".to_string())))?;
 
                         let mut client = p2p::P2P::connect(parsed_key).await?;
-                        let _ = client.send("test".as_bytes()).await;
+                        
+                        let version = env!("CARGO_PKG_VERSION").split(".").map(|s| s.parse::<u8>().unwrap()).collect::<Vec<u8>>();
 
+                        let client_hello = ClientHello {
+                            version: (version[0], version[1], version[2]),
+                            window_width:  known_size_clone.0 as u32,
+                            window_height: known_size_clone.1 as u32
+                        };
+
+                        let _ = client.send(&client_hello.into_bytes()).await;
+                        
                         let data = client.read().await?;
 
                         let server_info = match protocol::FromBytes::parse(&data) {
-                            protocol::FromBytes::ServerInformation(d) => d,
+                            protocol::FromBytes::ServerHello(d) => d,
                             _ => panic!("Did not receive server info")
                         };
                         

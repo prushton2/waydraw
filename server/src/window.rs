@@ -1,22 +1,25 @@
+use std::hash::Hash;
 use std::sync::Arc;
-use std::thread::JoinHandle;
 
-use iced::alignment::Horizontal::Center;
 use tokio::sync::Mutex;
 
 use iced::Length::Fill;
-use iced::Task;
+use iced::{Subscription, Task};
+use iced::alignment::Horizontal::Center;
 use iced::widget::{space, button, column, container, row, text, text_input};
 
-use p2p::protocol::{FromBytes, IntoBytes, ServerInformation};
 use p2p::p2p::P2PError;
+use p2p::protocol::mouse_click::{MouseButton, MouseState};
+use p2p::protocol::{FromBytes, IntoBytes, ServerHello};
+
 use winit::monitor::MonitorHandle;
 
-use crate::mouse::{self, Mouse};
+use crate::mouse;
 
 pub struct Window {
     p2p: Arc<Mutex<Option<p2p::P2P>>>,
-    // mouse_move_handle: Option<JoinHandle<i32>>,
+    mouse: Box<dyn mouse::Mouse>,
+    connected: bool,
     
     available_monitors: Vec<MonitorHandle>,
     selected_monitor: Option<usize>,
@@ -27,7 +30,6 @@ pub struct Window {
     wait_reason: String,
     error: String,
 
-
     // AAAA
     labels: Vec<String>
 }
@@ -36,11 +38,19 @@ pub struct Window {
 pub enum Message {
     Register,
     AwaitClient(Result<(Arc<Mutex<Option<p2p::P2P>>>, String, String), Arc<P2PError>>),
-    ConnectionEstablished(Result<(), String>),
+    SendHello(Result<(), String>),
     SelectMonitor(usize),
+    ClientMessage(ClientMessage),
     Disconnect,
-    Drop,
+    Connect(()),
+    None,
     Null(())
+}
+
+#[derive(Clone)]
+pub enum ClientMessage {
+    MouseClick(MouseButton, MouseState),
+    MouseMove(u32, u32)
 }
 
 impl Window {
@@ -56,9 +66,15 @@ impl Window {
                 )
             ).collect();
 
+        let mut mouse: Box<dyn mouse::Mouse> = Box::new(mouse::DummyMouse::new());
+        if !cfg!(debug_assertions) {
+            mouse = Box::new(mouse::EnigoMouse::new());
+        }
+
         let this = Self {
             p2p: Arc::new(Mutex::new(None)),
-            // mouse_move_handle: None,
+            mouse: mouse,
+            connected: false,
 
             available_monitors: monitors,
             selected_monitor: None,
@@ -99,6 +115,7 @@ impl Window {
                     Message::AwaitClient
                 )
             },
+
             Message::AwaitClient(result) => {
                 let (p2p, key, pin) = match result {
                     Ok(t) => t,
@@ -118,75 +135,55 @@ impl Window {
                 self.wait_reason = "Waiting for connection".to_owned();
                 Task::perform(
                 async move {
-                        let mut lock = arc.lock().await;
-                        let p2p = lock.as_mut().unwrap();
-                        let _ = p2p.await_connection().await;
-                        Ok(())
-                    },
-                    Message::ConnectionEstablished,
+                    let mut lock = arc.lock().await;
+                    let p2p = lock.as_mut().unwrap();
+                    let _ = p2p.await_connection().await;
+
+                    Ok(())
+                },
+                    Message::SendHello,
                 )
-            }
-            Message::ConnectionEstablished(result) => {
+            },
+
+            Message::SendHello(result) => {
                 if let Err(e) = result { eprintln!("send failed: {e}"); }
-                self.wait_reason = "Connection Established".to_owned();
+                self.wait_reason = "Sending Hello".to_owned();
                 let selected_monitor = &self.available_monitors[self.selected_monitor.unwrap()];
 
                 // construct server info to send to client
                 let p2p_arc = self.p2p.clone();
-                let server_info_bytes = ServerInformation {
-                    width:  selected_monitor.size().width,
-                    height: selected_monitor.size().height
+
+                let version = env!("CARGO_PKG_VERSION").split(".").map(|s| s.parse::<u8>().unwrap()).collect::<Vec<u8>>();
+
+                let server_info_bytes = ServerHello {
+                    version: (version[0], version[1], version[2]),
+                    screen_width:  selected_monitor.size().width,
+                    screen_height: selected_monitor.size().height
                 }.into_bytes();
 
-                // the coordinates of the top left of the monitor to offset mouse_move
-                let coordinates = selected_monitor.position().clone();
-
-                // let handle: JoinHandle<i32> = std::thread::spawn(move || {
-                //     tokio::runtime::Runtime::new().unwrap().block_on(async move { 
+                Task::perform(
+                    async move {
+                        let mut p2p_lock = p2p_arc.lock().await;
+                        let p2p_ref = p2p_lock.as_mut().unwrap();
                         
-                //         let mut server_lock = p2p_arc.lock().await;
-                //         let server = server_lock.as_mut().unwrap();
-
-                //         let _ = server.send(&server_info_bytes).await;
-
-                //         drop(server_lock);
-
-                //         let mut mouse: Box<dyn Mouse> = Box::new(mouse::DummyMouse::new());
-                //         if !cfg!(debug_assertions) {
-                //             mouse = Box::new(mouse::EnigoMouse::new());
-                //         }
+                        let client_hello_bytes = p2p_ref.read().await.unwrap();
+                        let client_hello_enum = match FromBytes::parse(&client_hello_bytes[..]) {
+                            FromBytes::ClientHello(m) => m,
+                            t => panic!("Expected client hello, received other bytes: {:?}", t)
+                        };
                         
-                //         loop {
-                //             let mut server_lock = p2p_arc.lock().await;
-                //             let server = server_lock.as_mut().unwrap();
-
-                //             let response = server.read().await.unwrap();
-                            
-                //             // acquire and drop lock rapidly to let other threads use lock if needed
-                //             drop(server_lock); 
-                            
-                //             let parsed = p2p::protocol::FromBytes::parse(&response);
-                //             match parsed {
-                //                 FromBytes::MouseMove(message) => {
-                //                     mouse.move_mouse(coordinates.x as u32 + message.x, coordinates.y as u32 + message.y);
-                //                 }
-                //                 FromBytes::MouseClick(message) => {
-                //                     mouse.click_mouse(message.button, message.state);
-                //                 }
-                //                 _ => {}
-                //             }
-                //         }
-                //     })
-                // });
-
-                // self.mouse_move_handle = Some(handle);
-
-                Task::none()
+                        let _ = p2p_ref.send(&server_info_bytes).await;
+                        
+                        ()
+                    },
+                    Message::Connect
+                )
             },
+
             Message::Disconnect => {
-                // self.mouse_move_handle = None;
                 self.pin = None;
                 self.key = None;
+                self.connected = false;
                 self.error = String::from("");
                 self.wait_reason = String::from("");
                 let p2p_arc = self.p2p.clone();
@@ -206,23 +203,44 @@ impl Window {
                     Message::Null,
                 )
             },
+
+            Message::Connect(()) => {
+                self.connected = true;
+                Task::none()
+            }
+
             Message::SelectMonitor(i) => {
                 self.selected_monitor = Some(i);
                 Task::none()
-            }
-            Message::Drop => {
+            },
+
+            Message::None => {
                 Task::none()
             },
+
             Message::Null(_) => {
+                Task::none()
+            },
+
+            Message::ClientMessage(m) => {
+                match m {
+                    ClientMessage::MouseClick(button, state) => {
+                        self.mouse.click_mouse(button, state);
+                    },
+                    ClientMessage::MouseMove(x, y) => {
+                        let monitor = &self.available_monitors[self.selected_monitor.unwrap()];
+                        self.mouse.move_mouse(monitor.position().x as u32 + x, monitor.position().y as u32 + y);
+                    }
+                }
                 Task::none()
             }
         }
     }
 
     pub fn view(&self) -> iced::Element<'_, Message> {
-        // if self.mouse_move_handle.is_some() {
-        //     return button("Disconnect").on_press(Message::Disconnect).into();
-        // }
+        if self.connected {
+            return button("Disconnect").on_press(Message::Disconnect).into();
+        }
 
         let pin = self.pin.clone().unwrap_or("".to_owned());
         let key = self.key.clone().unwrap_or("".to_owned());
@@ -253,8 +271,8 @@ impl Window {
                 container(button("Allow Connections").on_press(Message::Register)).center_x(Fill),
                 space().height(20),
                 
-                row![text("Pin"), space().width(24), text_input(&pin, &pin).on_input(|_| Message::Drop)],
-                row![text("Key"), space().width(20), text_input(&key, &key).on_input(|_| Message::Drop)],
+                row![text("Pin"), space().width(24), text_input(&pin, &pin).on_input(|_| Message::None)],
+                row![text("Key"), space().width(20), text_input(&key, &key).on_input(|_| Message::None)],
                 
                 text(&self.wait_reason).width(Fill).align_x(Center),
                 text(&self.error).width(Fill).align_x(Center).style(|t| {text::danger(t)}),
@@ -268,4 +286,56 @@ impl Window {
     }
 }
 
+struct P2PObject(Arc<Mutex<Option<p2p::P2P>>>);
 
+impl Hash for P2PObject {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        Arc::as_ptr(&self.0).hash(state);
+    }
+}
+
+fn p2p_stream(feed: &P2PObject) -> impl iced::futures::Stream<Item = Message> + use<> {
+    let p2p = feed.0.clone();
+
+    iced::futures::stream::unfold(p2p, |p2p| async move {
+        let mut p2p_lock = p2p.lock().await;
+        
+        let p2p_ref = match p2p_lock.as_mut() {
+            Some(t) => t,
+            None => {
+                drop(p2p_lock);
+                return Some((Message::Null(()), p2p))
+            }
+        };
+
+        let response = match p2p_ref.read().await {
+            Ok(t) => t,
+            Err(_) => {
+                drop(p2p_lock);
+                return Some((Message::Null(()), p2p))
+            }
+        };
+
+        drop(p2p_lock);
+        match FromBytes::parse(&response[..]) {
+            FromBytes::MouseClick(t) => {
+                return Some((Message::ClientMessage(ClientMessage::MouseClick(t.button, t.state)), p2p))
+            },
+            FromBytes::MouseMove(t) => {
+                return Some((Message::ClientMessage(ClientMessage::MouseMove(t.x, t.y)), p2p))
+            },
+            FromBytes::UnknownInstruction(_) => {},
+            // FromBytes::ClientInformation(t) => {},
+            _ => {}
+        }
+
+        Some((Message::Null(()), p2p))
+    })
+}
+
+pub fn subscription(window: &Window) -> Subscription<Message> {
+    if window.connected {
+        return iced::Subscription::run_with(P2PObject(window.p2p.clone()), p2p_stream);
+    }
+    return iced::Subscription::none();
+}

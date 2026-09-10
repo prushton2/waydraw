@@ -85,7 +85,7 @@ impl P2P {
 
     pub async fn await_connection(&mut self) -> Result<(), P2PError> {
         loop {
-            std::thread::sleep(std::time::Duration::from_secs(1));
+            tokio::time::sleep(std::time::Duration::from_secs(1)).await;
             let mutex = self.handler.conn.lock().unwrap();
             if mutex.is_some() { break; }
         }
@@ -94,7 +94,7 @@ impl P2P {
         let (send, receive) = conn.accept_bi().await.map_err(|e| P2PError::during("Error accepting connection from client",P2PError::AcceptConnectionError(e.to_string())))?;
 
         self.conn = Some((send, receive));
-        
+
         let _ = self.read().await;
         Ok(())
     }
@@ -124,7 +124,7 @@ impl P2P {
             conn: Some((send, receive)),
         };
 
-        let _ = this.send(ALPN);
+        this.send(ALPN).await?;
 
         Ok(this)
     }
@@ -164,5 +164,9 @@ impl P2P {
 
     pub async fn close(&mut self) {
         let _ = self.router.shutdown().await;
+    }
+
+    pub fn is_connected(&self) -> bool {
+        self.conn.is_some()
     }
 }
