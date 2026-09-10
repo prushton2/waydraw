@@ -6,7 +6,7 @@ use tokio::sync::RwLock;
 
 use iced::Alignment::Center;
 use iced::{Length::Fill, Task};
-use iced::widget::{self, Image, button, column, container, image, row, space, stack, text, text_input};
+use iced::widget::{self, button, column, container, image, row, space, stack, text, text_input};
 
 use p2p::p2p::P2PError;
 use p2p::protocol::ClientHello;
