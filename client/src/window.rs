@@ -3,7 +3,7 @@ use std::sync::Arc;
 use iroh::EndpointId;
 
 use p2p::p2p::P2PError;
-use p2p::protocol::{ServerHello, ClientHello};
+use p2p::protocol::{ClientHello, ServerHello};
 use tokio::sync::Mutex;
 
 use iced::Alignment::Center;
@@ -16,8 +16,9 @@ use p2p::protocol::mouse_click::{MouseButton, MouseState};
 
 #[derive(Default)]
 pub struct Window {
-    server_info: Option<protocol::ServerHello>,
-    p2p: Option<Arc<Mutex<p2p::P2P>>>,
+    server_info: Option<ServerHello>,
+    p2p: Arc<Mutex<Option<p2p::P2P>>>,
+    connected: bool,
 
     known_size: (usize, usize),
     
@@ -35,11 +36,14 @@ pub enum Message {
     WindowResized((usize, usize)),
 
     PinSubmitted,
-    P2PCreated(Result<(Arc<Mutex<p2p::P2P>>, protocol::ServerHello), P2PError>),
+    P2PCreated(Result<(Arc<Mutex<Option<p2p::P2P>>>, protocol::ServerHello), P2PError>),
     
     PINTextbox(String),
     KeyTextbox(String),
-    Sent(Result<(), String>)
+    Sent(Result<(), String>),
+
+    // None,
+    // Null(())
 }
 
 impl Window {
@@ -55,10 +59,7 @@ impl Window {
                     None => return Task::none()
                 };
 
-                let p2p = match &self.p2p {
-                    Some(t) => t.clone(),
-                    None => return Task::none()
-                };
+                let p2p_arc = self.p2p.clone();
 
                 let mouse_pct = (x / self.known_size.0 as f32, y / self.known_size.1 as f32);
                 let scaled_mouse_pos = (mouse_pct.0 * server_info.screen_width as f32, mouse_pct.1 * server_info.screen_height as f32);
@@ -67,29 +68,38 @@ impl Window {
 
                 Task::perform(
                 async move {
-                        match p2p.lock().await.send(&message.into_bytes()).await {
-                            Ok(_) => Ok(()),
-                            Err(t) => Err(format!("{:?}", t))
-                        }
-                    },
+                    let mut temp = p2p_arc.lock().await;
+                    let lock = match temp.as_mut() {
+                        Some(t) => t,
+                        None => return Err(format!("No connection found"))
+                    };
+
+                    match lock.send(&message.into_bytes()).await {
+                        Ok(_) => Ok(()),
+                        Err(t) => Err(format!("{:?}", t))
+                    }
+                },
                     Message::Sent,
                 )
             }
             Message::MouseClick(button, state) => {
-                let p2p = match &self.p2p {
-                    Some(t) => t.clone(),
-                    None => return Task::none()
-                };
+                let p2p_arc = self.p2p.clone();
 
                 let message = p2p::protocol::MouseClick { button: button, state: state };
 
                 Task::perform(
                 async move {
-                        match p2p.lock().await.send(&message.into_bytes()).await {
-                            Ok(_) => Ok(()),
-                            Err(t) => Err(format!("{:?} ", t))
-                        }
-                    },
+                    let mut temp = p2p_arc.lock().await;
+                    let lock = match temp.as_mut() {
+                        Some(t) => t,
+                        None => return Err(format!("No connection found"))
+                    };
+
+                    match lock.send(&message.into_bytes()).await {
+                        Ok(_) => Ok(()),
+                        Err(t) => Err(format!("{:?} ", t))
+                    }
+                },
                     Message::Sent,
                 )
             },
@@ -132,7 +142,7 @@ impl Window {
                             _ => panic!("Did not receive server info")
                         };
                         
-                        let p2p: Arc<Mutex<p2p::P2P>> = Arc::new(Mutex::new(client));
+                        let p2p: Arc<Mutex<Option<p2p::P2P>>> = Arc::new(Mutex::new(Some(client)));
 
                         Ok((p2p, server_info))
                     },
@@ -142,7 +152,7 @@ impl Window {
 
             Message::P2PCreated(result) => {
                 self.wait_reason = String::from("");
-
+                
                 let (p2p, server_info) = match result {
                     Ok(t) => t,
                     Err(e) => {
@@ -150,8 +160,9 @@ impl Window {
                         return Task::none()
                     }
                 };
-
-                self.p2p = Some(p2p);
+                
+                self.connected = true;
+                self.p2p = p2p;
                 self.server_info = Some(server_info);
                 Task::none()
             },
@@ -162,7 +173,8 @@ impl Window {
             },
             Message::Sent(result) => {
                 if let Err(_) = result { 
-                    self.p2p = None;
+                    self.connected = false;
+                    self.p2p = Arc::new(Mutex::new(None));
                     self.error = String::from("");
                     self.wait_reason = String::from("");
                     self.key_textbox = String::from("");
@@ -179,12 +191,19 @@ impl Window {
             Message::KeyTextbox(f) => {
                 self.key_textbox = f;
                 Task::none()
-            }
+            },
+
+            // Message::None => {
+            //     Task::none()
+            // },
+            // Message::Null(()) => {
+            //     Task::none()
+            // }
         }
     }
 
     pub fn view(&self) -> iced::Element<'_, Message> {
-        if self.p2p.is_none() {
+        if !self.connected {
             return container (
                 column![
                     text("Input device pin").width(Fill).align_x(Center),
@@ -226,3 +245,51 @@ impl Window {
 pub fn subscription(_: &Window) -> Subscription<Message> {
     window::resize_events().map(|(_id, size)| Message::WindowResized((size.width as usize, size.height as usize)))
 }
+
+// struct P2PObject(Arc<Mutex<Option<p2p::P2P>>>);
+
+// impl std::hash::Hash for P2PObject {
+//     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+//         Arc::as_ptr(&self.0).hash(state);
+//     }
+// }
+
+// fn p2p_stream(feed: &P2PObject) -> impl iced::futures::Stream<Item = Message> + use<> {
+//     let p2p = feed.0.clone();
+
+//     iced::futures::stream::unfold(p2p, |p2p| async move {
+//         let mut p2p_lock = p2p.lock().await;
+        
+//         let p2p_ref = match p2p_lock.as_mut() {
+//             Some(t) => t,
+//             None => {
+//                 drop(p2p_lock);
+//                 return Some((Message::Null(()), p2p))
+//             }
+//         };
+
+//         let response = match p2p_ref.read().await {
+//             Ok(t) => t,
+//             Err(_) => {
+//                 drop(p2p_lock);
+//                 return Some((Message::Null(()), p2p))
+//             }
+//         };
+
+//         drop(p2p_lock);
+//         match FromBytes::parse(&response[..]) {
+//             FromBytes::UnknownInstruction(_) => {},
+//             // FromBytes::ClientInformation(t) => {},
+//             _ => {}
+//         }
+
+//         Some((Message::Null(()), p2p))
+//     })
+// }
+
+// pub fn p2p_loop_subscription(window: &Window) -> Subscription<Message> {
+//     if window.connected {
+//         return iced::Subscription::run_with(P2PObject(window.p2p.clone()), p2p_stream);
+//     }
+//     return iced::Subscription::none();
+// }
