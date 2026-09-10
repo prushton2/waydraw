@@ -35,6 +35,9 @@ jobs:
       with:
         workspaces: server
 
+    - name: Install xcap dependencies
+      run: apt-get install pkg-config libclang-dev libxcb1-dev libxrandr-dev libdbus-1-dev libpipewire-0.3-dev libwayland-dev libegl-dev
+
     - run: cargo check
 
   check-client:
