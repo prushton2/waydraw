@@ -36,7 +36,7 @@ jobs:
         cache-on-failure: true
 
     - name: Install xcap dependencies
-      run: sudo apt-get install pkg-config libclang-dev libxcb1-dev libxrandr-dev libdbus-1-dev libpipewire-0.3-dev libwayland-dev libegl-dev
+      run: sudo apt-get install pkg-config libclang-dev libxcb1-dev libxrandr-dev libdbus-1-dev libpipewire-0.3-dev libwayland-dev libegl-dev libgbm-dev
 
     - name: build
       run: cargo build --release
@@ -44,7 +44,7 @@ jobs:
     - uses: actions/upload-artifact@v4
       with:
         name: server-bin
-        path: server/target/release/server
+        path: server/target/release/waydraw-server
         if-no-files-found: error
 
   build-client-linux:
@@ -78,7 +78,7 @@ jobs:
     - uses: actions/upload-artifact@v4
       with:
         name: client-bin
-        path: client/target/release/client
+        path: client/target/release/waydraw-client
         if-no-files-found: error
 
   build-server-windows:
@@ -118,7 +118,7 @@ jobs:
     - uses: actions/upload-artifact@v4
       with:
         name: server-exe
-        path: server/target/x86_64-pc-windows-gnu/release/server.exe
+        path: server/target/x86_64-pc-windows-gnu/release/waydraw-server.exe
         if-no-files-found: error
 
   build-client-windows:
@@ -158,7 +158,7 @@ jobs:
     - uses: actions/upload-artifact@v4
       with:
         name: client-exe
-        path: client/target/x86_64-pc-windows-gnu/release/client.exe
+        path: client/target/x86_64-pc-windows-gnu/release/waydraw-client.exe
         if-no-files-found: error
 
   create-release:

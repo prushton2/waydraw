@@ -256,7 +256,7 @@ impl Window {
                 .on_release      (Message::MouseClick(MouseButton::Left,  MouseState::Released))
                 .on_right_press  (Message::MouseClick(MouseButton::Right, MouseState::Pressed ))
                 .on_right_release(Message::MouseClick(MouseButton::Right, MouseState::Released)),
-                
+
                 image(self.handle.as_ref().unwrap())
                     .width(Fill)
                     .height(Fill)
