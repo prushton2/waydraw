@@ -161,11 +161,7 @@ impl Window {
                     screen_height: selected_monitor.size().height
                 };
 
-                // println!("{:?}", server_info);
-
                 let server_info_bytes = server_info.into_bytes();
-
-                // println!("{:?}", server_info_bytes);
 
                 Task::perform(
                     async move {
@@ -210,7 +206,17 @@ impl Window {
                 )
             },
 
-            Message::Connect(_hello) => {
+            Message::Connect(client_hello) => {
+                let version = env!("CARGO_PKG_VERSION").split(".").map(|s| s.parse::<u8>().unwrap()).collect::<Vec<u8>>();
+
+                if client_hello.version.0 != version[0] {
+                    self.error = format!("Incompatible versions: Client {}.{}.{} and Server {}.{}.{}. Please update each app to the same major version.", client_hello.version.0, client_hello.version.1, client_hello.version.2, version[0], version[1], version[2]);
+                    self.p2p = Arc::new(RwLock::new(None));
+                    self.pin = None;
+                    self.key = None;
+                    return Task::none();
+                }
+
                 self.connected = true;
                 Task::none()
             }

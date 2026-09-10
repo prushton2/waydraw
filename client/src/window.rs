@@ -59,10 +59,6 @@ impl Window {
                     None => return Task::none()
                 };
 
-                println!("{:?}", server_info);
-                println!("{:?}", self.known_size);
-                println!("{:?}", (x, y));
-
                 let p2p_arc = self.p2p.clone();
 
                 let mouse_pct = (x / self.known_size.0 as f32, y / self.known_size.1 as f32);
@@ -157,16 +153,24 @@ impl Window {
             Message::P2PCreated(result) => {
                 self.wait_reason = String::from("");
                 
-                let (p2p, server_info) = match result {
+                let (p2p, server_hello) = match result {
                     Ok(t) => t,
                     Err(e) => {
                         self.error = String::from(e);
                         return Task::none()
                     }
                 };
+
+                let version = env!("CARGO_PKG_VERSION").split(".").map(|s| s.parse::<u8>().unwrap()).collect::<Vec<u8>>();
+
+                if server_hello.version.0 != version[0] {
+                    self.error = format!("Incompatible versions: Server {}.{}.{} and Client {}.{}.{}. Please update each app to the same major version.", server_hello.version.0, server_hello.version.1, server_hello.version.2, version[0], version[1], version[2]);
+                    self.p2p = Arc::new(RwLock::new(None));
+                    return Task::none();
+                }
                 
                 self.p2p = p2p;
-                self.server_info = Some(server_info);
+                self.server_info = Some(server_hello);
                 self.connected = true;
                 Task::none()
             },
