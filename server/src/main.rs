@@ -1,6 +1,7 @@
 use iced::Theme;
 
 use winit::monitor::MonitorHandle;
+// use xcap;
 
 mod mouse;
 mod window;
@@ -16,6 +17,8 @@ fn main() {
         window::Window::view
     )
         .theme(Theme::CatppuccinFrappe)
+        .subscription(window::subscriptions::subscription)
         .title("Waydraw Server")
         .run();
 }
+
