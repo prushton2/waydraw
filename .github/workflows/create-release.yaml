@@ -205,10 +205,10 @@ jobs:
     - name: Stage release assets
       run: |
         mkdir -p release
-        mv dist/linux-server/server       release/waydraw-linux-server
-        mv dist/linux-client/client       release/waydraw-linux-client
-        mv dist/windows-server/server.exe release/waydraw-windows-server.exe
-        mv dist/windows-client/client.exe release/waydraw-windows-client.exe
+        mv dist/linux-server/waydraw-server       release/waydraw-linux-server
+        mv dist/linux-client/waydraw-client       release/waydraw-linux-client
+        mv dist/windows-server/waydraw-server.exe release/waydraw-windows-server.exe
+        mv dist/windows-client/waydraw-client.exe release/waydraw-windows-client.exe
         chmod +x release/waydraw-linux-*
         ls -l release
 
