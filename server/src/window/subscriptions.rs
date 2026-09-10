@@ -106,7 +106,7 @@ fn screencap_stream(selected_monitor_name: &String) -> impl iced::futures::Strea
 
         let image = match image_result {
             Ok(t) => t,
-            Err(t) => {
+            Err(_) => {
                 return Some((Message::Null(()), selected_monitor_name))
             }
         };

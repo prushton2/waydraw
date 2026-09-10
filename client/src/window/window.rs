@@ -6,7 +6,7 @@ use tokio::sync::RwLock;
 
 use iced::Alignment::Center;
 use iced::{Length::Fill, Task};
-use iced::widget::{self, Image, button, column, container, image, row, space, text, text_input};
+use iced::widget::{self, Image, button, column, container, image, row, space, stack, text, text_input};
 
 use p2p::p2p::P2PError;
 use p2p::protocol::ClientHello;
@@ -244,21 +244,23 @@ impl Window {
         }
 
         return container (
-            // widget::MouseArea::new(
-            //     widget::row![]
-            //     .width(Fill)
-            //     .height(Fill)
-            // )
-            // .on_move(|point| {return Message::MouseMove(point.x, point.y)})
-
-            // .on_press        (Message::MouseClick(MouseButton::Left,  MouseState::Pressed ))
-            // .on_release      (Message::MouseClick(MouseButton::Left,  MouseState::Released))
-            // .on_right_press  (Message::MouseClick(MouseButton::Right, MouseState::Pressed ))
-            // .on_right_release(Message::MouseClick(MouseButton::Right, MouseState::Released))
-            image(self.handle.as_ref().unwrap())
-                .width(Fill)
-                .height(Fill)
-
+            stack![
+                widget::MouseArea::new(
+                    widget::row![]
+                    .width(Fill)
+                    .height(Fill)
+                )
+                .on_move(|point| {return Message::MouseMove(point.x, point.y)})
+    
+                .on_press        (Message::MouseClick(MouseButton::Left,  MouseState::Pressed ))
+                .on_release      (Message::MouseClick(MouseButton::Left,  MouseState::Released))
+                .on_right_press  (Message::MouseClick(MouseButton::Right, MouseState::Pressed ))
+                .on_right_release(Message::MouseClick(MouseButton::Right, MouseState::Released)),
+                
+                image(self.handle.as_ref().unwrap())
+                    .width(Fill)
+                    .height(Fill)
+            ]
 
         )
         .width(Fill)
