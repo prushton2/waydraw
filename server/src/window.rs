@@ -10,7 +10,7 @@ use iced::widget::{space, button, column, container, row, text, text_input};
 
 use p2p::p2p::P2PError;
 use p2p::protocol::mouse_click::{MouseButton, MouseState};
-use p2p::protocol::{FromBytes, IntoBytes, ServerHello};
+use p2p::protocol::{ClientHello, FromBytes, IntoBytes, ServerHello};
 
 use winit::monitor::MonitorHandle;
 
@@ -42,7 +42,7 @@ pub enum Message {
     SelectMonitor(usize),
     ClientMessage(ClientMessage),
     Disconnect,
-    Connect(()),
+    Connect(ClientHello),
     None,
     Null(())
 }
@@ -155,11 +155,17 @@ impl Window {
 
                 let version = env!("CARGO_PKG_VERSION").split(".").map(|s| s.parse::<u8>().unwrap()).collect::<Vec<u8>>();
 
-                let server_info_bytes = ServerHello {
+                let server_info = ServerHello {
                     version: (version[0], version[1], version[2]),
                     screen_width:  selected_monitor.size().width,
                     screen_height: selected_monitor.size().height
-                }.into_bytes();
+                };
+
+                // println!("{:?}", server_info);
+
+                let server_info_bytes = server_info.into_bytes();
+
+                // println!("{:?}", server_info_bytes);
 
                 Task::perform(
                     async move {
@@ -167,14 +173,14 @@ impl Window {
                         let p2p_ref = p2p_lock.as_ref().unwrap();
                         
                         let client_hello_bytes = p2p_ref.read().await.unwrap();
-                        let _client_hello_enum = match FromBytes::parse(&client_hello_bytes[..]) {
+                        let client_hello_enum = match FromBytes::parse(&client_hello_bytes[..]) {
                             FromBytes::ClientHello(m) => m,
                             t => panic!("Expected client hello, received other bytes: {:?}", t)
                         };
                         
                         let _ = p2p_ref.send(&server_info_bytes).await;
                         
-                        ()
+                        client_hello_enum
                     },
                     Message::Connect
                 )
@@ -204,7 +210,7 @@ impl Window {
                 )
             },
 
-            Message::Connect(()) => {
+            Message::Connect(_hello) => {
                 self.connected = true;
                 Task::none()
             }
