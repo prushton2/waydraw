@@ -167,7 +167,7 @@ impl Window {
                         let p2p_ref = p2p_lock.as_mut().unwrap();
                         
                         let client_hello_bytes = p2p_ref.read().await.unwrap();
-                        let client_hello_enum = match FromBytes::parse(&client_hello_bytes[..]) {
+                        let _client_hello_enum = match FromBytes::parse(&client_hello_bytes[..]) {
                             FromBytes::ClientHello(m) => m,
                             t => panic!("Expected client hello, received other bytes: {:?}", t)
                         };

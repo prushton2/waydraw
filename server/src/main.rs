@@ -1,7 +1,7 @@
 use iced::Theme;
 
 use winit::monitor::MonitorHandle;
-use xcap;
+// use xcap;
 
 mod mouse;
 mod window;
