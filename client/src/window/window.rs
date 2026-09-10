@@ -5,46 +5,16 @@ use iroh::EndpointId;
 use tokio::sync::RwLock;
 
 use iced::Alignment::Center;
-use iced::{Length::Fill, Subscription, Task, window};
-use iced::widget::{self, button, column, container, row, space, text, text_input};
+use iced::{Length::Fill, Task};
+use iced::widget::{self, Image, button, column, container, image, row, space, text, text_input};
 
 use p2p::p2p::P2PError;
-use p2p::protocol::{ClientHello, ServerHello};
-use p2p::{self, protocol::{self, IntoBytes, FromBytes}};
+use p2p::protocol::ClientHello;
+use p2p::{self, protocol::{self, IntoBytes}};
 use p2p::protocol::mouse_click::{MouseButton, MouseState};
 
+use super::{Window, Message};
 
-#[derive(Default)]
-pub struct Window {
-    server_info: Option<ServerHello>,
-    p2p: Arc<RwLock<Option<p2p::P2P>>>,
-    connected: bool,
-
-    known_size: (usize, usize),
-    
-    pin_textbox: String,
-    key_textbox: String,
-
-    wait_reason: String,
-    error: String,
-}
-
-#[derive(Clone)]
-pub enum Message {
-    MouseMove(f32, f32),
-    MouseClick(MouseButton, MouseState),
-    WindowResized((usize, usize)),
-
-    PinSubmitted,
-    P2PCreated(Result<(Arc<RwLock<Option<p2p::P2P>>>, protocol::ServerHello), P2PError>),
-    
-    PINTextbox(String),
-    KeyTextbox(String),
-    Sent(Result<(), String>),
-
-    // None,
-    Null(())
-}
 
 impl Window {
     pub fn boot() -> Self {
@@ -172,12 +142,20 @@ impl Window {
                 self.p2p = p2p;
                 self.server_info = Some(server_hello);
                 self.connected = true;
+
+                let pixels = vec![0 as u8; self.known_size.0 * self.known_size.1 * 4];
+                self.handle = Some(image::Handle::from_rgba(self.known_size.0 as u32, self.known_size.1 as u32, pixels));
+
                 Task::none()
             },
 
             Message::WindowResized(size) => {
                 self.known_size = size;
                 let p2p_arc = self.p2p.clone();
+
+                let pixels = vec![0 as u8; self.known_size.0 * self.known_size.1 * 4];
+                self.handle = Some(image::Handle::from_rgba(self.known_size.0 as u32, self.known_size.1 as u32, pixels));
+
                 Task::perform(async move {
                     let window_resized_message = protocol::WindowResized {
                         window_width: size.0 as u32,
@@ -211,6 +189,21 @@ impl Window {
                 Task::none()
             },
 
+            Message::ScreenshotReceived(screenshot) => {
+                let mut pixels: Vec<u8> = vec![];
+
+                for pixel in screenshot.pixels {
+                    pixels.push(pixel.0);
+                    pixels.push(pixel.1);
+                    pixels.push(pixel.2);
+                    pixels.push(255);
+                }
+
+                self.handle = Some(image::Handle::from_rgba(self.known_size.0 as u32, self.known_size.1 as u32, pixels));
+
+                Task::none()
+            },
+
             Message::PINTextbox(f) => {
                 self.pin_textbox = f;
                 Task::none()
@@ -225,7 +218,8 @@ impl Window {
             // },
             Message::Null(()) => {
                 Task::none()
-            }
+            },
+
         }
     }
 
@@ -250,74 +244,25 @@ impl Window {
         }
 
         return container (
-            widget::MouseArea::new(
-                widget::row![]
+            // widget::MouseArea::new(
+            //     widget::row![]
+            //     .width(Fill)
+            //     .height(Fill)
+            // )
+            // .on_move(|point| {return Message::MouseMove(point.x, point.y)})
+
+            // .on_press        (Message::MouseClick(MouseButton::Left,  MouseState::Pressed ))
+            // .on_release      (Message::MouseClick(MouseButton::Left,  MouseState::Released))
+            // .on_right_press  (Message::MouseClick(MouseButton::Right, MouseState::Pressed ))
+            // .on_right_release(Message::MouseClick(MouseButton::Right, MouseState::Released))
+            image(self.handle.as_ref().unwrap())
                 .width(Fill)
                 .height(Fill)
-            )
-            .on_move(|point| {return Message::MouseMove(point.x, point.y)})
 
-            .on_press        (Message::MouseClick(MouseButton::Left,  MouseState::Pressed ))
-            .on_release      (Message::MouseClick(MouseButton::Left,  MouseState::Released))
-            .on_right_press  (Message::MouseClick(MouseButton::Right, MouseState::Pressed ))
-            .on_right_release(Message::MouseClick(MouseButton::Right, MouseState::Released))
 
         )
         .width(Fill)
         .height(Fill)
         .into()
     }
-}
-
-struct P2PObject(Arc<RwLock<Option<p2p::P2P>>>);
-
-impl std::hash::Hash for P2PObject {
-    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-        Arc::as_ptr(&self.0).hash(state);
-    }
-}
-
-fn p2p_stream(feed: &P2PObject) -> impl iced::futures::Stream<Item = Message> + use<> {
-    let p2p = feed.0.clone();
-
-    iced::futures::stream::unfold(p2p, |p2p| async move {
-        let p2p_lock = p2p.read().await;
-        
-        let p2p_ref = match p2p_lock.as_ref() {
-            Some(t) => t,
-            None => {
-                drop(p2p_lock);
-                return Some((Message::Null(()), p2p))
-            }
-        };
-
-        let response = match p2p_ref.read().await {
-            Ok(t) => t,
-            Err(_) => {
-                drop(p2p_lock);
-                return Some((Message::Null(()), p2p))
-            }
-        };
-
-        drop(p2p_lock);
-        match FromBytes::parse(&response[..]) {
-            // FromBytes::UnknownInstruction(_) => {},
-            // FromBytes::ClientInformation(t) => {},
-            _ => {}
-        }
-
-        Some((Message::Null(()), p2p))
-    })
-}
-
-pub fn subscription(window: &Window) -> Subscription<Message> {
-    let mut subscriptions = vec![
-        window::resize_events().map(|(_id, size)| Message::WindowResized((size.width as usize, size.height as usize)))
-    ];
-
-    if window.connected {
-        subscriptions.push(iced::Subscription::run_with(P2PObject(window.p2p.clone()), p2p_stream));
-    }
-
-    return iced::Subscription::batch(subscriptions);
 }

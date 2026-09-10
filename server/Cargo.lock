@@ -5399,20 +5399,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "server"
-version = "1.1.2"
-dependencies = [
- "enigo",
- "fs_extra",
- "iced",
- "iroh",
- "p2p",
- "tokio",
- "winit 0.29.15",
- "xcap",
-]
-
-[[package]]
 name = "sha1_smol"
 version = "1.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6550,6 +6536,20 @@ dependencies = [
  "pin-utils",
  "slab",
  "wasm-bindgen",
+]
+
+[[package]]
+name = "waydraw-server"
+version = "2.0.0"
+dependencies = [
+ "enigo",
+ "fs_extra",
+ "iced",
+ "iroh",
+ "p2p",
+ "tokio",
+ "winit 0.29.15",
+ "xcap",
 ]
 
 [[package]]
