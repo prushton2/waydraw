@@ -18,6 +18,7 @@ use crate::mouse;
 
 pub struct Window {
     p2p: Arc<RwLock<Option<p2p::P2P>>>,
+    client_window_size: (u32, u32),
     mouse: Box<dyn mouse::Mouse>,
     connected: bool,
     
@@ -50,7 +51,8 @@ pub enum Message {
 #[derive(Clone)]
 pub enum ClientMessage {
     MouseClick(MouseButton, MouseState),
-    MouseMove(u32, u32)
+    MouseMove(u32, u32),
+    ClientWindowResize(u32, u32)
 }
 
 impl Window {
@@ -74,6 +76,7 @@ impl Window {
         let this = Self {
             p2p: Arc::new(RwLock::new(None)),
             mouse: mouse,
+            client_window_size: (0, 0),
             connected: false,
 
             available_monitors: monitors,
@@ -242,6 +245,9 @@ impl Window {
                     ClientMessage::MouseMove(x, y) => {
                         let monitor = &self.available_monitors[self.selected_monitor.unwrap()];
                         self.mouse.move_mouse(monitor.position().x as u32 + x, monitor.position().y as u32 + y);
+                    },
+                    ClientMessage::ClientWindowResize(x, y) => {
+                        self.client_window_size = (x, y);
                     }
                 }
                 Task::none()
@@ -336,8 +342,10 @@ fn p2p_stream(feed: &P2PObject) -> impl iced::futures::Stream<Item = Message> + 
             FromBytes::MouseMove(t) => {
                 return Some((Message::ClientMessage(ClientMessage::MouseMove(t.x, t.y)), p2p))
             },
+            FromBytes::WindowResized(t) => {
+                return Some((Message::ClientMessage(ClientMessage::ClientWindowResize(t.window_width, t.window_height)), p2p))
+            },
             FromBytes::UnknownInstruction(_) => {},
-            // FromBytes::ClientInformation(t) => {},
             _ => {}
         }
 

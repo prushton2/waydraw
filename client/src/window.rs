@@ -177,7 +177,26 @@ impl Window {
 
             Message::WindowResized(size) => {
                 self.known_size = size;
-                Task::none()
+                let p2p_arc = self.p2p.clone();
+                Task::perform(async move {
+                    let window_resized_message = protocol::WindowResized {
+                        window_width: size.0 as u32,
+                        window_height: size.1 as u32,
+                    };
+
+                    let temp = p2p_arc.read().await;
+
+                    let p2p = match temp.as_ref() {
+                        Some(t) => t,
+                        None => return ()
+                    };
+
+                    let _ = p2p.send(&window_resized_message.into_bytes()).await;
+
+                    ()
+                },
+                    Message::Null
+                )
             },
             Message::Sent(result) => {
                 if let Err(_) = result { 
