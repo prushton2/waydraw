@@ -1,4 +1,5 @@
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
+use tokio::sync::Mutex;
 
 use anyhow::Result;
 use iroh::{Endpoint, PublicKey, endpoint::{Connection, RecvStream, SendStream, presets}, protocol::{AcceptError, ProtocolHandler, Router}};
@@ -41,13 +42,13 @@ impl From<P2PError> for String {
 
 #[derive(Debug, Clone)]
 struct Handler {
-    conn: Arc<Mutex<Option<Connection>>>
+    conn: Arc<std::sync::Mutex<Option<Connection>>>
 }
 
 impl Handler {
     fn new() -> Self {
         Self {
-            conn: Arc::new(Mutex::new(None))
+            conn: Arc::new(std::sync::Mutex::new(None))
         }
     }
 }
@@ -62,7 +63,8 @@ impl ProtocolHandler for Handler {
 pub struct P2P {
     handler: Box<Handler>,
     router: Router,
-    conn: Option<(SendStream, RecvStream)>,
+    send: Mutex<Option<SendStream>>,
+    recv: Mutex<Option<RecvStream>>
 }
 
 impl P2P {
@@ -79,7 +81,8 @@ impl P2P {
         Ok((Self {
             handler: handler,
             router: router,
-            conn: None,
+            send: Mutex::new(None),
+            recv: Mutex::new(None),
         }, id))
     }
 
@@ -91,9 +94,10 @@ impl P2P {
         }
 
         let conn = self.handler.conn.lock().map_err(|_| P2PError::PoisonedMutex)?.as_mut().unwrap().clone();
-        let (send, receive) = conn.accept_bi().await.map_err(|e| P2PError::during("Error accepting connection from client",P2PError::AcceptConnectionError(e.to_string())))?;
+        let (send, recv) = conn.accept_bi().await.map_err(|e| P2PError::during("Error accepting connection from client",P2PError::AcceptConnectionError(e.to_string())))?;
 
-        self.conn = Some((send, receive));
+        self.send = Mutex::new(Some(send));
+        self.recv = Mutex::new(Some(recv));
 
         let _ = self.read().await;
         Ok(())
@@ -116,12 +120,13 @@ impl P2P {
             )?;
 
 
-        let (send, receive) = conn.open_bi().await.map_err(|e| P2PError::during("Error creating connection with server", P2PError::CreateConnectionError(e.to_string())))?;
+        let (send, recv) = conn.open_bi().await.map_err(|e| P2PError::during("Error creating connection with server", P2PError::CreateConnectionError(e.to_string())))?;
 
-        let mut this = Self {
+        let this = Self {
             handler: handler,
             router: router,
-            conn: Some((send, receive)),
+            send: Mutex::new(Some(send)),
+            recv: Mutex::new(Some(recv)),
         };
 
         this.send(ALPN).await?;
@@ -129,16 +134,21 @@ impl P2P {
         Ok(this)
     }
 
-    pub async fn send(&mut self, message: &[u8]) -> Result<(), P2PError> {
-        let (send, _) = self.conn.as_mut().ok_or(P2PError::during("Connection lost", P2PError::ConnectionNotFound))?;
+    pub async fn send(&self, message: &[u8]) -> Result<(), P2PError> {
+        let mut send_lock = self.send.lock().await;
+        let send = send_lock.as_mut().ok_or(P2PError::during("Connection lost", P2PError::ConnectionNotFound))?;
+
         let len: [u8; 4] = (message.len() as u32).to_be_bytes();
+
         send.write_all(&len)   .await.map_err(|_| P2PError::during("Connection lost", P2PError::ConnectionNotFound))?;
         send.write_all(message).await.map_err(|_| P2PError::during("Connection lost", P2PError::ConnectionNotFound))?;
         Ok(())
     }
 
-    pub async fn read(&mut self) -> Result<Vec<u8>, P2PError> {
-        let (_, recv) = self.conn.as_mut().ok_or(P2PError::during("Connection lost", P2PError::ConnectionNotFound))?;
+    pub async fn read(&self) -> Result<Vec<u8>, P2PError> {
+        let mut recv_lock = self.recv.lock().await;
+        let recv = recv_lock.as_mut().ok_or(P2PError::during("Connection lost", P2PError::ConnectionNotFound))?;
+
         let mut byte = [0u8; 1];
         let mut length: u32 = 0;
         
@@ -164,9 +174,5 @@ impl P2P {
 
     pub async fn close(&mut self) {
         let _ = self.router.shutdown().await;
-    }
-
-    pub fn is_connected(&self) -> bool {
-        self.conn.is_some()
     }
 }

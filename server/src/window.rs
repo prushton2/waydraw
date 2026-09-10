@@ -1,7 +1,7 @@
 use std::hash::Hash;
 use std::sync::Arc;
 
-use tokio::sync::Mutex;
+use tokio::sync::RwLock;
 
 use iced::Length::Fill;
 use iced::{Subscription, Task};
@@ -17,7 +17,7 @@ use winit::monitor::MonitorHandle;
 use crate::mouse;
 
 pub struct Window {
-    p2p: Arc<Mutex<Option<p2p::P2P>>>,
+    p2p: Arc<RwLock<Option<p2p::P2P>>>,
     mouse: Box<dyn mouse::Mouse>,
     connected: bool,
     
@@ -37,7 +37,7 @@ pub struct Window {
 #[derive(Clone)]
 pub enum Message {
     Register,
-    AwaitClient(Result<(Arc<Mutex<Option<p2p::P2P>>>, String, String), Arc<P2PError>>),
+    AwaitClient(Result<(Arc<RwLock<Option<p2p::P2P>>>, String, String), Arc<P2PError>>),
     SendHello(Result<(), String>),
     SelectMonitor(usize),
     ClientMessage(ClientMessage),
@@ -72,7 +72,7 @@ impl Window {
         }
 
         let this = Self {
-            p2p: Arc::new(Mutex::new(None)),
+            p2p: Arc::new(RwLock::new(None)),
             mouse: mouse,
             connected: false,
 
@@ -110,7 +110,7 @@ impl Window {
                         let key = key.to_string();
                         p2p::remote_key_store::set(&pin, &key.to_string()).await;
 
-                        Ok((Arc::new(Mutex::new(Some(server))), key, pin))
+                        Ok((Arc::new(RwLock::new(Some(server))), key, pin))
                     },
                     Message::AwaitClient
                 )
@@ -135,7 +135,7 @@ impl Window {
                 self.wait_reason = "Waiting for connection".to_owned();
                 Task::perform(
                 async move {
-                    let mut lock = arc.lock().await;
+                    let mut lock = arc.write().await;
                     let p2p = lock.as_mut().unwrap();
                     let _ = p2p.await_connection().await;
 
@@ -163,8 +163,8 @@ impl Window {
 
                 Task::perform(
                     async move {
-                        let mut p2p_lock = p2p_arc.lock().await;
-                        let p2p_ref = p2p_lock.as_mut().unwrap();
+                        let p2p_lock = p2p_arc.read().await;
+                        let p2p_ref = p2p_lock.as_ref().unwrap();
                         
                         let client_hello_bytes = p2p_ref.read().await.unwrap();
                         let _client_hello_enum = match FromBytes::parse(&client_hello_bytes[..]) {
@@ -187,11 +187,11 @@ impl Window {
                 self.error = String::from("");
                 self.wait_reason = String::from("");
                 let p2p_arc = self.p2p.clone();
-                self.p2p = Arc::new(Mutex::new(None));
+                self.p2p = Arc::new(RwLock::new(None));
 
                 Task::perform(
                 async move {
-                        let mut lock = p2p_arc.lock().await;
+                        let mut lock = p2p_arc.write().await;
                         if let Some(p2p) = lock.as_mut() {
                             let _ = p2p.close().await;
                         } else {
@@ -286,7 +286,7 @@ impl Window {
     }
 }
 
-struct P2PObject(Arc<Mutex<Option<p2p::P2P>>>);
+struct P2PObject(Arc<RwLock<Option<p2p::P2P>>>);
 
 impl Hash for P2PObject {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
@@ -298,9 +298,9 @@ fn p2p_stream(feed: &P2PObject) -> impl iced::futures::Stream<Item = Message> + 
     let p2p = feed.0.clone();
 
     iced::futures::stream::unfold(p2p, |p2p| async move {
-        let mut p2p_lock = p2p.lock().await;
+        let p2p_lock = p2p.read().await;
         
-        let p2p_ref = match p2p_lock.as_mut() {
+        let p2p_ref = match p2p_lock.as_ref() {
             Some(t) => t,
             None => {
                 drop(p2p_lock);

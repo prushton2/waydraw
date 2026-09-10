@@ -123,7 +123,7 @@ impl Window {
 
                         let parsed_key = key.parse::<EndpointId>().map_err(|_| P2PError::during("Error reading key", P2PError::InputError("Invalid key or pin".to_string())))?;
 
-                        let mut client = p2p::P2P::connect(parsed_key).await?;
+                        let client = p2p::P2P::connect(parsed_key).await?;
                         
                         let version = env!("CARGO_PKG_VERSION").split(".").map(|s| s.parse::<u8>().unwrap()).collect::<Vec<u8>>();
 
