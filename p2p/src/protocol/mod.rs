@@ -4,6 +4,7 @@ pub mod mouse_move;
 pub mod mouse_click;
 pub mod window_resized;
 pub mod screenshot;
+pub mod compressed_screenshot;
 
 pub use server_hello::ServerHello;
 pub use client_hello::ClientHello;
@@ -11,6 +12,7 @@ pub use mouse_move::MouseMove;
 pub use mouse_click::MouseClick;
 pub use window_resized::WindowResized;
 pub use screenshot::Screenshot;
+pub use compressed_screenshot::CompressedScreenshot;
 
 #[derive(Debug, Clone)]
 pub enum FromBytes {
@@ -20,6 +22,7 @@ pub enum FromBytes {
     MouseClick(MouseClick),
     WindowResized(WindowResized),
     Screenshot(Screenshot),
+    CompressedScreenshot(CompressedScreenshot),
     UnknownInstruction(Vec<u8>),
 }
 
@@ -41,6 +44,7 @@ impl FromBytes {
             0x10 => Self::MouseMove(MouseMove::from_bytes(&bytes[1..])),
             0x11 => Self::MouseClick(MouseClick::from_bytes(&bytes[1..])),
             0x20 => Self::Screenshot(Screenshot::from_bytes(&bytes[1..])),
+            0x21 => Self::CompressedScreenshot(CompressedScreenshot::from_bytes(&bytes[1..])),
             _ => Self::UnknownInstruction(bytes.into())
         }
     }

@@ -2,6 +2,8 @@ use std::sync::Arc;
 
 use iroh::EndpointId;
 
+use pixo::decode::{decode_jpeg, decode_png};
+use pixo::jpeg::{self, JpegOptions};
 use tokio::sync::RwLock;
 
 use iced::Alignment::Center;
@@ -12,6 +14,8 @@ use p2p::p2p::P2PError;
 use p2p::protocol::ClientHello;
 use p2p::{self, protocol::{self, IntoBytes}};
 use p2p::protocol::mouse_click::{MouseButton, MouseState};
+
+use crate::window::ScreenshotType;
 
 use super::{Window, Message};
 
@@ -190,14 +194,35 @@ impl Window {
             },
 
             Message::ScreenshotReceived(screenshot) => {
-                let mut pixels: Vec<u8> = vec![];
+                let pixels: Vec<u8> = match screenshot {
+                    ScreenshotType::Uncompressed(ss) => {
+                        let mut pixels: Vec<u8> = vec![];
+        
+                        for pixel in ss.pixels {
+                            pixels.push(pixel.0);
+                            pixels.push(pixel.1);
+                            pixels.push(pixel.2);
+                            pixels.push(255);
+                        }
 
-                for pixel in screenshot.pixels {
-                    pixels.push(pixel.0);
-                    pixels.push(pixel.1);
-                    pixels.push(pixel.2);
-                    pixels.push(255);
-                }
+                        pixels
+                    },
+
+                    ScreenshotType::Compressed(ss) => {
+                        let image = decode_png(&ss.bytes).unwrap();
+                        
+                        let mut pixels: Vec<u8> = vec![];
+
+                        for i in 0..image.pixels.len() {
+                            pixels.push(image.pixels[i]);
+                            if i%3 == 2 {
+                                pixels.push(255);
+                            }
+                        }
+
+                        pixels
+                    }
+                };
 
                 self.handle = Some(image::Handle::from_rgba(self.known_size.0 as u32, self.known_size.1 as u32, pixels));
 

@@ -1,4 +1,7 @@
 use std::sync::Arc;
+use pixo::png::PngOptions;
+use pixo::{ColorType, png};
+use pixo::jpeg::{self, JpegOptions};
 use tokio::sync::RwLock;
 
 use iced::Length::Fill;
@@ -215,8 +218,21 @@ impl Window {
 
             Message::ScreenshotCaptured(screenshot) => {
                 let downscaled = super::downscale::downscale_frame(screenshot, self.client_window_size);
-                let pixels = downscaled.pixels();
-                let pixel_vec: Vec<(u8, u8, u8)> = pixels.into_iter().map(|p| (p.0[0], p.0[1], p.0[2])).collect();
+
+                let mut pixel_rgb_bytes: Vec<u8> = vec![];
+
+                for i in downscaled.pixels() {
+                    pixel_rgb_bytes.push(i.0[0]);
+                    pixel_rgb_bytes.push(i.0[1]);
+                    pixel_rgb_bytes.push(i.0[2]);
+                }
+
+                let image_opts = PngOptions::builder(self.client_window_size.0, self.client_window_size.1)
+                    .color_type(ColorType::Rgb)
+                    .preset(1) // balanced: compression level 6, adaptive filters + lossless opts
+                    .build();
+
+                let image_bytes = png::encode(&pixel_rgb_bytes, &image_opts).unwrap();
 
                 let p2p_arc = self.p2p.clone();
                 
@@ -224,12 +240,12 @@ impl Window {
                     let p2p_lock = p2p_arc.read().await;
                     let p2p = p2p_lock.as_ref().unwrap();
 
-                    let frame = protocol::Screenshot {
-                        pixels: pixel_vec
+                    let frame = protocol::CompressedScreenshot {
+                        bytes: image_bytes
                     };
 
                     let _ = p2p.send(&frame.into_bytes()).await;
-                }, 
+                },
                     Message::Null
                 )
             }

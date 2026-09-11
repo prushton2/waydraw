@@ -3,7 +3,7 @@ use std::sync::Arc;
 use p2p::p2p::P2PError;
 use tokio::sync::RwLock;
 
-use p2p::protocol::{Screenshot, ServerHello};
+use p2p::protocol::{Screenshot, CompressedScreenshot, ServerHello};
 use p2p::protocol::mouse_click::{MouseButton, MouseState};
 
 pub mod subscriptions;
@@ -31,7 +31,7 @@ pub enum Message {
     MouseMove(f32, f32),
     MouseClick(MouseButton, MouseState),
     WindowResized((usize, usize)),
-    ScreenshotReceived(Screenshot),
+    ScreenshotReceived(ScreenshotType),
 
     PinSubmitted,
     P2PCreated(Result<(Arc<RwLock<Option<p2p::P2P>>>, ServerHello), P2PError>),
@@ -42,4 +42,10 @@ pub enum Message {
 
     // None,
     Null(())
+}
+
+#[derive(Clone)]
+pub enum ScreenshotType {
+    Uncompressed(Screenshot),
+    Compressed(CompressedScreenshot)
 }
