@@ -2,8 +2,6 @@ use std::sync::Arc;
 
 use iroh::EndpointId;
 
-use pixo::decode::{decode_jpeg, decode_png};
-use pixo::jpeg::{self, JpegOptions};
 use tokio::sync::RwLock;
 
 use iced::Alignment::Center;
@@ -209,12 +207,14 @@ impl Window {
                     },
 
                     ScreenshotType::Compressed(ss) => {
-                        let image = decode_png(&ss.bytes).unwrap();
                         
-                        let mut pixels: Vec<u8> = vec![];
+                        // let params = brotli::enc::backward_references::BrotliEncoderParams::default();
+                        let mut pixels: Vec<u8> = ss.bytes;
+                        // let _ = brotli::BrotliDecompress(&mut ss.bytes.as_slice(), &mut pixels);
 
-                        for i in 0..image.pixels.len() {
-                            pixels.push(image.pixels[i]);
+
+                        for i in 0..pixels.len() {
+                            pixels.push(pixels[i]);
                             if i%3 == 2 {
                                 pixels.push(255);
                             }

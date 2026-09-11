@@ -1,7 +1,4 @@
 use std::sync::Arc;
-use pixo::png::PngOptions;
-use pixo::{ColorType, png};
-use pixo::jpeg::{self, JpegOptions};
 use tokio::sync::RwLock;
 
 use iced::Length::Fill;
@@ -9,11 +6,12 @@ use iced::Task;
 use iced::alignment::Horizontal::Center;
 use iced::widget::{space, button, column, container, row, text, text_input};
 
-use p2p::protocol::{self, FromBytes, IntoBytes, ServerHello};
+use p2p::protocol::{FromBytes, IntoBytes, ServerHello};
 
 use winit::monitor::MonitorHandle;
 
 use crate::mouse;
+use crate::screen_grabber::ScreenGrabber;
 
 use super::{Window, Message, ClientMessage};
 
@@ -43,6 +41,7 @@ impl Window {
 
             available_monitors: monitors,
             selected_monitor: None,
+            recording: Arc::new(None),
 
             pin: None,
             key: None,
@@ -151,6 +150,7 @@ impl Window {
                 self.pin = None;
                 self.key = None;
                 self.connected = false;
+                self.recording = Arc::new(None);
                 self.error = String::from("");
                 self.wait_reason = String::from("");
                 let p2p_arc = self.p2p.clone();
@@ -184,6 +184,14 @@ impl Window {
 
                 self.client_window_size = (client_hello.window_width, client_hello.window_height);
                 self.connected = true;
+
+                let monitor_name = self.available_monitors[self.selected_monitor.unwrap()].name().unwrap();
+
+                let screencap = ScreenGrabber::new(&monitor_name.as_str()).unwrap();
+                screencap.resume().unwrap();
+
+                self.recording = Arc::new(Some(screencap));
+
                 Task::none()
             }
 
@@ -214,40 +222,6 @@ impl Window {
                     }
                 }
                 Task::none()
-            },
-
-            Message::ScreenshotCaptured(screenshot) => {
-                let downscaled = super::downscale::downscale_frame(screenshot, self.client_window_size);
-
-                let mut pixel_rgb_bytes: Vec<u8> = vec![];
-
-                for i in downscaled.pixels() {
-                    pixel_rgb_bytes.push(i.0[0]);
-                    pixel_rgb_bytes.push(i.0[1]);
-                    pixel_rgb_bytes.push(i.0[2]);
-                }
-
-                let image_opts = PngOptions::builder(self.client_window_size.0, self.client_window_size.1)
-                    .color_type(ColorType::Rgb)
-                    .preset(1) // balanced: compression level 6, adaptive filters + lossless opts
-                    .build();
-
-                let image_bytes = png::encode(&pixel_rgb_bytes, &image_opts).unwrap();
-
-                let p2p_arc = self.p2p.clone();
-                
-                Task::perform(async move {
-                    let p2p_lock = p2p_arc.read().await;
-                    let p2p = p2p_lock.as_ref().unwrap();
-
-                    let frame = protocol::CompressedScreenshot {
-                        bytes: image_bytes
-                    };
-
-                    let _ = p2p.send(&frame.into_bytes()).await;
-                },
-                    Message::Null
-                )
             }
         }
     }

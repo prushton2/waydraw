@@ -11,19 +11,19 @@ impl DummyMouse {
 
 impl super::Mouse for DummyMouse {
     fn click_mouse(&mut self, button: p2p::protocol::mouse_click::MouseButton, state: p2p::protocol::mouse_click::MouseState) {
-        println!("{} click {}",
-            match button {
-                MouseButton::Left => "Left",
-                MouseButton::Right => "Right"
-            },
-            match state {
-                MouseState::Pressed => "Pressed",
-                MouseState::Released => "Released"
-            }
-        );
+        // println!("{} click {}",
+        //     match button {
+        //         MouseButton::Left => "Left",
+        //         MouseButton::Right => "Right"
+        //     },
+        //     match state {
+        //         MouseState::Pressed => "Pressed",
+        //         MouseState::Released => "Released"
+        //     }
+        // );
     }
     
     fn move_mouse(&mut self, x: u32, y: u32) {
-        println!("Move to {}, {}", x, y);
+        // println!("Move to {}, {}", x, y);
     }
 }

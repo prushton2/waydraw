@@ -3,14 +3,14 @@ use std::sync::Arc;
 
 use tokio::sync::RwLock;
 
-use xcap;
-use xcap::Monitor;
-
 use iced::Subscription;
 
-use super::{Window, Message, ClientMessage};
-
 use p2p::protocol::FromBytes;
+use p2p::protocol::IntoBytes;
+
+use super::{Window, Message, ClientMessage};
+use crate::downscale;
+use crate::screen_grabber::ScreenGrabber;
 
 pub fn subscription(window: &Window) -> Subscription<Message> {
     let mut subscriptions = vec![];
@@ -23,11 +23,10 @@ pub fn subscription(window: &Window) -> Subscription<Message> {
     }
     
     
-    if window.connected && let Some(selected_monitor_index) = window.selected_monitor {
-        let selected_monitor_name = window.available_monitors[selected_monitor_index].name();
+    if window.connected && window.recording.is_some() {
 
         subscriptions.push(
-            iced::Subscription::run_with(selected_monitor_name.unwrap(), screencap_stream)
+            iced::Subscription::run_with((ScreenGrabberObject(window.recording.clone()), window.client_window_size, P2PObject(window.p2p.clone())), screencap_stream)
         );
     };
 
@@ -84,33 +83,70 @@ fn p2p_stream(feed: &P2PObject) -> impl iced::futures::Stream<Item = Message> + 
     })
 }
 
-fn screencap_stream(selected_monitor_name: &String) -> impl iced::futures::Stream<Item = Message> + use<> {
+struct ScreenGrabberObject(Arc<Option<ScreenGrabber>>);
+
+impl Hash for ScreenGrabberObject {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        Arc::as_ptr(&self.0).hash(state);
+    }
+}
+
+fn screencap_stream((
+    recording, 
+    client_window_size, 
+    p2pobject): &(ScreenGrabberObject, (u32, u32), P2PObject)
+) -> impl iced::futures::Stream<Item = Message> + use<> {
     
-    let selected_monitor_name = selected_monitor_name.clone();
+    let recording = recording.0.clone();
+    let cws = client_window_size.clone();
+    let p2p_clone = p2pobject.0.clone();
 
-    iced::futures::stream::unfold(selected_monitor_name, |selected_monitor_name| async move {
+    iced::futures::stream::unfold((recording, cws, p2p_clone), |(recording, client_window_size, p2p)| async move {
         tokio::time::sleep(std::time::Duration::from_millis(1000)).await;
-
-        let monitors = Monitor::all().unwrap();
-        let mut selected_monitor: &Monitor = &monitors[0];
         
+        let mut start = std::time::Instant::now();
+
+        println!("Choose monitor: {:?}", start.elapsed());
+        start = std::time::Instant::now();
+
+        let recording_ref = recording.as_ref().as_ref().unwrap();
+        let image_result = recording_ref.latest();
+
+        println!("Capture Image: {:?}", start.elapsed());
+        start = std::time::Instant::now();
+
         
-        for current_monitor in &monitors {
-            if current_monitor.name().unwrap() == selected_monitor_name {
-                selected_monitor = current_monitor;
-                break;
-            }
-        }
-
-        let image_result = selected_monitor.capture_image();
-
         let image = match image_result {
-            Ok(t) => t,
-            Err(_) => {
-                return Some((Message::Null(()), selected_monitor_name))
+            Some(t) => t.clone(),
+            None => {
+                drop(image_result);
+                println!("No image found");
+                return Some((Message::Null(()), (recording, client_window_size, p2p)))
             }
         };
+        
+        let downscaled_bytes = downscale::downscale_frame(image.raw.clone(), (image.width, image.height), client_window_size);
 
-        Some((Message::ScreenshotCaptured(image), selected_monitor_name))
+        println!("Downscale: {:?}", start.elapsed());
+        start = std::time::Instant::now();
+
+        let compressed = downscaled_bytes;
+
+        println!("Compress: {:?}", start.elapsed());
+        start = std::time::Instant::now();
+
+        let p2p_lock = p2p.read().await;
+        let p2p_ref = p2p_lock.as_ref().unwrap();
+
+        let frame = p2p::protocol::CompressedScreenshot {
+            bytes: compressed
+        };
+
+        let _ = p2p_ref.send(&frame.into_bytes()).await;
+        println!("Send: {:?}", start.elapsed());
+
+        drop(p2p_lock);
+        
+        Some((Message::Null(()), (recording, client_window_size, p2p)))
     })
 }
