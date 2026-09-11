@@ -10,7 +10,7 @@ use p2p::protocol::IntoBytes;
 
 use super::{Window, Message, ClientMessage};
 use crate::downscale;
-use crate::screen_grabber::ScreenGrabber;
+use crate::screen_grabber::ScreenCapture;
 
 pub fn subscription(window: &Window) -> Subscription<Message> {
     let mut subscriptions = vec![];
@@ -83,7 +83,7 @@ fn p2p_stream(feed: &P2PObject) -> impl iced::futures::Stream<Item = Message> + 
     })
 }
 
-struct ScreenGrabberObject(Arc<Option<ScreenGrabber>>);
+struct ScreenGrabberObject(Arc<Option<ScreenCapture>>);
 
 impl Hash for ScreenGrabberObject {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
@@ -102,14 +102,14 @@ fn screencap_stream((
     let p2p_clone = p2pobject.0.clone();
 
     iced::futures::stream::unfold((recording, cws, p2p_clone), |(recording, client_window_size, p2p)| async move {
-        tokio::time::sleep(std::time::Duration::from_millis(1000)).await;
+        tokio::time::sleep(std::time::Duration::from_millis(1000/10)).await;
         
         let mut start = std::time::Instant::now();
+        let recording_ref = recording.as_ref().as_ref().unwrap();
 
         println!("Choose monitor: {:?}", start.elapsed());
         start = std::time::Instant::now();
 
-        let recording_ref = recording.as_ref().as_ref().unwrap();
         let image_result = recording_ref.latest();
 
         println!("Capture Image: {:?}", start.elapsed());
@@ -117,7 +117,7 @@ fn screencap_stream((
 
         
         let image = match image_result {
-            Some(t) => t.clone(),
+            Some(t) => t,
             None => {
                 drop(image_result);
                 println!("No image found");
@@ -125,7 +125,7 @@ fn screencap_stream((
             }
         };
         
-        let downscaled_bytes = downscale::downscale_frame(image.raw.clone(), (image.width, image.height), client_window_size);
+        let downscaled_bytes = downscale::downscale_frame(image.to_tight_bytes().unwrap(), (image.width, image.height), client_window_size);
 
         println!("Downscale: {:?}", start.elapsed());
         start = std::time::Instant::now();

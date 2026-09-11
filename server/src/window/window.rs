@@ -11,7 +11,7 @@ use p2p::protocol::{FromBytes, IntoBytes, ServerHello};
 use winit::monitor::MonitorHandle;
 
 use crate::mouse;
-use crate::screen_grabber::ScreenGrabber;
+use crate::screen_grabber::ScreenCapture;
 
 use super::{Window, Message, ClientMessage};
 
@@ -187,8 +187,7 @@ impl Window {
 
                 let monitor_name = self.available_monitors[self.selected_monitor.unwrap()].name().unwrap();
 
-                let screencap = ScreenGrabber::new(&monitor_name.as_str()).unwrap();
-                screencap.resume().unwrap();
+                let screencap = ScreenCapture::new(&monitor_name.as_str()).unwrap();
 
                 self.recording = Arc::new(Some(screencap));
 

@@ -3,7 +3,7 @@ use p2p::{p2p::P2PError, protocol::{ClientHello, mouse_click::{MouseButton, Mous
 use tokio::sync::RwLock;
 use winit::monitor::MonitorHandle;
 
-use crate::{mouse, screen_grabber::ScreenGrabber};
+use crate::{mouse, screen_grabber::ScreenCapture};
 
 pub mod subscriptions;
 pub mod window;
@@ -16,7 +16,7 @@ pub struct Window {
     
     available_monitors: Vec<MonitorHandle>,
     selected_monitor: Option<usize>,
-    recording: Arc<Option<ScreenGrabber>>,
+    recording: Arc<Option<ScreenCapture>>,
 
     pin: Option<String>,
     key: Option<String>,
