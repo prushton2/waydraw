@@ -145,18 +145,12 @@ impl Window {
                 self.server_info = Some(server_hello);
                 self.connected = true;
 
-                let pixels = vec![0 as u8; self.known_size.0 * self.known_size.1 * 4];
-                self.handle = Some(image::Handle::from_rgba(self.known_size.0 as u32, self.known_size.1 as u32, pixels));
-
                 Task::none()
             },
 
             Message::WindowResized(size) => {
                 self.known_size = size;
                 let p2p_arc = self.p2p.clone();
-
-                let pixels = vec![0 as u8; self.known_size.0 * self.known_size.1 * 4];
-                self.handle = Some(image::Handle::from_rgba(self.known_size.0 as u32, self.known_size.1 as u32, pixels));
 
                 Task::perform(async move {
                     let window_resized_message = protocol::WindowResized {
@@ -214,8 +208,18 @@ impl Window {
                     }
                 };
 
-                if image_pixels.len() != 0 {
-                    self.handle = Some(image::Handle::from_rgba(self.known_size.0 as u32, self.known_size.1 as u32, image_pixels));
+                if image_pixels.is_empty() || image_pixels.len() != self.known_size.0 * self.known_size.1 * 4 {
+                    return Task::none();
+                }
+
+                let handle = image::Handle::from_rgba(self.known_size.0 as u32, self.known_size.1 as u32, image_pixels);
+
+                image::allocate(handle).map(Message::ImageAllocated)
+            },
+
+            Message::ImageAllocated(result) => {
+                if let Ok(allocation) = result {
+                    self.allocation = Some(allocation);
                 }
 
                 Task::none()
@@ -270,9 +274,14 @@ impl Window {
                 .on_right_press  (Message::MouseClick(MouseButton::Right, MouseState::Pressed ))
                 .on_right_release(Message::MouseClick(MouseButton::Right, MouseState::Released)),
 
-                image(self.handle.as_ref().unwrap())
-                    .width(Fill)
-                    .height(Fill)
+                match self.allocation.as_ref() {
+                    Some(allocation) => iced::Element::from(
+                        image(allocation.handle())
+                            .width(Fill)
+                            .height(Fill)
+                    ),
+                    None => space().width(Fill).height(Fill).into()
+                }
             ]
 
         )

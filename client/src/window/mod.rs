@@ -1,5 +1,6 @@
 use std::sync::Arc;
 
+use iced_core::image::{Allocation, Error};
 use p2p::p2p::P2PError;
 use tokio::sync::RwLock;
 
@@ -15,7 +16,7 @@ pub struct Window {
     p2p: Arc<RwLock<Option<p2p::P2P>>>,
     connected: bool,
 
-    handle: Option<iced_core::image::Handle>,
+    allocation: Option<iced_core::image::Allocation>,
 
     known_size: (usize, usize),
     
@@ -31,7 +32,9 @@ pub enum Message {
     MouseMove(f32, f32),
     MouseClick(MouseButton, MouseState),
     WindowResized((usize, usize)),
+
     ScreenshotReceived(ScreenshotType),
+    ImageAllocated(Result<Allocation, Error>),
 
     PinSubmitted,
     P2PCreated(Result<(Arc<RwLock<Option<p2p::P2P>>>, ServerHello), P2PError>),
