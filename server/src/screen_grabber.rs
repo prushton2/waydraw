@@ -1,6 +1,6 @@
 use std::ops::Deref;
-use std::sync::{Arc, Mutex, RwLock};
-use std::thread::{self, JoinHandle};
+use std::sync::{Arc, RwLock};
+use std::thread::JoinHandle;
 use pinray::{CaptureEvent, CaptureSession, SourceId, VideoCaptureTarget, VideoFrame};
 
 pub struct ScreenCapture {
@@ -27,6 +27,7 @@ impl ScreenCapture {
         let thread = std::thread::spawn(move || {
             let mut session = CaptureSession::builder()
                 .video_target(VideoCaptureTarget::Display(SourceId::new(monitor_name_clone)))
+                .pixel_format(pinray::PixelFormat::Rgb888)
                 .build()
                 .unwrap();
         

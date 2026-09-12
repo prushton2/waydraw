@@ -207,11 +207,16 @@ impl Window {
                     },
 
                     ScreenshotType::Compressed(ss) => {
-                        zstd::stream::decode_all(ss.bytes.as_slice()).unwrap()
+                        match zstd::stream::decode_all(ss.bytes.as_slice()) {
+                            Ok(t) => t,
+                            Err(_) => vec![]
+                        }
                     }
                 };
 
-                self.handle = Some(image::Handle::from_rgba(self.known_size.0 as u32, self.known_size.1 as u32, image_pixels));
+                if image_pixels.len() != 0 {
+                    self.handle = Some(image::Handle::from_rgba(self.known_size.0 as u32, self.known_size.1 as u32, image_pixels));
+                }
 
                 Task::none()
             },

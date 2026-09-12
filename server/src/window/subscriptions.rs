@@ -1,8 +1,6 @@
 use std::hash::Hash;
-use std::io::Cursor;
 use std::sync::Arc;
 
-use fast_image_resize::IntoImageView;
 use fast_image_resize::ResizeOptions;
 use fast_image_resize::Resizer;
 use fast_image_resize::images::Image;
