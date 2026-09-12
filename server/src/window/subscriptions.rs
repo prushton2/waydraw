@@ -18,16 +18,13 @@ use crate::screen_grabber::ScreenCapture;
 pub fn subscription(window: &Window) -> Subscription<Message> {
     let mut subscriptions = vec![];
 
-    
     if window.connected {
         subscriptions.push(
             iced::Subscription::run_with(P2PObject(window.p2p.clone()), p2p_stream),
         );
     }
     
-    
     if window.connected && window.recording.is_some() {
-
         subscriptions.push(
             iced::Subscription::run_with((ScreenGrabberObject(window.recording.clone()), window.client_window_size, P2PObject(window.p2p.clone())), screencap_stream)
         );
