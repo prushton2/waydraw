@@ -6476,7 +6476,7 @@ dependencies = [
 
 [[package]]
 name = "waydraw-client"
-version = "2.0.0"
+version = "2.1.0"
 dependencies = [
  "iced",
  "iced_core",
