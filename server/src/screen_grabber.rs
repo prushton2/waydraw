@@ -27,15 +27,11 @@ impl ScreenCapture {
         let thread = std::thread::spawn(move || {
             let mut session = CaptureSession::builder()
                 .video_target(VideoCaptureTarget::Display(SourceId::new(monitor_name_clone)))
-                .pixel_format(pinray::PixelFormat::Rgb888)
+                .pixel_format(pinray::PixelFormat::Rgba8888)
                 .build()
                 .unwrap();
-
-            println!("Session instantiated");
             
             let _ = session.start();
-
-            println!("Session started");
             
             loop {
                 let frame = match session.next_event(Some(std::time::Duration::from_secs(1))) {
