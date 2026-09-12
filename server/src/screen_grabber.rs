@@ -10,6 +10,7 @@ pub struct ScreenCapture {
 }
 
 #[derive(Debug)]
+#[allow(unused)]
 pub enum ScreenCaptureError {
     BuildCaptureSessionFailed(String)
 }

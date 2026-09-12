@@ -1,5 +1,3 @@
-use p2p::protocol::mouse_click::{MouseButton, MouseState};
-#[allow(dead_code)]
 pub struct DummyMouse;
 
 #[allow(dead_code)]
@@ -10,7 +8,7 @@ impl DummyMouse {
 }
 
 impl super::Mouse for DummyMouse {
-    fn click_mouse(&mut self, _button: p2p::protocol::mouse_click::MouseButton, state: p2p::protocol::mouse_click::MouseState) {
+    fn click_mouse(&mut self, _button: p2p::protocol::mouse_click::MouseButton, _state: p2p::protocol::mouse_click::MouseState) {
         // println!("{} click {}",
         //     match button {
         //         MouseButton::Left => "Left",
