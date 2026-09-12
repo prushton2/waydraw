@@ -105,25 +105,25 @@ fn screencap_stream((
     let p2p_clone = p2pobject.0.clone();
 
     iced::futures::stream::unfold((recording, cws, p2p_clone), |(recording, client_window_size, p2p)| async move {
-        tokio::time::sleep(std::time::Duration::from_millis(1000)).await;
+        tokio::time::sleep(std::time::Duration::from_millis(1000/20)).await;
         
-        let mut start = std::time::Instant::now();
+        // let mut start = std::time::Instant::now();
 
         let recording_ref = recording.as_ref().as_ref().unwrap();
 
-        println!("Choose monitor: {:?}", start.elapsed());
-        start = std::time::Instant::now();
+        // println!("Choose monitor: {:?}", start.elapsed());
+        // start = std::time::Instant::now();
 
         let image_result = recording_ref.latest();
 
-        println!("Capture Image: {:?}", start.elapsed());
-        start = std::time::Instant::now();
+        // println!("Capture Image: {:?}", start.elapsed());
+        // start = std::time::Instant::now();
 
         let image = match image_result {
             Some(t) => t,
             None => {
                 drop(image_result);
-                println!("No image found");
+                // println!("No image found");
                 return Some((Message::Null(()), (recording, client_window_size, p2p)))
             }
         };
@@ -138,13 +138,13 @@ fn screencap_stream((
         let mut dst = Image::new(client_window_size.0, client_window_size.1, fast_image_resize::PixelType::U8x4);
         let _ = Resizer::new().resize(&src, &mut dst, Some(&opts));
 
-        println!("Downscale: {:?}", start.elapsed());
-        start = std::time::Instant::now();
+        // println!("Downscale: {:?}", start.elapsed());
+        // start = std::time::Instant::now();
 
         let compressed = zstd::stream::encode_all(dst.into_vec().as_slice(), 1).unwrap();
 
-        println!("Compress: {:?}", start.elapsed());
-        start = std::time::Instant::now();
+        // println!("Compress: {:?}", start.elapsed());
+        // start = std::time::Instant::now();
 
         let p2p_lock = p2p.read().await;
         let p2p_ref = p2p_lock.as_ref().unwrap();
@@ -155,7 +155,7 @@ fn screencap_stream((
 
         let _ = p2p_ref.send(&frame.into_bytes()).await;
 
-        println!("Send: {:?}", start.elapsed());
+        // println!("Send: {:?}", start.elapsed());
 
         drop(p2p_lock);
         
