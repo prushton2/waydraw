@@ -174,6 +174,7 @@ impl Window {
                 self.pin = None;
                 self.key = None;
                 self.connected = false;
+                self.recording.as_ref().as_ref().unwrap().kill();
                 self.recording = Arc::new(None);
                 self.error = String::from("");
                 self.wait_reason = String::from("");

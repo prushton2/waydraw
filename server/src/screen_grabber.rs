@@ -6,6 +6,7 @@ use pinray::{CaptureEvent, CaptureSession, SourceId, VideoCaptureTarget, VideoFr
 pub struct ScreenCapture {
     _consumer_thread: JoinHandle<()>,
     latest_frame: Arc<RwLock<Option<Arc<VideoFrame>>>>,
+    active: Arc<RwLock<bool>>
 }
 
 #[derive(Debug)]
@@ -17,9 +18,11 @@ impl ScreenCapture {
     pub fn new(monitor_name: &str) -> Result<Self, ScreenCaptureError> {
 
         let latest_frame = Arc::new(RwLock::new(None));
+        let active = Arc::new(RwLock::new(true));
         
         let latest_frame_clone = latest_frame.clone();
         let monitor_name_clone = monitor_name.to_owned();
+        let active_clone = active.clone();
 
         let thread = std::thread::spawn(move || {
             let mut session = CaptureSession::builder()
@@ -41,6 +44,10 @@ impl ScreenCapture {
 
                 let mut lock = latest_frame_clone.write().unwrap();
                 *lock = Some(Arc::new(frame));
+
+                if !*active_clone.read().unwrap() {
+                    return ()
+                }
             }
             
         });
@@ -48,7 +55,8 @@ impl ScreenCapture {
         
         let this = Self {
             latest_frame: latest_frame,
-            _consumer_thread: thread
+            _consumer_thread: thread,
+            active: active
         };
 
         Ok(this)
@@ -62,5 +70,10 @@ impl ScreenCapture {
             Some(t) => Some(t.clone()),
             None => None
         }
+    }
+
+    pub fn kill(&self) {
+        let mut lock = self.active.write().unwrap();
+        *lock = false;
     }
 }
