@@ -30,8 +30,12 @@ impl ScreenCapture {
                 .pixel_format(pinray::PixelFormat::Rgb888)
                 .build()
                 .unwrap();
-        
+
+            println!("Session instantiated");
+            
             let _ = session.start();
+
+            println!("Session started");
             
             loop {
                 let frame = match session.next_event(Some(std::time::Duration::from_secs(1))) {
@@ -50,7 +54,6 @@ impl ScreenCapture {
                     return ()
                 }
             }
-            
         });
         
         
