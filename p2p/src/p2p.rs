@@ -155,7 +155,7 @@ impl P2P {
         // get length of message (first 4 bytes)
         for _ in 0..4 {
             match recv.read(&mut byte).await.map_err(|_| P2PError::during("Connection lost", P2PError::ConnectionNotFound))? {
-                None => return Ok(vec![]),
+                None => return Err(P2PError::ConnectionNotFound),
                 Some(_) => {
                     // println!("Read byte {:?}", byte);
                     length <<= 8;

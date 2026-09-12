@@ -6,7 +6,7 @@ use iced::{Subscription, window};
 
 use p2p::protocol::FromBytes;
 
-use super::{Message, Window};
+use super::{Message, ScreenshotType, Window};
 
 struct P2PObject(Arc<RwLock<Option<p2p::P2P>>>);
 
@@ -41,7 +41,10 @@ fn p2p_stream(feed: &P2PObject) -> impl iced::futures::Stream<Item = Message> + 
         drop(p2p_lock);
         match FromBytes::parse(&response[..]) {
             FromBytes::Screenshot(t) => {
-                return Some((Message::ScreenshotReceived(t), p2p))
+                return Some((Message::ScreenshotReceived(ScreenshotType::Uncompressed(t)), p2p))
+            },
+            FromBytes::CompressedScreenshot(t) => {
+                return Some((Message::ScreenshotReceived(ScreenshotType::Compressed(t)), p2p))
             }
             _ => {}
         }

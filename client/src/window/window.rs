@@ -13,6 +13,8 @@ use p2p::protocol::ClientHello;
 use p2p::{self, protocol::{self, IntoBytes}};
 use p2p::protocol::mouse_click::{MouseButton, MouseState};
 
+use crate::window::ScreenshotType;
+
 use super::{Window, Message};
 
 
@@ -143,18 +145,12 @@ impl Window {
                 self.server_info = Some(server_hello);
                 self.connected = true;
 
-                let pixels = vec![0 as u8; self.known_size.0 * self.known_size.1 * 4];
-                self.handle = Some(image::Handle::from_rgba(self.known_size.0 as u32, self.known_size.1 as u32, pixels));
-
                 Task::none()
             },
 
             Message::WindowResized(size) => {
                 self.known_size = size;
                 let p2p_arc = self.p2p.clone();
-
-                let pixels = vec![0 as u8; self.known_size.0 * self.known_size.1 * 4];
-                self.handle = Some(image::Handle::from_rgba(self.known_size.0 as u32, self.known_size.1 as u32, pixels));
 
                 Task::perform(async move {
                     let window_resized_message = protocol::WindowResized {
@@ -190,16 +186,41 @@ impl Window {
             },
 
             Message::ScreenshotReceived(screenshot) => {
-                let mut pixels: Vec<u8> = vec![];
+                let image_pixels: Vec<u8> = match screenshot {
+                    ScreenshotType::Uncompressed(ss) => {
+                        let mut pixels: Vec<u8> = vec![];
+        
+                        for pixel in ss.pixels {
+                            pixels.push(pixel.0);
+                            pixels.push(pixel.1);
+                            pixels.push(pixel.2);
+                            pixels.push(255);
+                        }
 
-                for pixel in screenshot.pixels {
-                    pixels.push(pixel.0);
-                    pixels.push(pixel.1);
-                    pixels.push(pixel.2);
-                    pixels.push(255);
+                        pixels
+                    },
+
+                    ScreenshotType::Compressed(ss) => {
+                        match zstd::stream::decode_all(ss.bytes.as_slice()) {
+                            Ok(t) => t,
+                            Err(_) => vec![]
+                        }
+                    }
+                };
+
+                if image_pixels.is_empty() || image_pixels.len() != self.known_size.0 * self.known_size.1 * 4 {
+                    return Task::none();
                 }
 
-                self.handle = Some(image::Handle::from_rgba(self.known_size.0 as u32, self.known_size.1 as u32, pixels));
+                let handle = image::Handle::from_rgba(self.known_size.0 as u32, self.known_size.1 as u32, image_pixels);
+
+                image::allocate(handle).map(Message::ImageAllocated)
+            },
+
+            Message::ImageAllocated(result) => {
+                if let Ok(allocation) = result {
+                    self.allocation = Some(allocation);
+                }
 
                 Task::none()
             },
@@ -212,10 +233,6 @@ impl Window {
                 self.key_textbox = f;
                 Task::none()
             },
-
-            // Message::None => {
-            //     Task::none()
-            // },
             Message::Null(()) => {
                 Task::none()
             },
@@ -257,9 +274,14 @@ impl Window {
                 .on_right_press  (Message::MouseClick(MouseButton::Right, MouseState::Pressed ))
                 .on_right_release(Message::MouseClick(MouseButton::Right, MouseState::Released)),
 
-                image(self.handle.as_ref().unwrap())
-                    .width(Fill)
-                    .height(Fill)
+                match self.allocation.as_ref() {
+                    Some(allocation) => iced::Element::from(
+                        image(allocation.handle())
+                            .width(Fill)
+                            .height(Fill)
+                    ),
+                    None => space().width(Fill).height(Fill).into()
+                }
             ]
 
         )
