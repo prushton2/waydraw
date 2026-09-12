@@ -5,7 +5,6 @@ use winit::monitor::MonitorHandle;
 
 mod mouse;
 mod window;
-mod downscale;
 mod screen_grabber;
 
 fn main() {

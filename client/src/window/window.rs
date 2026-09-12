@@ -192,7 +192,7 @@ impl Window {
             },
 
             Message::ScreenshotReceived(screenshot) => {
-                let pixels: Vec<u8> = match screenshot {
+                let image_pixels: Vec<u8> = match screenshot {
                     ScreenshotType::Uncompressed(ss) => {
                         let mut pixels: Vec<u8> = vec![];
         
@@ -207,24 +207,11 @@ impl Window {
                     },
 
                     ScreenshotType::Compressed(ss) => {
-                        
-                        // let params = brotli::enc::backward_references::BrotliEncoderParams::default();
-                        let mut pixels: Vec<u8> = ss.bytes;
-                        // let _ = brotli::BrotliDecompress(&mut ss.bytes.as_slice(), &mut pixels);
-
-
-                        for i in 0..pixels.len() {
-                            pixels.push(pixels[i]);
-                            if i%3 == 2 {
-                                pixels.push(255);
-                            }
-                        }
-
-                        pixels
+                        zstd::stream::decode_all(ss.bytes.as_slice()).unwrap()
                     }
                 };
 
-                self.handle = Some(image::Handle::from_rgba(self.known_size.0 as u32, self.known_size.1 as u32, pixels));
+                self.handle = Some(image::Handle::from_rgba(self.known_size.0 as u32, self.known_size.1 as u32, image_pixels));
 
                 Task::none()
             },
@@ -237,10 +224,6 @@ impl Window {
                 self.key_textbox = f;
                 Task::none()
             },
-
-            // Message::None => {
-            //     Task::none()
-            // },
             Message::Null(()) => {
                 Task::none()
             },
