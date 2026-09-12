@@ -6,7 +6,6 @@ edition = "2024"
 [dependencies]
 enigo = "0.6.1"
 iroh = "1.1.0"
-winit = "0.29.15"
 tokio = { version = "1.53.1", features = ["full"] }
 iced = { version = "0.14.0", features = ["tokio"] }
 
@@ -16,3 +15,4 @@ pinray = "0.2.4"
 image = "0.25.10"
 fast_image_resize = { version = "6.1.0", features = ["image"] }
 zstd = "0.14.0"
+display-info = "0.5.9"

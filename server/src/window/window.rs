@@ -8,25 +8,49 @@ use iced::widget::{space, button, column, container, row, text, text_input};
 
 use p2p::protocol::{FromBytes, IntoBytes, ServerHello};
 
-use winit::monitor::MonitorHandle;
-
 use crate::mouse;
 use crate::screen_grabber::ScreenCapture;
 
-use super::{Window, Message, ClientMessage};
+use super::{Window, Message, ClientMessage, Monitor};
 
 impl Window {
-    pub fn boot(monitors: Vec<MonitorHandle>) -> Self {
+    pub fn boot() -> Self {
+
+        let positions = display_info::DisplayInfo::all().unwrap_or_default();
+
+        let monitors = pinray::enumerate_sources()
+            .unwrap()
+            .into_iter()
+            .filter_map(|e| {
+                match e {
+                    pinray::CaptureSource::Display(display) => Some(display),
+                    _ => None
+                }
+            })
+            .map(|source| {
+                // pinray ids are `display:<name>`, where <name> is the same device name display_info reports (`DP-1`, `\\.\DISPLAY1`, ...).
+                let name = source.id.0.strip_prefix("display:").unwrap_or(&source.id.0);
+
+                let position = positions
+                    .iter()
+                    .find(|e| e.name == name)
+                    .map(|e| (e.x, e.y))
+                    .unwrap_or((0, 0));
+
+                Monitor { source, position }
+            })
+            .collect::<Vec<Monitor>>();
+
         let monitor_labels = monitors
             .iter()
             .map(|e| 
-                format!("{} ({}x{}@{}hz)", 
-                    e.name().unwrap_or("".to_owned()), 
-                    e.size().width, 
-                    e.size().height, 
-                    e.refresh_rate_millihertz().unwrap_or(0) / 1000
+                format!("{} ({}x{})", 
+                    e.source.name,
+                    e.source.width,
+                    e.source.height
                 )
-            ).collect();
+            )
+            .collect();
 
         let mut mouse: Box<dyn mouse::Mouse> = Box::new(mouse::DummyMouse::new());
         if !cfg!(debug_assertions) {
@@ -121,8 +145,8 @@ impl Window {
 
                 let server_info = ServerHello {
                     version: (version[0], version[1], version[2]),
-                    screen_width:  selected_monitor.size().width,
-                    screen_height: selected_monitor.size().height
+                    screen_width:  selected_monitor.source.width,
+                    screen_height: selected_monitor.source.height
                 };
 
                 let server_info_bytes = server_info.into_bytes();
@@ -185,9 +209,9 @@ impl Window {
                 self.client_window_size = (client_hello.window_width, client_hello.window_height);
                 self.connected = true;
 
-                let monitor_name = self.available_monitors[self.selected_monitor.unwrap()].name().unwrap();
+                let monitor_id = self.available_monitors[self.selected_monitor.unwrap()].source.id.0.clone();
 
-                let screencap = ScreenCapture::new(&monitor_name.as_str()).unwrap();
+                let screencap = ScreenCapture::new(&monitor_id).unwrap();
 
                 self.recording = Arc::new(Some(screencap));
 
@@ -213,8 +237,8 @@ impl Window {
                         self.mouse.click_mouse(button, state);
                     },
                     ClientMessage::MouseMove(x, y) => {
-                        let monitor = &self.available_monitors[self.selected_monitor.unwrap()];
-                        self.mouse.move_mouse(monitor.position().x as u32 + x, monitor.position().y as u32 + y);
+                        let (offset_x, offset_y) = self.available_monitors[self.selected_monitor.unwrap()].position;
+                        self.mouse.move_mouse(offset_x + x as i32, offset_y + y as i32);
                     },
                     ClientMessage::ClientWindowResize(x, y) => {
                         self.client_window_size = (x, y);

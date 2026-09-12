@@ -4,7 +4,7 @@ use std::thread::{self, JoinHandle};
 use pinray::{CaptureEvent, CaptureSession, SourceId, VideoCaptureTarget, VideoFrame};
 
 pub struct ScreenCapture {
-    consumer_thread: JoinHandle<()>,
+    _consumer_thread: JoinHandle<()>,
     latest_frame: Arc<RwLock<Option<Arc<VideoFrame>>>>,
 }
 
@@ -48,9 +48,8 @@ impl ScreenCapture {
         
         let this = Self {
             latest_frame: latest_frame,
-            consumer_thread: thread
+            _consumer_thread: thread
         };
-
 
         Ok(this)
     }

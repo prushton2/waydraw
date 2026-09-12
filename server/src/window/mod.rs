@@ -1,12 +1,18 @@
 use std::sync::Arc;
 use p2p::{p2p::P2PError, protocol::{ClientHello, mouse_click::{MouseButton, MouseState}}};
+use pinray::DisplaySource;
 use tokio::sync::RwLock;
-use winit::monitor::MonitorHandle;
 
 use crate::{mouse, screen_grabber::ScreenCapture};
 
 pub mod subscriptions;
 pub mod window;
+
+// The position isnt given in pinray, so i get both and tie them together
+pub struct Monitor {
+    pub source: DisplaySource,
+    pub position: (i32, i32),
+}
 
 pub struct Window {
     p2p: Arc<RwLock<Option<p2p::P2P>>>,
@@ -14,7 +20,7 @@ pub struct Window {
     mouse: Box<dyn mouse::Mouse>,
     connected: bool,
     
-    available_monitors: Vec<MonitorHandle>,
+    available_monitors: Vec<Monitor>,
     selected_monitor: Option<usize>,
     recording: Arc<Option<ScreenCapture>>,
 

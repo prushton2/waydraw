@@ -9,6 +9,6 @@ pub use enigo::EnigoMouse;
 pub use dummy::DummyMouse;
 
 pub trait Mouse: Send {
-    fn move_mouse(&mut self, x: u32, y: u32);
+    fn move_mouse(&mut self, x: i32, y: i32);
     fn click_mouse(&mut self, button: MouseButton, state: MouseState);
 }

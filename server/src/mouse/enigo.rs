@@ -26,7 +26,7 @@ impl super::Mouse for EnigoMouse {
             });
     }
     
-    fn move_mouse(&mut self, x: u32, y: u32) {
-        self.enigo.move_mouse(x as i32, y as i32, Abs).unwrap();
+    fn move_mouse(&mut self, x: i32, y: i32) {
+        self.enigo.move_mouse(x, y, Abs).unwrap();
     }
 }

@@ -23,7 +23,7 @@ impl super::Mouse for DummyMouse {
         // );
     }
     
-    fn move_mouse(&mut self, x: u32, y: u32) {
+    fn move_mouse(&mut self, x: i32, y: i32) {
         // println!("Move to {}, {}", x, y);
     }
 }
