@@ -89,6 +89,7 @@ jobs:
         working-directory: server
     env:
       CARGO_TERM_COLOR: always
+      RUSTFLAGS: "-C link-args=-static-libgcc -C link-args=-static-libstdc++ -C link-args=-static"
     steps:
 
     - name: "Checkout"
@@ -129,6 +130,7 @@ jobs:
         working-directory: client
     env:
       CARGO_TERM_COLOR: always
+      RUSTFLAGS: "-C link-args=-static-libgcc -C link-args=-static-libstdc++ -C link-args=-static"
     steps:
 
     - name: "Checkout"
