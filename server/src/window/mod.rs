@@ -19,12 +19,14 @@ pub struct Window {
     mouse: Box<dyn mouse::Mouse>,
     h264_instance: Arc<Mutex<openh264::encoder::Encoder>>,
 
-    client_window_size: (u32, u32),
+    // Shared with the long-lived screencap subscription (see subscriptions.rs) so it can
+    // observe resizes/reconnects in place without the subscription's identity changing.
+    client_window_size: Arc<std::sync::Mutex<(u32, u32)>>,
     connected: bool,
-    
+
     available_monitors: Vec<Monitor>,
     selected_monitor: Option<usize>,
-    recording: Arc<Option<ScreenCapture>>,
+    recording: Arc<std::sync::RwLock<Option<ScreenCapture>>>,
 
     pin: Option<String>,
     key: Option<String>,

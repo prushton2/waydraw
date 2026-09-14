@@ -17,7 +17,13 @@ struct InnerP2PStreamParameters {
 
 impl Hash for P2PStreamParameters {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-        Arc::as_ptr(&self.0).hash(state);
+        // `self.0` is a fresh Arc allocated on every `subscription()` call (i.e. after every
+        // message this stream itself produces), so its own pointer changes every time and would
+        // make iced tear down and respawn this stream constantly - cancelling it mid `read_exact`
+        // and permanently desyncing the length-prefixed p2p framing (next read hangs -> freeze).
+        // Hash on h264_instance instead: it's created once in `Window::boot` and never replaced,
+        // so the identity stays stable for the life of the app and the read loop is kept running.
+        Arc::as_ptr(&self.0.h264_instance).hash(state);
     }
 }
 

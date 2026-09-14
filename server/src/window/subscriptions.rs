@@ -29,7 +29,7 @@ pub fn subscription(window: &Window) -> Subscription<Message> {
         );
     }
     
-    if window.connected && window.recording.is_some() {
+    if window.connected && window.recording.read().unwrap().is_some() {
         let params = Arc::new(InnerScreencapStreamParameters {
             recording: window.recording.clone(),
             h264_instance: window.h264_instance.clone(),
@@ -98,15 +98,21 @@ fn p2p_stream(feed: &P2PObject) -> impl iced::futures::Stream<Item = Message> + 
 
 struct ScreencapStreamParameters(Arc<InnerScreencapStreamParameters>);
 struct InnerScreencapStreamParameters {
-    recording: Arc<Option<ScreenCapture>>,
+    recording: Arc<std::sync::RwLock<Option<ScreenCapture>>>,
     h264_instance: Arc<Mutex<encoder::Encoder>>,
     p2p: Arc<RwLock<Option<p2p::P2P>>>,
-    client_window_size: (u32, u32),
+    client_window_size: Arc<std::sync::Mutex<(u32, u32)>>,
 }
 
 impl Hash for ScreencapStreamParameters {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-        Arc::as_ptr(&self.0).hash(state);
+        // `self.0` is a fresh Arc allocated on every `subscription()` call (i.e. after every
+        // message), so its own pointer changes every time and would make iced tear down and
+        // respawn this stream constantly, tearing frames mid-write on the p2p connection and
+        // permanently desyncing its length-prefixed framing (client hangs in read_exact -> freeze).
+        // Hash on h264_instance instead: it's created once in `Window::boot` and never replaced,
+        // so the identity stays stable for the life of the app and the stream is kept running.
+        Arc::as_ptr(&self.0.h264_instance).hash(state);
     }
 }
 
@@ -119,12 +125,13 @@ fn screencap_stream(params: &ScreencapStreamParameters) -> impl iced::futures::S
         
         // let mut start = std::time::Instant::now();
 
-        let recording_ref = parameters.recording.as_ref().as_ref().unwrap();
+        let image_result = {
+            let recording_lock = parameters.recording.read().unwrap();
+            recording_lock.as_ref().unwrap().latest()
+        };
 
         // println!("Choose monitor: {:?}", start.elapsed());
         // start = std::time::Instant::now();
-
-        let image_result = recording_ref.latest();
 
         // println!("Capture Image: {:?}", start.elapsed());
         // start = std::time::Instant::now();
@@ -138,6 +145,10 @@ fn screencap_stream(params: &ScreencapStreamParameters) -> impl iced::futures::S
             }
         };
 
+        // Read the current size fresh each frame: this stream stays alive across resizes now,
+        // so it must observe updates to `client_window_size` in place rather than a stale copy.
+        let client_window_size = *parameters.client_window_size.lock().unwrap();
+
         let bytes = image.to_tight_bytes().unwrap();
 
         let opts = ResizeOptions::new()
@@ -145,14 +156,14 @@ fn screencap_stream(params: &ScreencapStreamParameters) -> impl iced::futures::S
             .use_alpha(false);
 
         let src = ImageRef::new(image.width, image.height, &bytes, fast_image_resize::PixelType::U8x4).unwrap();
-        let mut dst = Image::new(parameters.client_window_size.0, parameters.client_window_size.1, fast_image_resize::PixelType::U8x4);
+        let mut dst = Image::new(client_window_size.0, client_window_size.1, fast_image_resize::PixelType::U8x4);
         let _ = Resizer::new().resize(&src, &mut dst, Some(&opts));
 
         // println!("Downscale: {:?}", start.elapsed());
         // start = std::time::Instant::now();
 
         let dst_bytes = &dst.into_vec();
-        let rgba_slice = formats::RgbaSliceU8::new(dst_bytes, (parameters.client_window_size.0 as usize, parameters.client_window_size.1 as usize));
+        let rgba_slice = formats::RgbaSliceU8::new(dst_bytes, (client_window_size.0 as usize, client_window_size.1 as usize));
         let yuv_buffer = formats::YUVBuffer::from_rgba8_source(rgba_slice);
 
         let bytes = {
