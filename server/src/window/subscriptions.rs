@@ -145,9 +145,11 @@ fn screencap_stream(params: &ScreencapStreamParameters) -> impl iced::futures::S
             }
         };
 
-        // Read the current size fresh each frame: this stream stays alive across resizes now,
-        // so it must observe updates to `client_window_size` in place rather than a stale copy.
         let client_window_size = *parameters.client_window_size.lock().unwrap();
+
+        if client_window_size.0 == 0 || client_window_size.1 == 0 {
+            return Some((Message::Null(()), parameters))
+        }
 
         let bytes = image.to_tight_bytes().unwrap();
 
@@ -168,7 +170,18 @@ fn screencap_stream(params: &ScreencapStreamParameters) -> impl iced::futures::S
 
         let bytes = {
             let mut h264_lock = parameters.h264_instance.lock().await;
-            let encoded = h264_lock.encode(&yuv_buffer).unwrap();
+            // encode() errors on e.g. an odd/unsupported resolution. This stream is now
+            // long-lived (see the Hash impl above) and nothing respawns it if its future
+            // panics, so an unhandled error here would silently end the video feed for the
+            // rest of the session - just drop the frame and keep going instead.
+            let encoded = match h264_lock.encode(&yuv_buffer) {
+                Ok(e) => e,
+                Err(e) => {
+                    eprintln!("h264 encode failed for {}x{}: {e}", client_window_size.0, client_window_size.1);
+                    drop(h264_lock);
+                    return Some((Message::Null(()), parameters))
+                }
+            };
             let mut bytes = vec![];
             encoded.write_vec(&mut bytes);
             bytes
