@@ -113,7 +113,11 @@ jobs:
         sudo apt-get install -y mingw-w64
 
     - name: build
-      run: cargo build --release --target x86_64-pc-windows-gnu
+      run: |
+        LIBSTDCXX=$(x86_64-w64-mingw32-g++ -print-file-name=libstdc++.a)
+        test -f "$LIBSTDCXX" || { echo "static libstdc++ not found"; exit 1; }
+        export RUSTFLAGS="-L native=$(dirname "$LIBSTDCXX") -lstatic=stdc++ -C link-arg=-static-libgcc -C link-arg=-static"
+        cargo build --release --target x86_64-pc-windows-gnu
 
     - uses: actions/upload-artifact@v4
       with:
@@ -153,8 +157,12 @@ jobs:
         sudo apt-get install -y mingw-w64
 
     - name: build
-      run: cargo build --release --target x86_64-pc-windows-gnu
-
+      run: |
+        LIBSTDCXX=$(x86_64-w64-mingw32-g++ -print-file-name=libstdc++.a)
+        test -f "$LIBSTDCXX" || { echo "static libstdc++ not found"; exit 1; }
+        export RUSTFLAGS="-L native=$(dirname "$LIBSTDCXX") -lstatic=stdc++ -C link-arg=-static-libgcc -C link-arg=-static"
+        cargo build --release --target x86_64-pc-windows-gnu
+        
     - uses: actions/upload-artifact@v4
       with:
         name: client-exe
