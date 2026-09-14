@@ -1,0 +1,6 @@
+[target.x86_64-pc-windows-gnu]
+rustflags = [
+  "-L", "native=/usr/x86_64-w64-mingw32/lib",
+  "-l", "static=stdc++",
+  "-C", "link-args=-static-libgcc -static",
+]
