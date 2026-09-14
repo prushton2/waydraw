@@ -52,16 +52,20 @@ fn p2p_stream(feed: &P2PStreamParameters) -> impl iced::futures::Stream<Item = M
                 return Some((Message::ScreenshotReceived(ScreenshotType::Compressed(t)), parameters))
             },
             FromBytes::H264Packet(h264_bytes) => {
+                // println!("Received H264 Packet");
                 let mut h264_lock = parameters.h264_instance.lock().await;
                 let mut rgba8: Vec<u8> = vec![];
 
                 for packet in nal_units(&h264_bytes.into_bytes()) {
                     if let Ok(Some(yuv)) = h264_lock.decode(packet) {
+                        // println!("    Found packet");
                         rgba8 = vec![0; yuv.rgba8_len()];
                         yuv.write_rgba8(&mut rgba8);
                     }
-                }
+                };
                 
+                drop(h264_lock);
+                return Some((Message::ScreenshotReceived(ScreenshotType::Rgba8(rgba8)), parameters))
             }
             _ => {}
         }

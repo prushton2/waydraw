@@ -171,7 +171,7 @@ fn screencap_stream(params: &ScreencapStreamParameters) -> impl iced::futures::S
         let p2p_lock = parameters.p2p.read().await;
         let p2p_ref = p2p_lock.as_ref().unwrap();
 
-        let frame = p2p::protocol::CompressedScreenshot {
+        let frame = p2p::protocol::H264Packet {
             bytes: bytes
         };
 
