@@ -1,11 +1,16 @@
 use std::hash::Hash;
 use std::sync::Arc;
 
+use tokio::sync::Mutex;
+use tokio::sync::RwLock;
+
 use fast_image_resize::ResizeOptions;
 use fast_image_resize::Resizer;
 use fast_image_resize::images::Image;
 use fast_image_resize::images::ImageRef;
-use tokio::sync::RwLock;
+
+use openh264::formats;
+use openh264::encoder;
 
 use iced::Subscription;
 
@@ -25,8 +30,16 @@ pub fn subscription(window: &Window) -> Subscription<Message> {
     }
     
     if window.connected && window.recording.is_some() {
+        let params = Arc::new(InnerScreencapStreamParameters {
+            recording: window.recording.clone(),
+            h264_instance: window.h264_instance.clone(),
+            p2p: window.p2p.clone(),
+            client_window_size: window.client_window_size.clone()
+        });
+
+
         subscriptions.push(
-            iced::Subscription::run_with((ScreenGrabberObject(window.recording.clone()), window.client_window_size, P2PObject(window.p2p.clone())), screencap_stream)
+            iced::Subscription::run_with(ScreencapStreamParameters(params.clone()), screencap_stream)
         );
     };
 
@@ -83,30 +96,30 @@ fn p2p_stream(feed: &P2PObject) -> impl iced::futures::Stream<Item = Message> + 
     })
 }
 
-struct ScreenGrabberObject(Arc<Option<ScreenCapture>>);
+struct ScreencapStreamParameters(Arc<InnerScreencapStreamParameters>);
+struct InnerScreencapStreamParameters {
+    recording: Arc<Option<ScreenCapture>>,
+    h264_instance: Arc<Mutex<encoder::Encoder>>,
+    p2p: Arc<RwLock<Option<p2p::P2P>>>,
+    client_window_size: (u32, u32),
+}
 
-impl Hash for ScreenGrabberObject {
+impl Hash for ScreencapStreamParameters {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
         Arc::as_ptr(&self.0).hash(state);
     }
 }
 
-fn screencap_stream((
-    recording, 
-    client_window_size, 
-    p2pobject): &(ScreenGrabberObject, (u32, u32), P2PObject)
-) -> impl iced::futures::Stream<Item = Message> + use<> {
-    
-    let recording = recording.0.clone();
-    let cws = client_window_size.clone();
-    let p2p_clone = p2pobject.0.clone();
+fn screencap_stream(params: &ScreencapStreamParameters) -> impl iced::futures::Stream<Item = Message> + use<> {
 
-    iced::futures::stream::unfold((recording, cws, p2p_clone), |(recording, client_window_size, p2p)| async move {
-        tokio::time::sleep(std::time::Duration::from_millis(1000/20)).await;
+    let params_clone = params.0.clone();
+
+    iced::futures::stream::unfold(params_clone, |parameters| async move {
+        tokio::time::sleep(std::time::Duration::from_millis(1000/30)).await;
         
         // let mut start = std::time::Instant::now();
 
-        let recording_ref = recording.as_ref().as_ref().unwrap();
+        let recording_ref = parameters.recording.as_ref().as_ref().unwrap();
 
         // println!("Choose monitor: {:?}", start.elapsed());
         // start = std::time::Instant::now();
@@ -121,7 +134,7 @@ fn screencap_stream((
             None => {
                 drop(image_result);
                 // println!("No image found");
-                return Some((Message::Null(()), (recording, client_window_size, p2p)))
+                return Some((Message::Null(()), parameters))
             }
         };
 
@@ -132,22 +145,34 @@ fn screencap_stream((
             .use_alpha(false);
 
         let src = ImageRef::new(image.width, image.height, &bytes, fast_image_resize::PixelType::U8x4).unwrap();
-        let mut dst = Image::new(client_window_size.0, client_window_size.1, fast_image_resize::PixelType::U8x4);
+        let mut dst = Image::new(parameters.client_window_size.0, parameters.client_window_size.1, fast_image_resize::PixelType::U8x4);
         let _ = Resizer::new().resize(&src, &mut dst, Some(&opts));
 
         // println!("Downscale: {:?}", start.elapsed());
         // start = std::time::Instant::now();
 
-        let compressed = zstd::stream::encode_all(dst.into_vec().as_slice(), 1).unwrap();
+        let dst_bytes = &dst.into_vec();
+        let rgba_slice = formats::RgbaSliceU8::new(dst_bytes, (parameters.client_window_size.0 as usize, parameters.client_window_size.1 as usize));
+        let yuv_buffer = formats::YUVBuffer::from_rgba8_source(rgba_slice);
+
+        let bytes = {
+            let mut h264_lock = parameters.h264_instance.lock().await;
+            let encoded = h264_lock.encode(&yuv_buffer).unwrap();
+            let mut bytes = vec![];
+            encoded.write_vec(&mut bytes);
+            bytes
+            // h264_lock and encoded (not Send, holds raw pointers into the encoder)
+            // are dropped here, before the next .await
+        };
 
         // println!("Compress: {:?}", start.elapsed());
         // start = std::time::Instant::now();
 
-        let p2p_lock = p2p.read().await;
+        let p2p_lock = parameters.p2p.read().await;
         let p2p_ref = p2p_lock.as_ref().unwrap();
 
         let frame = p2p::protocol::CompressedScreenshot {
-            bytes: compressed
+            bytes: bytes
         };
 
         let _ = p2p_ref.send(&frame.into_bytes()).await;
@@ -155,7 +180,7 @@ fn screencap_stream((
         // println!("Send: {:?}", start.elapsed());
 
         drop(p2p_lock);
-        
-        Some((Message::Null(()), (recording, client_window_size, p2p)))
+
+        Some((Message::Null(()), parameters))
     })
 }

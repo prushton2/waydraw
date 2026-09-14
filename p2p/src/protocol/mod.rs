@@ -5,6 +5,7 @@ pub mod mouse_click;
 pub mod window_resized;
 pub mod screenshot;
 pub mod compressed_screenshot;
+pub mod h264_packet;
 
 pub use server_hello::ServerHello;
 pub use client_hello::ClientHello;
@@ -13,6 +14,7 @@ pub use mouse_click::MouseClick;
 pub use window_resized::WindowResized;
 pub use screenshot::Screenshot;
 pub use compressed_screenshot::CompressedScreenshot;
+pub use h264_packet::H264Packet;
 
 #[derive(Debug, Clone)]
 pub enum FromBytes {
@@ -23,6 +25,7 @@ pub enum FromBytes {
     WindowResized(WindowResized),
     Screenshot(Screenshot),
     CompressedScreenshot(CompressedScreenshot),
+    H264Packet(H264Packet),
     UnknownInstruction(Vec<u8>),
 }
 
@@ -45,6 +48,7 @@ impl FromBytes {
             0x11 => Self::MouseClick(MouseClick::from_bytes(&bytes[1..])),
             0x20 => Self::Screenshot(Screenshot::from_bytes(&bytes[1..])),
             0x21 => Self::CompressedScreenshot(CompressedScreenshot::from_bytes(&bytes[1..])),
+            0x22 => Self::H264Packet(H264Packet::from_bytes(&bytes[1..])),
             _ => Self::UnknownInstruction(bytes.into())
         }
     }

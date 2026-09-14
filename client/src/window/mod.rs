@@ -1,8 +1,9 @@
 use std::sync::Arc;
 
 use iced_core::image::{Allocation, Error};
+use openh264::decoder;
 use p2p::p2p::P2PError;
-use tokio::sync::RwLock;
+use tokio::sync::{Mutex, RwLock};
 
 use p2p::protocol::{Screenshot, CompressedScreenshot, ServerHello};
 use p2p::protocol::mouse_click::{MouseButton, MouseState};
@@ -10,10 +11,11 @@ use p2p::protocol::mouse_click::{MouseButton, MouseState};
 pub mod subscriptions;
 pub mod window;
 
-#[derive(Default)]
+// #[derive(Default)]
 pub struct Window {
     server_info: Option<ServerHello>,
     p2p: Arc<RwLock<Option<p2p::P2P>>>,
+    h264_instance: Arc<Mutex<decoder::Decoder>>,
     connected: bool,
 
     allocation: Option<iced_core::image::Allocation>,
@@ -50,5 +52,6 @@ pub enum Message {
 #[derive(Clone)]
 pub enum ScreenshotType {
     Uncompressed(Screenshot),
-    Compressed(CompressedScreenshot)
+    Compressed(CompressedScreenshot),
+    Rgba8(Vec<u8>)
 }

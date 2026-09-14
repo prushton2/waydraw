@@ -1,5 +1,5 @@
 use std::sync::Arc;
-use tokio::sync::RwLock;
+use tokio::sync::{Mutex, RwLock};
 
 use iced::Length::Fill;
 use iced::Task;
@@ -60,6 +60,8 @@ impl Window {
         let this = Self {
             p2p: Arc::new(RwLock::new(None)),
             mouse: mouse,
+            h264_instance: Arc::new(Mutex::new(openh264::encoder::Encoder::new().unwrap())),
+
             client_window_size: (100, 100),
             connected: false,
 

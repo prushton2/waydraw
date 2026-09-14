@@ -1,7 +1,7 @@
 use std::sync::Arc;
 use p2p::{p2p::P2PError, protocol::{ClientHello, mouse_click::{MouseButton, MouseState}}};
 use pinray::DisplaySource;
-use tokio::sync::RwLock;
+use tokio::sync::{Mutex, RwLock};
 
 use crate::{mouse, screen_grabber::ScreenCapture};
 
@@ -16,8 +16,10 @@ pub struct Monitor {
 
 pub struct Window {
     p2p: Arc<RwLock<Option<p2p::P2P>>>,
-    client_window_size: (u32, u32),
     mouse: Box<dyn mouse::Mouse>,
+    h264_instance: Arc<Mutex<openh264::encoder::Encoder>>,
+
+    client_window_size: (u32, u32),
     connected: bool,
     
     available_monitors: Vec<Monitor>,
