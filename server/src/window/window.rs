@@ -1,5 +1,5 @@
 use std::sync::Arc;
-use tokio::sync::RwLock;
+use tokio::sync::{Mutex, RwLock};
 
 use iced::Length::Fill;
 use iced::Task;
@@ -60,12 +60,14 @@ impl Window {
         let this = Self {
             p2p: Arc::new(RwLock::new(None)),
             mouse: mouse,
-            client_window_size: (100, 100),
+            h264_instance: Arc::new(Mutex::new(openh264::encoder::Encoder::new().unwrap())),
+
+            client_window_size: Arc::new(std::sync::Mutex::new((100, 100))),
             connected: false,
 
             available_monitors: monitors,
             selected_monitor: None,
-            recording: Arc::new(None),
+            recording: Arc::new(std::sync::RwLock::new(None)),
 
             pin: None,
             key: None,
@@ -174,8 +176,8 @@ impl Window {
                 self.pin = None;
                 self.key = None;
                 self.connected = false;
-                self.recording.as_ref().as_ref().unwrap().kill();
-                self.recording = Arc::new(None);
+                self.recording.read().unwrap().as_ref().unwrap().kill();
+                *self.recording.write().unwrap() = None;
                 self.error = String::from("");
                 self.wait_reason = String::from("");
                 let p2p_arc = self.p2p.clone();
@@ -207,14 +209,14 @@ impl Window {
                     return Task::none();
                 }
 
-                self.client_window_size = (client_hello.window_width, client_hello.window_height);
+                *self.client_window_size.lock().unwrap() = (client_hello.window_width, client_hello.window_height);
                 self.connected = true;
 
                 let monitor_id = self.available_monitors[self.selected_monitor.unwrap()].source.id.0.clone();
 
                 let screencap = ScreenCapture::new(&monitor_id).unwrap();
 
-                self.recording = Arc::new(Some(screencap));
+                *self.recording.write().unwrap() = Some(screencap);
 
                 Task::none()
             }
@@ -242,7 +244,7 @@ impl Window {
                         self.mouse.move_mouse(offset_x + x as i32, offset_y + y as i32);
                     },
                     ClientMessage::ClientWindowResize(x, y) => {
-                        self.client_window_size = (x, y);
+                        *self.client_window_size.lock().unwrap() = (x, y);
                     }
                 }
                 Task::none()

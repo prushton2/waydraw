@@ -1,32 +1,43 @@
-use std::sync::Arc;
+use std::{hash::Hash, sync::Arc};
 
-use tokio::sync::RwLock;
+use openh264::{decoder, formats::YUVSource, nal_units};
+use tokio::sync::{Mutex, RwLock};
 
 use iced::{Subscription, window};
 
-use p2p::protocol::FromBytes;
+use p2p::protocol::{FromBytes, IntoBytes};
 
 use super::{Message, ScreenshotType, Window};
 
-struct P2PObject(Arc<RwLock<Option<p2p::P2P>>>);
+struct P2PStreamParameters(Arc<InnerP2PStreamParameters>);
+struct InnerP2PStreamParameters {
+    h264_instance: Arc<Mutex<decoder::Decoder>>,
+    p2p: Arc<RwLock<Option<p2p::P2P>>>,
+}
 
-impl std::hash::Hash for P2PObject {
+impl Hash for P2PStreamParameters {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-        Arc::as_ptr(&self.0).hash(state);
+        // `self.0` is a fresh Arc allocated on every `subscription()` call (i.e. after every
+        // message this stream itself produces), so its own pointer changes every time and would
+        // make iced tear down and respawn this stream constantly - cancelling it mid `read_exact`
+        // and permanently desyncing the length-prefixed p2p framing (next read hangs -> freeze).
+        // Hash on h264_instance instead: it's created once in `Window::boot` and never replaced,
+        // so the identity stays stable for the life of the app and the read loop is kept running.
+        Arc::as_ptr(&self.0.h264_instance).hash(state);
     }
 }
 
-fn p2p_stream(feed: &P2PObject) -> impl iced::futures::Stream<Item = Message> + use<> {
-    let p2p = feed.0.clone();
+fn p2p_stream(feed: &P2PStreamParameters) -> impl iced::futures::Stream<Item = Message> + use<> {
+    let p2p_clone = feed.0.clone();
 
-    iced::futures::stream::unfold(p2p, |p2p| async move {
-        let p2p_lock = p2p.read().await;
+    iced::futures::stream::unfold(p2p_clone, |parameters| async move {
+        let p2p_lock = parameters.p2p.read().await;
         
         let p2p_ref = match p2p_lock.as_ref() {
             Some(t) => t,
             None => {
                 drop(p2p_lock);
-                return Some((Message::Null(()), p2p))
+                return Some((Message::Null(()), parameters))
             }
         };
 
@@ -34,22 +45,38 @@ fn p2p_stream(feed: &P2PObject) -> impl iced::futures::Stream<Item = Message> + 
             Ok(t) => t,
             Err(_) => {
                 drop(p2p_lock);
-                return Some((Message::Null(()), p2p))
+                return Some((Message::Null(()), parameters))
             }
         };
 
         drop(p2p_lock);
         match FromBytes::parse(&response[..]) {
             FromBytes::Screenshot(t) => {
-                return Some((Message::ScreenshotReceived(ScreenshotType::Uncompressed(t)), p2p))
+                return Some((Message::ScreenshotReceived(ScreenshotType::Uncompressed(t)), parameters))
             },
             FromBytes::CompressedScreenshot(t) => {
-                return Some((Message::ScreenshotReceived(ScreenshotType::Compressed(t)), p2p))
+                return Some((Message::ScreenshotReceived(ScreenshotType::Compressed(t)), parameters))
+            },
+            FromBytes::H264Packet(h264_bytes) => {
+                // println!("Received H264 Packet");
+                let mut h264_lock = parameters.h264_instance.lock().await;
+                let mut rgba8: Vec<u8> = vec![];
+
+                for packet in nal_units(&h264_bytes.into_bytes()) {
+                    if let Ok(Some(yuv)) = h264_lock.decode(packet) {
+                        // println!("    Found packet");
+                        rgba8 = vec![0; yuv.rgba8_len()];
+                        yuv.write_rgba8(&mut rgba8);
+                    }
+                };
+                
+                drop(h264_lock);
+                return Some((Message::ScreenshotReceived(ScreenshotType::Rgba8(rgba8)), parameters))
             }
             _ => {}
         }
 
-        Some((Message::Null(()), p2p))
+        Some((Message::Null(()), parameters))
     })
 }
 
@@ -59,7 +86,11 @@ pub fn subscription(window: &Window) -> Subscription<Message> {
     ];
 
     if window.connected {
-        subscriptions.push(iced::Subscription::run_with(P2PObject(window.p2p.clone()), p2p_stream));
+        let parameters = Arc::new(InnerP2PStreamParameters {
+            h264_instance: window.h264_instance.clone(),
+            p2p: window.p2p.clone()
+        });
+        subscriptions.push(iced::Subscription::run_with(P2PStreamParameters(parameters), p2p_stream));
     }
 
     return iced::Subscription::batch(subscriptions);

@@ -2,7 +2,8 @@ use std::sync::Arc;
 
 use iroh::EndpointId;
 
-use tokio::sync::RwLock;
+use openh264::decoder;
+use tokio::sync::{Mutex, RwLock};
 
 use iced::Alignment::Center;
 use iced::{Length::Fill, Task};
@@ -20,7 +21,21 @@ use super::{Window, Message};
 
 impl Window {
     pub fn boot() -> Self {
-        Self::default()
+        Self {
+            server_info: None,
+            p2p: Arc::new(RwLock::new(None)),
+            h264_instance: Arc::new(Mutex::new(decoder::Decoder::new().unwrap())),
+            connected: false,
+
+            allocation: None,
+
+            known_size: (0, 0),
+
+            pin_textbox: String::from(""),
+            key_textbox: String::from(""),
+            wait_reason: String::from(""),
+            error: String::from(""),
+        }
     }
 
     pub fn update(&mut self, message: Message) -> Task<Message>{
@@ -149,6 +164,16 @@ impl Window {
             },
 
             Message::WindowResized(size) => {
+                let mut size = size;
+                // w and h must be even for openh264 to work, so round them down a pixel if theyre odd.
+                if size.0 % 2 != 0 {
+                    size.0 -= 1;
+                }
+
+                if size.1 % 2 != 0 {
+                    size.1 -= 1;
+                }
+                
                 self.known_size = size;
                 let p2p_arc = self.p2p.clone();
 
@@ -186,6 +211,7 @@ impl Window {
             },
 
             Message::ScreenshotReceived(screenshot) => {
+                // must be Rgba8
                 let image_pixels: Vec<u8> = match screenshot {
                     ScreenshotType::Uncompressed(ss) => {
                         let mut pixels: Vec<u8> = vec![];
@@ -206,6 +232,8 @@ impl Window {
                             Err(_) => vec![]
                         }
                     }
+
+                    ScreenshotType::Rgba8(bytes) => bytes,
                 };
 
                 if image_pixels.is_empty() || image_pixels.len() != self.known_size.0 * self.known_size.1 * 4 {
