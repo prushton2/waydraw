@@ -164,18 +164,17 @@ impl Window {
             },
 
             Message::WindowResized(size) => {
-                self.known_size = size;
-
-
+                let mut size = size;
                 // w and h must be even for openh264 to work, so round them down a pixel if theyre odd.
-                if self.known_size.0 % 2 != 0 {
-                    self.known_size.0 -= 1;
+                if size.0 % 2 != 0 {
+                    size.0 -= 1;
                 }
 
-                if self.known_size.1 % 2 != 0 {
-                    self.known_size.1 -= 1;
+                if size.1 % 2 != 0 {
+                    size.1 -= 1;
                 }
-
+                
+                self.known_size = size;
                 let p2p_arc = self.p2p.clone();
 
                 Task::perform(async move {
