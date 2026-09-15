@@ -132,8 +132,8 @@ impl Window {
 
                 let server_info = ServerHello {
                     version: (version[0], version[1], version[2]),
-                    screen_width:  selected_monitor.source.width,
-                    screen_height: selected_monitor.source.height
+                    screen_width:  selected_monitor.resolution.0,
+                    screen_height: selected_monitor.resolution.1
                 };
 
                 let server_info_bytes = server_info.into_bytes();
@@ -197,7 +197,7 @@ impl Window {
                 *self.client_window_size.lock().unwrap() = (client_hello.window_width, client_hello.window_height);
                 self.connected = true;
 
-                let monitor_id = self.available_monitors[self.selected_monitor.unwrap()].source.id.0.clone();
+                let monitor_id = self.available_monitors[self.selected_monitor.unwrap()].id.clone();
 
                 let screencap = ScreenCapture::new(&monitor_id).unwrap();
 
@@ -226,10 +226,10 @@ impl Window {
                     },
                     ClientMessage::MouseMove(x, y) => {
                         let (offset_x, offset_y) = self.available_monitors[self.selected_monitor.unwrap()].position;
-                        let scale = (self.available_monitors[self.selected_monitor.unwrap_or(0)].source.scale_factor_milli as f32)/1000.0;
+                        let scale = self.available_monitors[self.selected_monitor.unwrap_or(0)].scale;
                         let mouse_position = (
-                            ((x as i32 + offset_x) as f32 )/ scale,
-                            ((y as i32 + offset_y) as f32 )/ scale,
+                            ((x as i32 + offset_x) as f32) / scale,
+                            ((y as i32 + offset_y) as f32) / scale,
                         );
                         self.mouse.move_mouse(mouse_position.0 as i32, mouse_position.1 as i32);
                     },
@@ -302,17 +302,23 @@ impl Window {
                     _ => None
                 }
             })
-            .map(|source| {
+            .map(|pinray_source| {
                 // pinray ids are `display:<name>`, where <name> is the same device name display_info reports (`DP-1`, `\\.\DISPLAY1`, ...).
-                let name = source.id.0.strip_prefix("display:").unwrap_or(&source.id.0);
+                let name = pinray_source.id.0.strip_prefix("display:").unwrap_or(&pinray_source.id.0);
 
-                let position = positions
+                let displayinfo_source = positions
                     .iter()
                     .find(|e| e.name == name)
-                    .map(|e| (e.x, e.y))
-                    .unwrap_or((0, 0));
+                    .map(|e| e)
+                    .unwrap();
 
-                Monitor { source, position }
+                Monitor {
+                    id: pinray_source.id.0.clone(),
+                    name: pinray_source.name,
+                    position: (displayinfo_source.x, displayinfo_source.y),
+                    resolution: (pinray_source.width, pinray_source.height),
+                    scale: displayinfo_source.scale_factor
+                }
             })
             .collect::<Vec<Monitor>>();
 
@@ -320,9 +326,9 @@ impl Window {
             .iter()
             .map(|e| 
                 format!("{} ({}x{})", 
-                    e.source.name,
-                    e.source.width,
-                    e.source.height
+                    e.name,
+                    e.resolution.0,
+                    e.resolution.1
                 )
             )
             .collect();

@@ -1,6 +1,5 @@
 use std::sync::Arc;
 use p2p::protocol::{ClientHello, mouse_click::{MouseButton, MouseState}};
-use pinray::DisplaySource;
 use tokio::sync::{Mutex, RwLock};
 
 use crate::{mouse, screen_grabber::ScreenCapture};
@@ -8,10 +7,13 @@ use crate::{mouse, screen_grabber::ScreenCapture};
 pub mod subscriptions;
 pub mod window;
 
-// The position isnt given in pinray, so i get both and tie them together
+// pinray and display_info reliably provide different props, so i manually merge them together
 pub struct Monitor {
-    pub source: DisplaySource,
+    pub id: String,
+    pub name: String,
     pub position: (i32, i32),
+    pub resolution: (u32, u32),
+    pub scale: f32,
 }
 
 pub struct Window {
