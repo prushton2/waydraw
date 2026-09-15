@@ -132,7 +132,7 @@ fn screencap_stream(params: &ScreencapStreamParameters) -> impl iced::futures::S
             Some(t) => t,
             None => {
                 drop(image_result);
-                println!("No image found");
+                // println!("No image found");
                 return Some((Message::Null(()), parameters))
             }
         };
@@ -140,7 +140,7 @@ fn screencap_stream(params: &ScreencapStreamParameters) -> impl iced::futures::S
         let client_window_size = *parameters.client_window_size.lock().unwrap();
 
         if client_window_size.0 == 0 || client_window_size.1 == 0 {
-            println!("Client window size is 0");
+            // println!("Client window size is 0");
             return Some((Message::Null(()), parameters))
         }
 
