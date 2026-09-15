@@ -22,17 +22,17 @@ pub async fn set(key: &str, value: &str) -> Result<(), String> {
     Ok(())
 }
 
-pub async fn get(key: &str) -> String {
+pub async fn get(key: &str) -> Result<String, String> {
     let client = reqwest::Client::new();
     let response = client.get(format!("{}/keys/{}", URL, key))
         .send()
         .await
-        .unwrap()
+        .map_err(|e| e.to_string())?
         .text()
         .await
-        .unwrap();
+        .map_err(|e| e.to_string())?;
 
-    response
+    Ok(response)
 }
 
 pub async fn delete(key: &str) {
