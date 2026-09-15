@@ -15,43 +15,16 @@ use super::{Window, Message, ClientMessage, Monitor};
 
 impl Window {
     pub fn boot() -> Self {
+        let mut error = String::from("");
 
-        let positions = display_info::DisplayInfo::all().unwrap_or_default();
-
-        let monitors = pinray::enumerate_sources()
-            .unwrap()
-            .into_iter()
-            .filter_map(|e| {
-                match e {
-                    pinray::CaptureSource::Display(display) => Some(display),
-                    _ => None
-                }
-            })
-            .map(|source| {
-                // pinray ids are `display:<name>`, where <name> is the same device name display_info reports (`DP-1`, `\\.\DISPLAY1`, ...).
-                let name = source.id.0.strip_prefix("display:").unwrap_or(&source.id.0);
-
-                let position = positions
-                    .iter()
-                    .find(|e| e.name == name)
-                    .map(|e| (e.x, e.y))
-                    .unwrap_or((0, 0));
-
-                Monitor { source, position }
-            })
-            .collect::<Vec<Monitor>>();
-
-        let monitor_labels = monitors
-            .iter()
-            .map(|e| 
-                format!("{} ({}x{})", 
-                    e.source.name,
-                    e.source.width,
-                    e.source.height
-                )
-            )
-            .collect();
-
+        let (monitors, monitor_labels) = match Self::read_monitors() {
+            Ok(t) => t,
+            Err(e) => {
+                error = format!("Error reading monitors: {}\n\n", e);
+                (vec![], vec![])
+            }
+        };
+        
         let mut mouse: Box<dyn mouse::Mouse> = Box::new(mouse::DummyMouse::new());
         if !cfg!(debug_assertions) {
             mouse = Box::new(mouse::EnigoMouse::new());
@@ -73,7 +46,7 @@ impl Window {
             key: None,
 
             wait_reason: String::from(""),
-            error: String::from(""),
+            error: error,
 
             labels: monitor_labels,
         };
@@ -94,11 +67,15 @@ impl Window {
 
                 Task::perform(
                     async move {
-                        let (server, key) = p2p::P2P::init().await.map_err(|e| Arc::new(e))?;
+                        let (server, key) = p2p::P2P::init().await.map_err(|e| e.to_string())?;
 
-                        let pin = p2p::remote_key_store::generate_key();
+                        let pin = p2p::remote_key_store::generate_pin();
                         let key = key.to_string();
-                        p2p::remote_key_store::set(&pin, &key.to_string()).await;
+                        
+                        match p2p::remote_key_store::set(&pin, &key.to_string()).await {
+                            Ok(_) => {},
+                            Err(e) => return Err(e)
+                        };
 
                         Ok((Arc::new(RwLock::new(Some(server))), key, pin))
                     },
@@ -110,7 +87,7 @@ impl Window {
                 let (p2p, key, pin) = match result {
                     Ok(t) => t,
                     Err(t) => {
-                        self.error = String::from((*t).clone());
+                        self.error = t;
                         self.wait_reason = String::from("");
                         return Task::none()
                     }
@@ -127,7 +104,10 @@ impl Window {
                 async move {
                     let mut lock = arc.write().await;
                     let p2p = lock.as_mut().unwrap();
-                    let _ = p2p.await_connection().await;
+                    match p2p.await_connection().await {
+                        Ok(_) => {},
+                        Err(e) => return Err(e.to_string())
+                    };
 
                     Ok(())
                 },
@@ -136,14 +116,19 @@ impl Window {
             },
 
             Message::SendHello(result) => {
-                if let Err(e) = result { eprintln!("send failed: {e}"); }
+                if let Err(e) = result {
+                    self.error = format!("Error awaiting connection: {}", e);
+                    self.wait_reason = String::from("");
+                    return Task::none();
+                }
+
                 self.wait_reason = "Sending Hello".to_owned();
-                let selected_monitor = &self.available_monitors[self.selected_monitor.unwrap()];
+                let selected_monitor = &self.available_monitors[self.selected_monitor.unwrap_or(0)];
 
                 // construct server info to send to client
                 let p2p_arc = self.p2p.clone();
 
-                let version = env!("CARGO_PKG_VERSION").split(".").map(|s| s.parse::<u8>().unwrap()).collect::<Vec<u8>>();
+                let version = env!("CARGO_PKG_VERSION").split(".").map(|s| s.parse::<u8>().unwrap_or(0)).collect::<Vec<u8>>();
 
                 let server_info = ServerHello {
                     version: (version[0], version[1], version[2]),
@@ -298,5 +283,45 @@ impl Window {
         .center_x(Fill)
         .center_y(Fill)
         .into()
+    }
+
+    fn read_monitors() -> Result<(Vec<Monitor>, Vec<String>), String> {
+        let positions = display_info::DisplayInfo::all().unwrap_or_default();
+
+        let monitors = pinray::enumerate_sources()
+            .map_err(|e| e.to_string())?
+            .into_iter()
+            .filter_map(|e| {
+                match e {
+                    pinray::CaptureSource::Display(display) => Some(display),
+                    _ => None
+                }
+            })
+            .map(|source| {
+                // pinray ids are `display:<name>`, where <name> is the same device name display_info reports (`DP-1`, `\\.\DISPLAY1`, ...).
+                let name = source.id.0.strip_prefix("display:").unwrap_or(&source.id.0);
+
+                let position = positions
+                    .iter()
+                    .find(|e| e.name == name)
+                    .map(|e| (e.x, e.y))
+                    .unwrap_or((0, 0));
+
+                Monitor { source, position }
+            })
+            .collect::<Vec<Monitor>>();
+
+        let monitor_labels = monitors
+            .iter()
+            .map(|e| 
+                format!("{} ({}x{})", 
+                    e.source.name,
+                    e.source.width,
+                    e.source.height
+                )
+            )
+            .collect();
+
+        return Ok((monitors, monitor_labels))
     }
 }

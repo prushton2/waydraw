@@ -122,19 +122,11 @@ fn screencap_stream(params: &ScreencapStreamParameters) -> impl iced::futures::S
 
     iced::futures::stream::unfold(params_clone, |parameters| async move {
         tokio::time::sleep(std::time::Duration::from_millis(1000/30)).await;
-        
-        // let mut start = std::time::Instant::now();
 
         let image_result = {
             let recording_lock = parameters.recording.read().unwrap();
             recording_lock.as_ref().unwrap().latest()
         };
-
-        // println!("Choose monitor: {:?}", start.elapsed());
-        // start = std::time::Instant::now();
-
-        // println!("Capture Image: {:?}", start.elapsed());
-        // start = std::time::Instant::now();
 
         let image = match image_result {
             Some(t) => t,
@@ -161,9 +153,6 @@ fn screencap_stream(params: &ScreencapStreamParameters) -> impl iced::futures::S
         let mut dst = Image::new(client_window_size.0, client_window_size.1, fast_image_resize::PixelType::U8x4);
         let _ = Resizer::new().resize(&src, &mut dst, Some(&opts));
 
-        // println!("Downscale: {:?}", start.elapsed());
-        // start = std::time::Instant::now();
-
         let dst_bytes = &dst.into_vec();
         let rgba_slice = formats::RgbaSliceU8::new(dst_bytes, (client_window_size.0 as usize, client_window_size.1 as usize));
         let yuv_buffer = formats::YUVBuffer::from_rgba8_source(rgba_slice);
@@ -189,9 +178,6 @@ fn screencap_stream(params: &ScreencapStreamParameters) -> impl iced::futures::S
             // are dropped here, before the next .await
         };
 
-        // println!("Compress: {:?}", start.elapsed());
-        // start = std::time::Instant::now();
-
         let p2p_lock = parameters.p2p.read().await;
         let p2p_ref = p2p_lock.as_ref().unwrap();
 
@@ -200,8 +186,6 @@ fn screencap_stream(params: &ScreencapStreamParameters) -> impl iced::futures::S
         };
 
         let _ = p2p_ref.send(&frame.into_bytes()).await;
-
-        // println!("Send: {:?}", start.elapsed());
 
         drop(p2p_lock);
 

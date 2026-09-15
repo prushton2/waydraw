@@ -19,6 +19,12 @@ pub enum P2PError {
     Timeout,
 }
 
+impl std::fmt::Display for P2PError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_fmt(format_args!("{:?}", self))
+    }
+}
+
 impl P2PError {
     pub fn during(reason: &str, error: P2PError) -> P2PError {
         P2PError::ErrorDuring(reason.to_string(), Box::new(error))

@@ -41,7 +41,7 @@ pub struct Window {
 #[derive(Clone)]
 pub enum Message {
     Register,
-    AwaitClient(Result<(Arc<RwLock<Option<p2p::P2P>>>, String, String), Arc<P2PError>>),
+    AwaitClient(Result<(Arc<RwLock<Option<p2p::P2P>>>, String, String), String>),
     SendHello(Result<(), String>),
     SelectMonitor(usize),
     ClientMessage(ClientMessage),
