@@ -226,7 +226,12 @@ impl Window {
                     },
                     ClientMessage::MouseMove(x, y) => {
                         let (offset_x, offset_y) = self.available_monitors[self.selected_monitor.unwrap()].position;
-                        self.mouse.move_mouse(offset_x + x as i32, offset_y + y as i32);
+                        let scale = (self.available_monitors[self.selected_monitor.unwrap_or(0)].source.scale_factor_milli as f32)/1000.0;
+                        let mouse_position = (
+                            ((x as i32 + offset_x) as f32 )/ scale,
+                            ((y as i32 + offset_y) as f32 )/ scale,
+                        );
+                        self.mouse.move_mouse(mouse_position.0 as i32, mouse_position.1 as i32);
                     },
                     ClientMessage::ClientWindowResize(x, y) => {
                         *self.client_window_size.lock().unwrap() = (x, y);
