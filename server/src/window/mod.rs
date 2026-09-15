@@ -1,5 +1,5 @@
 use std::sync::Arc;
-use p2p::{p2p::P2PError, protocol::{ClientHello, mouse_click::{MouseButton, MouseState}}};
+use p2p::protocol::{ClientHello, mouse_click::{MouseButton, MouseState}};
 use pinray::DisplaySource;
 use tokio::sync::{Mutex, RwLock};
 
