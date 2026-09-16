@@ -13,10 +13,17 @@ pub enum P2PError {
     BindError(String),
     AcceptConnectionError(String),
     CreateConnectionError(String),
+    ReadError(String),
     InputError(String),
     ConnectionNotFound,
     PoisonedMutex,
     Timeout,
+}
+
+impl std::fmt::Display for P2PError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_fmt(format_args!("{:?}", self))
+    }
 }
 
 impl P2PError {
@@ -33,6 +40,7 @@ impl From<P2PError> for String {
             P2PError::AcceptConnectionError(r) =>         format!("{} (AcceptConnectionError)", r),
             P2PError::CreateConnectionError(r) =>         format!("{} (CreateConnectionError)", r),
             P2PError::InputError(r) =>                    format!("{} (InputError)", r),
+            P2PError::ReadError(r) =>                             format!("{} (ReadError)", r),
             P2PError::ConnectionNotFound =>                       String::from("(ConnectionNotFound)"),
             P2PError::PoisonedMutex =>                            String::from("(PoisonedMutex)"),
             P2PError::Timeout =>                                  String::from("(Timeout)"),
@@ -167,7 +175,10 @@ impl P2P {
         let mut bytes: Vec<u8> = vec![];
         bytes.resize(length as usize, 0);
 
-        let _ = recv.read_exact(&mut bytes[..]).await;
+        tokio::time::timeout(std::time::Duration::from_secs(1), recv.read_exact(&mut bytes[..]))
+            .await
+            .map_err(|_| P2PError::ErrorDuring(format!("Reading exactly {} bytes", length), Box::new(P2PError::Timeout)))?
+            .map_err(|e| P2PError::ErrorDuring(format!("Reading exactly {} bytes", length), Box::new(P2PError::ReadError(e.to_string()))))?;
 
         Ok(bytes)
     }
