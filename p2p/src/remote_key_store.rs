@@ -6,7 +6,7 @@ const KEY_CHARS: &[u8] = b"0123456789ABCDEF";
 
 pub fn generate_pin() -> String {
     let mut rng = rand::rng();
-    (0..4)
+    (0..6)
         .map(|_| KEY_CHARS[rng.random_range(0..KEY_CHARS.len())] as char)
         .collect()
 }

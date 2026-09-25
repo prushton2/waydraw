@@ -91,7 +91,7 @@ impl Window {
                 )
             },
             Message::PinSubmitted => {
-                let pin_textbox = self.pin_textbox.clone();
+                let pin_textbox = self.pin_textbox.clone().to_ascii_uppercase();
                 let key_textbox = self.key_textbox.clone();
                 self.wait_reason = String::from("Connecting to server...");
                 self.error = String::from("");

@@ -61,13 +61,21 @@ impl Window {
                     self.error = "Error: Please select a monitor".to_owned();
                     return Task::none()
                 }
+
+                let key = match p2p::p2p::load_or_create_secret_key() {
+                    Ok(t) => t,
+                    Err(e) => {
+                        self.error = e.to_string();
+                        return Task::none();
+                    }
+                };
                 
                 self.error = "".to_owned();
                 self.wait_reason = "Registering...".to_owned();
 
                 Task::perform(
                     async move {
-                        let (server, key) = p2p::P2P::init().await.map_err(|e| e.to_string())?;
+                        let (server, key) = p2p::P2P::init(key).await.map_err(|e| e.to_string())?;
 
                         let pin = p2p::remote_key_store::generate_pin();
                         let key = key.to_string();
