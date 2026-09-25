@@ -100,9 +100,22 @@ impl Window {
 
                 Task::perform(
                     async move {
-                        let key;
+                        let mut key= String::from("");
                         if key_textbox.len() == 0 {
-                            key = p2p::remote_key_store::get(&pin_textbox).await;
+
+                            for _ in 0..3 {
+                                match p2p::remote_key_store::get(&pin_textbox).await {
+                                    Ok(t) => {
+                                        key = t;
+                                        break;
+                                    },
+                                    Err(e) => {
+                                        println!("Error: {}", e);
+                                        return Err(P2PError::Timeout)
+                                    }
+                                }
+                            }
+
                             p2p::remote_key_store::delete(&pin_textbox).await;
                         } else {
                             key = key_textbox;
