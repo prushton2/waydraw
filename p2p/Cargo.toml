@@ -11,6 +11,7 @@ aws-lc-rs = { version = "1.0.0-rc1" }
 tokio = { version = "1.53.1", features = ["full"] }
 rand = "0.9"
 
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 
 [lib]
 name = "p2p"

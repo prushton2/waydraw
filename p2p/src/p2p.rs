@@ -3,6 +3,7 @@ use tokio::sync::Mutex;
 
 use anyhow::Result;
 use iroh::{Endpoint, PublicKey, endpoint::{Connection, RecvStream, SendStream, presets}, protocol::{AcceptError, ProtocolHandler, Router}};
+use tracing_subscriber::EnvFilter;
 
 const ALPN: &[u8] = b"hello";
 
@@ -70,11 +71,27 @@ pub struct P2P {
 impl P2P {
     pub async fn init() -> Result<(Self, PublicKey), P2PError> {
         let handler = Box::new(Handler::new());
+        let logs = StringWriter::default();
+
+        tracing_subscriber::fmt()
+            .with_env_filter(EnvFilter::new("iroh=warn"))
+            .with_writer(logs.clone())
+            .with_ansi(false) // filter out color codes
+            .init();
 
         let ep = Endpoint::bind(presets::N0).await.map_err(|e| P2PError::during("Could not connect to hardware", P2PError::BindError(e.to_string())))?;
         let router = Router::builder(ep.clone()).accept(ALPN, handler.clone()).spawn();
 
-        tokio::time::timeout(std::time::Duration::from_secs(5), ep.online()).await.map_err(|_| P2PError::during("Connection timed out communicating with Iroh relays. If this persists, ensure there is no middleman in your TLS connections or use a VPN.", P2PError::Timeout))?;
+        tokio::time::timeout(
+            std::time::Duration::from_secs(5),
+            ep.online()
+        ).await
+            .map_err(|_| {
+                let lock = logs.0.lock().unwrap();
+                let mut split = lock.split("\n");
+                P2PError::during(format!("Error connecting to Iroh: {}", split.nth(0).unwrap()).as_str(), P2PError::Timeout)
+            }
+        )?;
 
         let id = ep.id();
 
@@ -175,4 +192,20 @@ impl P2P {
     pub async fn close(&mut self) {
         let _ = self.router.shutdown().await;
     }
+}
+
+#[derive(Clone, Default)]
+struct StringWriter(Arc<std::sync::Mutex<String>>);
+
+impl std::io::Write for StringWriter {
+    fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+        self.0.lock().unwrap().push_str(&String::from_utf8_lossy(buf));
+        Ok(buf.len())
+    }
+    fn flush(&mut self) -> std::io::Result<()> { Ok(()) }
+}
+
+impl<'a> tracing_subscriber::fmt::MakeWriter<'a> for StringWriter {
+    type Writer = Self;
+    fn make_writer(&'a self) -> Self::Writer { self.clone() }
 }
