@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+use std::path::PathBuf;
 use std::sync::Arc;
 
 use iroh::EndpointId;
@@ -21,11 +23,25 @@ use super::{Window, Message};
 
 impl Window {
     pub fn boot() -> Self {
+        let path = known_hosts_path();
+
+        let serialized_known_hosts = match std::fs::read_to_string(&path) {
+            Ok(t) => t,
+            Err(_) => {
+                let _ = std::fs::write(&path, "");
+                String::from("")
+            }
+        };
+
+        let known_hosts: HashMap<String, String> = serde_json::from_str(&serialized_known_hosts).unwrap_or([].into());
+
         Self {
             server_info: None,
             p2p: Arc::new(RwLock::new(None)),
             h264_instance: Arc::new(Mutex::new(decoder::Decoder::new().unwrap())),
             connected: false,
+
+            known_devices: known_hosts,
 
             allocation: None,
 
@@ -41,7 +57,7 @@ impl Window {
     pub fn update(&mut self, message: Message) -> Task<Message>{
         match message {
             Message::MouseMove(x, y) => {
-                let server_info = match self.server_info {
+                let server_info = match &self.server_info {
                     Some(t) => t,
                     None => return Task::none()
                 };
@@ -90,9 +106,39 @@ impl Window {
                     Message::Sent,
                 )
             },
-            Message::PinSubmitted => {
-                let pin_textbox = self.pin_textbox.clone().to_ascii_uppercase();
-                let key_textbox = self.key_textbox.clone();
+            Message::PinSubmitted(pin) => {
+
+                Task::perform(async move {
+                        let mut key= String::from("");
+
+                        for _ in 0..3 {
+                            match p2p::remote_key_store::get(&pin).await {
+                                Ok(t) => {
+                                    key = t;
+                                    break;
+                                },
+                                Err(e) => {
+                                    println!("Error: {}", e);
+                                    key = String::from("Timeout");
+                                    break;
+                                }
+                            }
+                        }
+
+                        p2p::remote_key_store::delete(&pin).await;
+                        
+                        key
+                    },
+                    Message::KeySubmitted
+                )
+            }
+            Message::KeySubmitted(key) => {
+                if key == "Timeout" {
+                    self.wait_reason = String::from("");
+                    self.error = String::from("Error connecting to pin server");
+                    return Task::none()
+                }
+
                 self.wait_reason = String::from("Connecting to server...");
                 self.error = String::from("");
 
@@ -100,27 +146,6 @@ impl Window {
 
                 Task::perform(
                     async move {
-                        let mut key= String::from("");
-                        if key_textbox.len() == 0 {
-
-                            for _ in 0..3 {
-                                match p2p::remote_key_store::get(&pin_textbox).await {
-                                    Ok(t) => {
-                                        key = t;
-                                        break;
-                                    },
-                                    Err(e) => {
-                                        println!("Error: {}", e);
-                                        return Err(P2PError::Timeout)
-                                    }
-                                }
-                            }
-
-                            p2p::remote_key_store::delete(&pin_textbox).await;
-                        } else {
-                            key = key_textbox;
-                        }
-
                         let parsed_key = key.parse::<EndpointId>().map_err(|_| P2PError::during("Error reading key", P2PError::InputError("Invalid key or pin".to_string())))?;
 
                         let client = p2p::P2P::connect(parsed_key).await?;
@@ -141,6 +166,8 @@ impl Window {
                             protocol::FromBytes::ServerHello(d) => d,
                             _ => panic!("Did not receive server info")
                         };
+
+                        save_host(server_info.name.clone(), key);
                         
                         let p2p: Arc<RwLock<Option<p2p::P2P>>> = Arc::new(RwLock::new(Some(client)));
 
@@ -266,11 +293,38 @@ impl Window {
                 Task::none()
             },
 
-            Message::PINTextbox(f) => {
+            Message::RemoveKnownHost(key) => {
+                let path = known_hosts_path();
+
+                let serialized = match std::fs::read_to_string(&path) {
+                    Ok(t) => t,
+                    Err(_) => {
+                        let _ = std::fs::write(&path, "");
+                        String::from("")
+                    }
+                };
+
+                let mut map: HashMap<String, String> = serde_json::from_str(&serialized).unwrap_or([].into());
+                map.remove(&key);
+                
+                let reserialized = match serde_json::to_string(&map) {
+                    Ok(t) => t,
+                    Err(e) => {
+                        println!("Error serializing known hosts: {}", e);
+                        serialized
+                    }
+                };
+
+                let _ = std::fs::write(&path, reserialized);
+                self.known_devices = map;
+                Task::none()
+            }
+
+            Message::UpdatePINTextbox(f) => {
                 self.pin_textbox = f;
                 Task::none()
             },
-            Message::KeyTextbox(f) => {
+            Message::UpdateKeyTextbox(f) => {
                 self.key_textbox = f;
                 Task::none()
             },
@@ -283,14 +337,37 @@ impl Window {
 
     pub fn view(&self) -> iced::Element<'_, Message> {
         if !self.connected {
+
+            let mut buttons = vec![];
+
+            for (key, host) in &self.known_devices {
+                buttons.push(
+                    row![
+                        button(host.as_str()).on_press(Message::KeySubmitted(key.clone())).width(Fill),
+                        button("X").on_press(Message::RemoveKnownHost(key.clone())),
+                    ]
+                    .spacing(5)
+                    .into()
+                );
+            }
+
             return container (
                 column![
                     text("Input device pin").width(Fill).align_x(Center),
-                    row![text_input("000000", &self.pin_textbox).on_input(Message::PINTextbox), space().width(20), button("Connect").on_press(Message::PinSubmitted)],
+                    row![text_input("000000", &self.pin_textbox).on_input(Message::UpdatePINTextbox), space().width(20), button("Connect").on_press(Message::PinSubmitted(self.pin_textbox.clone()))],
+                    
                     text("OR").width(Fill).align_x(Center),
+                    
                     text("Input device key").width(Fill).align_x(Center),
-                    row![text_input("", &self.key_textbox).on_input(Message::KeyTextbox), space().width(20), button("Connect").on_press(Message::PinSubmitted)],
+                    row![text_input("", &self.key_textbox).on_input(Message::UpdateKeyTextbox), space().width(20), button("Connect").on_press(Message::KeySubmitted(self.key_textbox.clone()))],
+                    
+                    text("OR").width(Fill).align_x(Center),
+                    
+                    text("Select previous device").width(Fill).align_x(Center),
+                    iced::widget::Column::from_vec(buttons.into()).width(Fill).align_x(Center),
+                    
                     space().height(20),
+                    
                     text(&self.wait_reason).width(Fill).align_x(Center),
                     text(&self.error).width(Fill).align_x(Center).style(|t| {text::danger(t)}),
                 ]
@@ -330,4 +407,37 @@ impl Window {
         .height(Fill)
         .into()
     }
+}
+
+fn save_host(hostname: String, key: String) {
+    let path = known_hosts_path();
+
+    let serialized = match std::fs::read_to_string(&path) {
+        Ok(t) => t,
+        Err(_) => {
+            let _ = std::fs::write(&path, "");
+            String::from("")
+        }
+    };
+
+    let mut map: HashMap<String, String> = serde_json::from_str(&serialized).unwrap_or([].into());
+    map.insert(key, hostname);
+    
+    let reserialized = match serde_json::to_string(&map) {
+        Ok(t) => t,
+        Err(e) => {
+            println!("Error serializing known hosts: {}", e);
+            serialized
+        }
+    };
+
+    let _ = std::fs::write(&path, reserialized);
+
+}
+
+fn known_hosts_path() -> PathBuf {
+    let base = std::env::var_os("XDG_CONFIG_HOME")
+        .map(PathBuf::from)
+        .unwrap_or_else(|| PathBuf::from(std::env::var_os("HOME").unwrap()).join(".config"));
+    base.join("waydraw").join("known_hosts")
 }

@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::sync::Arc;
 
 use iced_core::image::{Allocation, Error};
@@ -19,6 +20,7 @@ pub struct Window {
     connected: bool,
 
     allocation: Option<iced_core::image::Allocation>,
+    known_devices: HashMap<String, String>,
 
     known_size: (usize, usize),
     
@@ -38,12 +40,15 @@ pub enum Message {
     ScreenshotReceived(ScreenshotType),
     ImageAllocated(Result<Allocation, Error>),
 
-    PinSubmitted,
+    PinSubmitted(String),
+    KeySubmitted(String),
     P2PCreated(Result<(Arc<RwLock<Option<p2p::P2P>>>, ServerHello), P2PError>),
     
-    PINTextbox(String),
-    KeyTextbox(String),
+    UpdatePINTextbox(String),
+    UpdateKeyTextbox(String),
     Sent(Result<(), String>),
+
+    RemoveKnownHost(String),
 
     // None,
     Null(())

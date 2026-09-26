@@ -2,7 +2,7 @@ use std::{path::PathBuf, sync::Arc};
 use tokio::sync::Mutex;
 
 use anyhow::Result;
-use iroh::{Endpoint, PublicKey, SecretKey, endpoint::{Connection, RecvStream, SendStream, presets::{self, Preset}}, protocol::{AcceptError, ProtocolHandler, Router}};
+use iroh::{Endpoint, PublicKey, SecretKey, endpoint::{Connection, RecvStream, SendStream, presets}, protocol::{AcceptError, ProtocolHandler, Router}};
 use tracing_subscriber::EnvFilter;
 
 const HELLO: &[u8] = b"hello";
@@ -105,6 +105,8 @@ impl P2P {
                 P2PError::during(format!("Error connecting to Iroh: {}", split.nth(0).unwrap()).as_str(), P2PError::Timeout)
             }
         )?;
+
+        // let _ = filter_handle.modify(|f| *f = EnvFilter::new("off"));
 
         let id = ep.id();
 
