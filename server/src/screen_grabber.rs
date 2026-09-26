@@ -20,7 +20,7 @@ impl ScreenCapture {
 
         let latest_frame = Arc::new(RwLock::new(None));
         let active = Arc::new(RwLock::new(true));
-        
+         
         let latest_frame_clone = latest_frame.clone();
         let monitor_name_clone = monitor_name.to_owned();
         let active_clone = active.clone();

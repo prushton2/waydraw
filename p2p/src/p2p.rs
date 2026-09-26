@@ -3,7 +3,9 @@ use tokio::sync::Mutex;
 
 use anyhow::Result;
 use iroh::{Endpoint, PublicKey, SecretKey, endpoint::{Connection, RecvStream, SendStream, presets}, protocol::{AcceptError, ProtocolHandler, Router}};
-use tracing_subscriber::EnvFilter;
+use tracing_subscriber::{EnvFilter, util::SubscriberInitExt};
+
+use crate::logging;
 
 const HELLO: &[u8] = b"hello";
 
@@ -23,7 +25,7 @@ pub enum P2PError {
 
 impl std::fmt::Display for P2PError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_fmt(format_args!("{:?}", self))
+        f.write_fmt(format_args!("{}", String::from(self.clone())))
     }
 }
 
@@ -79,13 +81,6 @@ pub struct P2P {
 impl P2P {
     pub async fn init(secret_key: SecretKey) -> Result<(Self, PublicKey), P2PError> {
         let handler = Box::new(Handler::new());
-        let logs = StringWriter::default();
-
-        tracing_subscriber::fmt()
-            .with_env_filter(EnvFilter::new("iroh=warn"))
-            .with_writer(logs.clone())
-            .with_ansi(false) // filter out color codes
-            .init();
 
         let ep = Endpoint::builder(presets::N0)
             .secret_key(secret_key)
@@ -95,19 +90,22 @@ impl P2P {
         
         let router = Router::builder(ep.clone()).accept(HELLO, handler.clone()).spawn();
 
+        let log = logging::logging();
+        log.enable();
+
         tokio::time::timeout(
             std::time::Duration::from_secs(5),
             ep.online()
         ).await
             .map_err(|_| {
-                let lock = logs.0.lock().unwrap();
+                let lock = log.logs.0.lock().unwrap();
                 let mut split = lock.split("\n");
+                log.disable();
                 P2PError::during(format!("Error connecting to Iroh: {}", split.nth(0).unwrap()).as_str(), P2PError::Timeout)
             }
         )?;
-
-        // let _ = filter_handle.modify(|f| *f = EnvFilter::new("off"));
-
+        
+        log.disable();
         let id = ep.id();
 
         Ok((Self {
@@ -137,20 +135,31 @@ impl P2P {
 
     pub async fn connect(id: PublicKey) -> Result<Self, P2PError> {
         let handler = Box::new(Handler::new());
+        
         let ep = Endpoint::bind(presets::N0).await.map_err(|e| P2PError::during("Could not connect to hardware", P2PError::BindError(e.to_string())))?;
         let router = Router::builder(ep.clone()).accept(HELLO, handler.clone()).spawn();
+
+        let log = logging::logging();
+        log.enable();
 
         let conn = tokio::time::timeout(
             std::time::Duration::from_secs(5), 
             ep.connect(id, HELLO)
         )
             .await
-            .map_err(|_e|
-                P2PError::during("Error connecting to server", P2PError::Timeout))?
-            .map_err(|e| 
-                P2PError::during("Error creating connection with Iroh relays. If this persists, ensure there is no middleman in your TLS connections or use a VPN.", P2PError::CreateConnectionError(e.to_string()))
-            )?;
+            .map_err(|_e| {
+                log.disable();
+                P2PError::during("Error connecting to server", P2PError::Timeout)
+            })?
+            .map_err(|_| {
+                let lock = log.logs.0.lock().unwrap();
+                let mut split = lock.split("\n");
+                log.disable();
+                P2PError::during(format!("Error connecting to Iroh: {}", split.nth(0).unwrap()).as_str(), P2PError::Timeout)
+            }
+        )?;
 
+        log.disable();
 
         let (send, recv) = conn.open_bi().await.map_err(|e| P2PError::during("Error creating connection with server", P2PError::CreateConnectionError(e.to_string())))?;
 
@@ -203,22 +212,6 @@ impl P2P {
     pub async fn close(&mut self) {
         let _ = self.router.shutdown().await;
     }
-}
-
-#[derive(Clone, Default)]
-struct StringWriter(Arc<std::sync::Mutex<String>>);
-
-impl std::io::Write for StringWriter {
-    fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
-        self.0.lock().unwrap().push_str(&String::from_utf8_lossy(buf));
-        Ok(buf.len())
-    }
-    fn flush(&mut self) -> std::io::Result<()> { Ok(()) }
-}
-
-impl<'a> tracing_subscriber::fmt::MakeWriter<'a> for StringWriter {
-    type Writer = Self;
-    fn make_writer(&'a self) -> Self::Writer { self.clone() }
 }
 
 fn key_path() -> PathBuf {
