@@ -139,6 +139,7 @@ impl Window {
                 let version = env!("CARGO_PKG_VERSION").split(".").map(|s| s.parse::<u8>().unwrap_or(0)).collect::<Vec<u8>>();
 
                 let server_info = ServerHello {
+                    name: gethostname::gethostname().into_string().unwrap(),
                     version: (version[0], version[1], version[2]),
                     screen_width:  selected_monitor.resolution.0,
                     screen_height: selected_monitor.resolution.1
