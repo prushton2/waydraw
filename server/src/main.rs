@@ -2,7 +2,7 @@ use iced::Theme;
 
 mod mouse;
 mod window;
-mod screen_grabber;
+mod screen_capture;
 
 fn main() {
     

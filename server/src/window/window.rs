@@ -7,9 +7,9 @@ use iced::alignment::Horizontal::Center;
 use iced::widget::{space, button, column, container, row, text, text_input};
 
 use crate::mouse;
-use crate::window::modules::{connect_flow};
+use crate::window::modules::{connect_flow, receive_stream};
 
-use super::{Window, Message, ClientMessage, Monitor};
+use super::{Window, Message, Monitor};
 
 impl Window {
     pub fn boot() -> Self {
@@ -56,7 +56,12 @@ impl Window {
         match message {
             Message::ConnectFlow(sub_message) => {
                 connect_flow::update(self, sub_message).map(Message::ConnectFlow)
-            }
+            },
+
+            Message::P2PMessage(m) => {
+                receive_stream::update(self, m).map(Message::P2PMessage)
+            },
+
             Message::SelectMonitor(i) => {
                 self.selected_monitor = Some(i);
                 Task::none()
@@ -70,26 +75,6 @@ impl Window {
                 Task::none()
             },
 
-            Message::ClientMessage(m) => {
-                match m {
-                    ClientMessage::MouseClick(button, state) => {
-                        self.mouse.click_mouse(button, state);
-                    },
-                    ClientMessage::MouseMove(x, y) => {
-                        let (offset_x, offset_y) = self.available_monitors[self.selected_monitor.unwrap()].position;
-                        let scale = self.available_monitors[self.selected_monitor.unwrap_or(0)].scale;
-                        let mouse_position = (
-                            ((x as i32 + offset_x) as f32) / scale,
-                            ((y as i32 + offset_y) as f32) / scale,
-                        );
-                        self.mouse.move_mouse(mouse_position.0 as i32, mouse_position.1 as i32);
-                    },
-                    ClientMessage::ClientWindowResize(x, y) => {
-                        *self.client_window_size.lock().unwrap() = (x, y);
-                    }
-                }
-                Task::none()
-            }
         }
     }
 

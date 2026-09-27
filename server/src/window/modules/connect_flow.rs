@@ -4,7 +4,7 @@ use iced::Task;
 use p2p::{self, protocol::{ClientHello, FromBytes, IntoBytes, ServerHello}};
 use tokio::sync::RwLock;
 
-use crate::{screen_grabber::ScreenCapture, window::Window};
+use crate::{screen_capture::ScreenCapture, window::Window};
 
 #[derive(Clone)]
 pub enum ConnectFlow {

@@ -1,8 +1,7 @@
 use std::sync::Arc;
-use p2p::protocol::{mouse_click::{MouseButton, MouseState}};
 use tokio::sync::{Mutex, RwLock};
 
-use crate::{mouse, screen_grabber::ScreenCapture};
+use crate::{mouse, screen_capture::ScreenCapture, window::modules::receive_stream::P2PMessage};
 
 pub mod subscriptions;
 pub mod window;
@@ -45,14 +44,8 @@ pub struct Window {
 pub enum Message {
     ConnectFlow(modules::connect_flow::ConnectFlow),
     SelectMonitor(usize),
-    ClientMessage(ClientMessage),
+    P2PMessage(P2PMessage),
     None,
     Null(())
 }
 
-#[derive(Clone)]
-pub enum ClientMessage {
-    MouseClick(MouseButton, MouseState),
-    MouseMove(u32, u32),
-    ClientWindowResize(u32, u32)
-}
