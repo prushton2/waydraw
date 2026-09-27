@@ -123,10 +123,7 @@ impl Window {
                                     break;
                                 }
                             }
-                        }
-
-                        p2p::remote_key_store::delete(&pin).await;
-                        
+                        }                        
                         key
                     },
                     Message::KeySubmitted
@@ -148,7 +145,7 @@ impl Window {
                     async move {
                         let parsed_key = key.parse::<EndpointId>().map_err(|_| P2PError::during("Error reading key", P2PError::InputError("Invalid key or pin".to_string())))?;
 
-                        let client = p2p::P2P::connect(parsed_key).await?;
+                        let p2p = p2p::P2P::connect(parsed_key).await?;
                         
                         let version = env!("CARGO_PKG_VERSION").split(".").map(|s| s.parse::<u8>().unwrap()).collect::<Vec<u8>>();
 
@@ -158,9 +155,9 @@ impl Window {
                             window_height: known_size_clone.1 as u32
                         };
 
-                        let _ = client.send(&client_hello.into_bytes()).await;
+                        let _ = p2p.send(&client_hello.into_bytes()).await;
                         
-                        let data = client.read().await?;
+                        let data = p2p.read().await?;
 
                         let server_info = match protocol::FromBytes::parse(&data) {
                             protocol::FromBytes::ServerHello(d) => d,
@@ -169,7 +166,7 @@ impl Window {
 
                         save_host(server_info.name.clone(), key);
                         
-                        let p2p: Arc<RwLock<Option<p2p::P2P>>> = Arc::new(RwLock::new(Some(client)));
+                        let p2p: Arc<RwLock<Option<p2p::P2P>>> = Arc::new(RwLock::new(Some(p2p)));
 
                         Ok((p2p, server_info))
                     },

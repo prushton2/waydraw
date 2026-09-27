@@ -1,11 +1,12 @@
 use std::sync::Arc;
-use p2p::protocol::{ClientHello, mouse_click::{MouseButton, MouseState}};
+use p2p::protocol::{mouse_click::{MouseButton, MouseState}};
 use tokio::sync::{Mutex, RwLock};
 
 use crate::{mouse, screen_grabber::ScreenCapture};
 
 pub mod subscriptions;
 pub mod window;
+pub mod modules;
 
 // pinray and display_info reliably provide different props, so i manually merge them together
 pub struct Monitor {
@@ -42,13 +43,9 @@ pub struct Window {
 
 #[derive(Clone)]
 pub enum Message {
-    Register,
-    AwaitClient(Result<(Arc<RwLock<Option<p2p::P2P>>>, String, String), String>),
-    SendHello(Result<(), String>),
+    ConnectFlow(modules::connect_flow::ConnectFlow),
     SelectMonitor(usize),
     ClientMessage(ClientMessage),
-    Disconnect,
-    Connect(ClientHello),
     None,
     Null(())
 }

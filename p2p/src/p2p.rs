@@ -3,7 +3,6 @@ use tokio::sync::Mutex;
 
 use anyhow::Result;
 use iroh::{Endpoint, PublicKey, SecretKey, endpoint::{Connection, RecvStream, SendStream, presets}, protocol::{AcceptError, ProtocolHandler, Router}};
-use tracing_subscriber::{EnvFilter, util::SubscriberInitExt};
 
 use crate::logging;
 
