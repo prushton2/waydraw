@@ -1,9 +1,11 @@
 use iced::{Border, Theme};
 use iced::border::Radius;
-use iced::widget::{button, column, container, row, space, text, text_input};
+use iced::widget::{button, column, container, row, space, stack, text, text_input, MouseArea, image};
 use iced::{Alignment::Center, Length::Fill};
 
-use crate::window::{Message, Window};
+use crate::window::{Message, Window, modules};
+
+use crate::p2p::protocol::mouse_click::{MouseButton, MouseState};
 
 pub enum UIState {
     Host{pin: String, key: String, wait: String, error: String},
@@ -51,7 +53,7 @@ pub fn view(this: &Window) -> iced::Element<'_, Message> {
                     row![
                         text_input("000000", pin_input).on_input(|e| Message::UIUpdate(UIUpdate::UpdatePinTextbox(e))),
                         space().width(20),
-                        button("Connect").on_press(Message::None)
+                        button("Connect").on_press(Message::ClientConnectFlow(modules::client::ConnectFlow::PinSubmitted(pin_input.clone())))
                     ],
                     
                     text("OR").width(Fill).align_x(Center),
@@ -60,7 +62,7 @@ pub fn view(this: &Window) -> iced::Element<'_, Message> {
                     row![
                         text_input("", key_input).on_input(|e| Message::UIUpdate(UIUpdate::UpdateKeyTextbox(e))),
                         space().width(20),
-                        button("Connect").on_press(Message::None)
+                        button("Connect").on_press(Message::ClientConnectFlow(modules::client::ConnectFlow::KeySubmitted(key_input.clone())))
                     ],
                     
                     text("OR").width(Fill).align_x(Center),
@@ -91,7 +93,7 @@ pub fn view(this: &Window) -> iced::Element<'_, Message> {
                         // iced::widget::Column::from_vec(buttons).width(Fill).align_x(Center),
                         
                         space().height(20),
-                        container(button("Allow Connections").on_press(Message::None)).center_x(Fill),
+                        container(button("Allow Connections").on_press(Message::HostConnectFlow(modules::host::ConnectFlow::Register))).center_x(Fill),
                         space().height(20),
                         
                         row![text("Pin"), space().width(24), text_input(pin, pin).on_input(|_| Message::None)],
@@ -108,13 +110,38 @@ pub fn view(this: &Window) -> iced::Element<'_, Message> {
             .into()
         },
         UIState::ConnectedClient => {
-            return column![
-                text("Window here")
-            ].into()
+            return container (
+            stack![
+                MouseArea::new(
+                    row![]
+                    .width(Fill)
+                    .height(Fill)
+                )
+                .on_move(|point| {return Message::MouseMove(point.x as i32, point.y as i32)})
+    
+                .on_press        (Message::MouseClick(MouseButton::Left,  MouseState::Pressed ))
+                .on_release      (Message::MouseClick(MouseButton::Left,  MouseState::Released))
+                .on_right_press  (Message::MouseClick(MouseButton::Right, MouseState::Pressed ))
+                .on_right_release(Message::MouseClick(MouseButton::Right, MouseState::Released)),
+
+                match this.allocation.as_ref() {
+                    Some(allocation) => iced::Element::from(
+                        image(allocation.handle())
+                            .width(Fill)
+                            .height(Fill)
+                    ),
+                    None => space().width(Fill).height(Fill).into()
+                }
+            ]
+
+        )
+        .width(Fill)
+        .height(Fill)
+        .into()
         },
         UIState::ConnectedHost => {
             return column![
-                button("Disconnect")
+                button("Disconnect").on_press(Message::Disconnect)
             ].into()
         }
     }

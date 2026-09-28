@@ -16,7 +16,7 @@ fn main() {
         window::Window::view
     )
         .theme(Theme::CatppuccinFrappe)
-        // .subscription(window::subscriptions::subscription)
+        .subscription(window::window::subscription)
         .title("Waydraw")
         .run();
 }
