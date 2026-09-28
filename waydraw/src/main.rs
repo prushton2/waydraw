@@ -1,6 +1,9 @@
 use iced::Theme;
 
 pub mod config;
+pub mod p2p;
+pub mod encoding;
+
 mod window;
 
 pub use config::Config;

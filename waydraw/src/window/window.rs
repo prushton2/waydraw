@@ -1,3 +1,7 @@
+use std::sync::Arc;
+
+use tokio::sync::Mutex;
+
 use crate::window::modules::*;
 
 use super::Window;
@@ -7,6 +11,8 @@ impl Window {
     pub fn boot() -> Self {
         Self {
             config: crate::Config::load_or_generate(),
+            p2p: Arc::new(Mutex::new(None)),
+            encoder: Arc::new(Mutex::new(None)),
             ui_state: ui_state::UIState::Host { pin: String::from(""), key: String::from(""), wait: String::from(""), error: String::from("") }
         }
     }
