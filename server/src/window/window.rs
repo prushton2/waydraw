@@ -31,7 +31,7 @@ impl Window {
         let this = Self {
             p2p: Arc::new(RwLock::new(None)),
             mouse: mouse,
-            h264_instance: Arc::new(Mutex::new(openh264::encoder::Encoder::new().unwrap())),
+            encoder: Arc::new(Mutex::new(Some(Box::new(crate::encoding::h264::H264::new().unwrap())))),
 
             client_window_size: Arc::new(std::sync::Mutex::new((100, 100))),
             connected: false,

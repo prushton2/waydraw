@@ -1,7 +1,7 @@
 use std::sync::Arc;
 use tokio::sync::{Mutex, RwLock};
 
-use crate::{mouse, screen_capture::ScreenCapture, window::modules::receive_stream::P2PMessage};
+use crate::{encoding::Encoder, mouse, screen_capture::ScreenCapture, window::modules::receive_stream::P2PMessage};
 
 pub mod subscriptions;
 pub mod window;
@@ -19,7 +19,7 @@ pub struct Monitor {
 pub struct Window {
     p2p: Arc<RwLock<Option<p2p::P2P>>>,
     mouse: Box<dyn mouse::Mouse>,
-    h264_instance: Arc<Mutex<openh264::encoder::Encoder>>,
+    encoder: Arc<Mutex<Option<Box<dyn Encoder>>>>,
 
     // Shared with the long-lived screencap subscription (see subscriptions.rs) so it can
     // observe resizes/reconnects in place without the subscription's identity changing.

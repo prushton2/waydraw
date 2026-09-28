@@ -51,13 +51,7 @@ fn p2p_stream(feed: &P2PStreamParameters) -> impl iced::futures::Stream<Item = M
 
         drop(p2p_lock);
         match FromBytes::parse(&response[..]) {
-            FromBytes::Screenshot(t) => {
-                return Some((Message::ScreenshotReceived(ScreenshotType::Uncompressed(t)), parameters))
-            },
-            FromBytes::CompressedScreenshot(t) => {
-                return Some((Message::ScreenshotReceived(ScreenshotType::Compressed(t)), parameters))
-            },
-            FromBytes::H264Packet(h264_bytes) => {
+            FromBytes::Screenshot(h264_bytes) => {
                 // println!("Received H264 Packet");
                 let mut h264_lock = parameters.h264_instance.lock().await;
                 let mut rgba8: Vec<u8> = vec![];

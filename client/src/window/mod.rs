@@ -6,7 +6,7 @@ use openh264::decoder;
 use p2p::p2p::P2PError;
 use tokio::sync::{Mutex, RwLock};
 
-use p2p::protocol::{Screenshot, CompressedScreenshot, ServerHello};
+use p2p::protocol::ServerHello;
 use p2p::protocol::mouse_click::{MouseButton, MouseState};
 
 pub mod subscriptions;
@@ -56,7 +56,5 @@ pub enum Message {
 
 #[derive(Clone)]
 pub enum ScreenshotType {
-    Uncompressed(Screenshot),
-    Compressed(CompressedScreenshot),
     Rgba8(Vec<u8>)
 }

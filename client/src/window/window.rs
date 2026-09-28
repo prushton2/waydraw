@@ -250,26 +250,6 @@ impl Window {
             Message::ScreenshotReceived(screenshot) => {
                 // must be Rgba8
                 let image_pixels: Vec<u8> = match screenshot {
-                    ScreenshotType::Uncompressed(ss) => {
-                        let mut pixels: Vec<u8> = vec![];
-        
-                        for pixel in ss.pixels {
-                            pixels.push(pixel.0);
-                            pixels.push(pixel.1);
-                            pixels.push(pixel.2);
-                            pixels.push(255);
-                        }
-
-                        pixels
-                    },
-
-                    ScreenshotType::Compressed(ss) => {
-                        match zstd::stream::decode_all(ss.bytes.as_slice()) {
-                            Ok(t) => t,
-                            Err(_) => vec![]
-                        }
-                    }
-
                     ScreenshotType::Rgba8(bytes) => bytes,
                 };
 

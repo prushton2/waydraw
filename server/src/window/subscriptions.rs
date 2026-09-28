@@ -16,7 +16,7 @@ pub fn subscription(window: &Window) -> Subscription<Message> {
     if window.connected && window.recording.read().unwrap().is_some() {
         let params = screencap_stream::ScreencapStreamParameters {
             recording: window.recording.clone(),
-            h264_instance: window.h264_instance.clone(),
+            encoder: window.encoder.clone(),
             p2p: window.p2p.clone(),
             client_window_size: window.client_window_size.clone()
         };

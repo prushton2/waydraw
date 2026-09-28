@@ -3,6 +3,7 @@ use iced::Theme;
 mod mouse;
 mod window;
 mod screen_capture;
+mod encoding;
 
 fn main() {
     

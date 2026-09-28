@@ -10,9 +10,7 @@ use fast_image_resize::Resizer;
 use fast_image_resize::images::Image;
 use fast_image_resize::images::ImageRef;
 
-use openh264::formats;
-use openh264::encoder;
-
+use crate::encoding::Encoder;
 use crate::screen_capture::ScreenCapture;
 use crate::window::Message;
 
@@ -20,7 +18,7 @@ use crate::window::Message;
 #[derive(Clone)]
 pub struct ScreencapStreamParameters {
     pub recording: Arc<std::sync::RwLock<Option<ScreenCapture>>>,
-    pub h264_instance: Arc<Mutex<encoder::Encoder>>,
+    pub encoder: Arc<Mutex<Option<Box<dyn Encoder>>>>,
     pub p2p: Arc<RwLock<Option<p2p::P2P>>>,
     pub client_window_size: Arc<std::sync::Mutex<(u32, u32)>>,
 }
@@ -33,7 +31,7 @@ impl Hash for ScreencapStreamParameters {
         // permanently desyncing its length-prefixed framing (client hangs in read_exact -> freeze).
         // Hash on h264_instance instead: it's created once in `Window::boot` and never replaced,
         // so the identity stays stable for the life of the app and the stream is kept running.
-        Arc::as_ptr(&self.h264_instance).hash(state);
+        Arc::as_ptr(&self.encoder).hash(state);
     }
 }
 
@@ -60,50 +58,32 @@ pub fn screencap_stream(params: &ScreencapStreamParameters) -> impl iced::future
         let client_window_size = *parameters.client_window_size.lock().unwrap();
 
         if client_window_size.0 == 0 || client_window_size.1 == 0 {
-            // println!("Client window size is 0");
             return Some((Message::Null(()), parameters))
         }
 
-        let bytes = image.to_tight_bytes().unwrap();
+        let image_bytes = image.to_tight_bytes().unwrap();
 
         let opts = ResizeOptions::new()
             .resize_alg(fast_image_resize::ResizeAlg::Convolution(fast_image_resize::FilterType::Bilinear))
             .use_alpha(false);
 
-        let src = ImageRef::new(image.width, image.height, &bytes, fast_image_resize::PixelType::U8x4).unwrap();
+        let src = ImageRef::new(image.width, image.height, &image_bytes, fast_image_resize::PixelType::U8x4).unwrap();
         let mut dst = Image::new(client_window_size.0, client_window_size.1, fast_image_resize::PixelType::U8x4);
         let _ = Resizer::new().resize(&src, &mut dst, Some(&opts));
 
         let dst_bytes = &dst.into_vec();
-        let rgba_slice = formats::RgbaSliceU8::new(dst_bytes, (client_window_size.0 as usize, client_window_size.1 as usize));
-        let yuv_buffer = formats::YUVBuffer::from_rgba8_source(rgba_slice);
 
-        let bytes = {
-            let mut h264_lock = parameters.h264_instance.lock().await;
-            // encode() errors on e.g. an odd/unsupported resolution. This stream is now
-            // long-lived (see the Hash impl above) and nothing respawns it if its future
-            // panics, so an unhandled error here would silently end the video feed for the
-            // rest of the session - just drop the frame and keep going instead.
-            let encoded = match h264_lock.encode(&yuv_buffer) {
-                Ok(e) => e,
-                Err(e) => {
-                    eprintln!("h264 encode failed for {}x{}: {e}", client_window_size.0, client_window_size.1);
-                    drop(h264_lock);
-                    return Some((Message::Null(()), parameters))
-                }
-            };
-            let mut bytes = vec![];
-            encoded.write_vec(&mut bytes);
-            bytes
-            // h264_lock and encoded (not Send, holds raw pointers into the encoder)
-            // are dropped here, before the next .await
-        };
+        let mut encoded_bytes: Vec<u8> = vec![];
+
+        if let Some(encoder) = parameters.encoder.lock().await.as_mut() {
+            encoded_bytes = encoder.encode(dst_bytes, client_window_size);
+        }
 
         let p2p_lock = parameters.p2p.read().await;
         let p2p_ref = p2p_lock.as_ref().unwrap();
 
-        let frame = p2p::protocol::H264Packet {
-            bytes: bytes
+        let frame = p2p::protocol::Screenshot {
+            bytes: encoded_bytes
         };
 
         let _ = p2p_ref.send(&frame.into_bytes()).await;
