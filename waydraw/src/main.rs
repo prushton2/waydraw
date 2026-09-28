@@ -1,9 +1,9 @@
 use iced::Theme;
 
-// mod mouse;
+pub mod config;
 mod window;
-// mod screen_capture;
-// mod encoding;
+
+pub use config::Config;
 
 fn main() {
     
