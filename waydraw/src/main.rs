@@ -4,6 +4,7 @@ pub mod config;
 pub mod p2p;
 pub mod encoding;
 pub mod mouse;
+pub mod screen_capture;
 
 mod window;
 

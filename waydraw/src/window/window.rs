@@ -1,11 +1,13 @@
 use std::sync::Arc;
 use iced::Task;
-use tokio::sync::{RwLock, Mutex};
+use tokio::sync::RwLock;
 
 use iced::Subscription;
 
+use crate::encoding;
 use crate::p2p::protocol::{self, IntoBytes};
 use crate::window::modules;
+use crate::window::modules::screencap_stream::ScreencapStreamParameters;
 use crate::window::modules::ui_state::UIState;
 use crate::window::modules::*;
 
@@ -18,20 +20,29 @@ impl Window {
         if !cfg!(debug_assertions) {
             mouse = Box::new(crate::mouse::EnigoMouse::new());
         }
+
+        let monitors = match read_monitors() {
+            Ok(t) => t,
+            Err(_) => vec![]
+        };
         
         Self {
             config: crate::Config::load_or_generate(),
             p2p: Arc::new(RwLock::new(None)),
-            encoder: Arc::new(Mutex::new(None)),
+            encoder: Arc::new(std::sync::Mutex::new(Some(Box::new(encoding::h264::H264::new().unwrap())))),
             ui_state: ui_state::UIState::Host { pin: String::from(""), key: String::from(""), wait: String::from(""), error: String::from("") },
+            
+            monitors: monitors,
+            selected_monitor: String::from(""),
 
             allocation: None,
             server_info: None,
 
             client_info: None,
             mouse: mouse,
+            video_recorder: Arc::new(std::sync::RwLock::new(None)),
 
-            window_size: (256, 256)
+            window_size: (256, 256),
         }
     }
 
@@ -48,6 +59,14 @@ impl Window {
             },
             Message::P2PMessage(message) => {
                 let _ = receive_stream::update(self, message);
+                Task::none()
+            },
+
+            Message::ImageAllocated(result) => {
+                if let Ok(allocation) = result {
+                    self.allocation = Some(allocation);
+                }
+
                 Task::none()
             },
 
@@ -99,6 +118,10 @@ impl Window {
             Message::Disconnect => {
                 modules::host::update(self, modules::host::ConnectFlow::Disconnect).map(Message::HostConnectFlow)
             },
+            Message::SelectMonitor(v) => {
+                self.selected_monitor = v;
+                Task::none()
+            }
 
             Message::WindowResize(x, y) => {
                 self.window_size = (x, y);
@@ -129,5 +152,63 @@ pub fn subscription(window: &Window) -> Subscription<Message> {
         );
     }
 
+    if let UIState::ConnectedHost = window.ui_state {
+        let screencap_stream = ScreencapStreamParameters {
+            recording: window.video_recorder.clone(),
+            encoder: window.encoder.clone(),
+            p2p: window.p2p.clone(),
+            client_window_size: (window.client_info.unwrap().window_width, window.client_info.unwrap().window_height)
+        };
+
+        subscriptions.push(
+            iced::Subscription::run_with(screencap_stream, screencap_stream::screencap_stream),
+        );
+    }
+
     return iced::Subscription::batch(subscriptions)
+}
+
+pub struct Monitor {
+    pub id: String,
+    pub name: String,
+    pub position: (i32, i32),
+    pub resolution: (u32, u32),
+    pub scale: f32,
+    pub label: String,
+}
+
+fn read_monitors() -> Result<Vec<Monitor>, String> {
+    let positions = display_info::DisplayInfo::all().unwrap_or_default();
+
+    let monitors = pinray::enumerate_sources()
+        .map_err(|e| e.to_string())?
+        .into_iter()
+        .filter_map(|e| {
+            match e {
+                pinray::CaptureSource::Display(display) => Some(display),
+                _ => None
+            }
+        })
+        .map(|pinray_source| {
+            // pinray ids are `display:<name>`, where <name> is the same device name display_info reports (`DP-1`, `\\.\DISPLAY1`, ...).
+            let name = pinray_source.id.0.strip_prefix("display:").unwrap_or(&pinray_source.id.0);
+
+            let displayinfo_source = positions
+                .iter()
+                .find(|e| e.name == name)
+                .map(|e| e)
+                .unwrap();
+
+            Monitor {
+                id: pinray_source.id.0.clone(),
+                name: pinray_source.name.clone(),
+                position: (displayinfo_source.x, displayinfo_source.y),
+                resolution: (pinray_source.width, pinray_source.height),
+                scale: displayinfo_source.scale_factor,
+                label: format!("{} {}x{}", pinray_source.name, pinray_source.width, pinray_source.height,)
+            }
+        })
+        .collect::<Vec<Monitor>>();
+
+    return Ok(monitors)
 }

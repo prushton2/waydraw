@@ -3,6 +3,7 @@ use std::sync::Arc;
 use iced::Task;
 use tokio::sync::RwLock;
 
+use crate::screen_capture;
 use crate::window::Window;
 use crate::p2p::{self, protocol::{ClientHello, FromBytes, IntoBytes, ServerHello}};
 use crate::window::modules::ui_state::{self, UIState};
@@ -178,17 +179,30 @@ pub fn update(this: &mut Window, message: ConnectFlow) -> Task<ConnectFlow> {
             this.client_info = Some(client_hello);
             ui_state::update(this, ui_state::UIUpdate::Connect);
 
+            let recorder_arc = this.video_recorder.clone();
+            let monitor_name = this.selected_monitor.clone();
+            
+            let mut lock = recorder_arc.write().unwrap();
+            *lock = Some(screen_capture::ScreenCapture::new(&monitor_name).unwrap());
+            
             Task::none()
         },
 
         ConnectFlow::Disconnect => {
             ui_state::update(this, ui_state::UIUpdate::Disconnect);
 
+            let recorder_arc = this.video_recorder.clone();
             let p2p_arc = this.p2p.clone();
             this.p2p = Arc::new(RwLock::new(None));
 
+            let mut lock = recorder_arc.write().unwrap();
+            if let Some(recorder) = lock.as_ref() {
+                recorder.kill()
+            }
+            *lock = None;
+
             Task::perform(
-            async move {
+                async move {
                     let mut lock = p2p_arc.write().await;
                     if let Some(p2p) = lock.as_mut() {
                         let _ = p2p.close().await;

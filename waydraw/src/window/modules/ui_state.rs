@@ -1,8 +1,9 @@
-use iced::{Border, Theme};
+use iced::{Border, Element, Theme};
 use iced::border::Radius;
 use iced::widget::{button, column, container, row, space, stack, text, text_input, MouseArea, image};
 use iced::{Alignment::Center, Length::Fill};
 
+use crate::window::window::Monitor;
 use crate::window::{Message, Window, modules};
 
 use crate::p2p::protocol::mouse_click::{MouseButton, MouseState};
@@ -20,8 +21,8 @@ pub enum UIUpdate {
     SetModeClient,
     UpdatePinTextbox(String),
     UpdateKeyTextbox(String),
-    UpdateWait(String),
-    UpdateError(String),
+    // UpdateWait(String),
+    // UpdateError(String),
     Connect,
     Disconnect
 }
@@ -82,6 +83,22 @@ pub fn view(this: &Window) -> iced::Element<'_, Message> {
             .into()
         },
         UIState::Host{pin, key, wait, error} => {
+
+            let monitor_buttons: Vec<Element<'_, Message>> = this.monitors
+                .iter()
+                .map(|e: &Monitor| 
+                    button(e.label.as_str())
+                        .on_press(Message::SelectMonitor(e.id.clone()))
+                        .style(|t, _| {
+                            if this.selected_monitor == e.id {
+                                Styles::selected_monitor(t)
+                            } else {
+                                Styles::unselected_monitor(t)
+                            }
+                        })
+                        .into()
+                ).collect();
+
             return container (
                 column![
                     row![
@@ -90,7 +107,7 @@ pub fn view(this: &Window) -> iced::Element<'_, Message> {
                     ],
                     column![
                         text("Select a monitor").width(Fill).align_x(Center),
-                        // iced::widget::Column::from_vec(buttons).width(Fill).align_x(Center),
+                        iced::widget::Column::from_vec(monitor_buttons).width(Fill).align_x(Center),
                         
                         space().height(20),
                         container(button("Allow Connections").on_press(Message::HostConnectFlow(modules::host::ConnectFlow::Register))).center_x(Fill),
@@ -203,6 +220,42 @@ impl Styles {
             snap: false
         }
     }
+
+    fn selected_monitor(theme: &Theme) -> button::Style {
+        button::Style {
+            background: Some(iced::Background::from(theme.palette().success)),
+            text_color: theme.palette().background,
+            border: Border {
+                color: iced::Color::from_rgb(0.0, 0.0, 0.0),
+                width: 0.0,
+                radius: Radius::new(2)
+            },
+            shadow: iced::Shadow {
+                color: theme.palette().background,
+                offset: iced::Vector::new(0.0, 1.0),
+                blur_radius: 0.0
+            },
+            snap: false
+        }
+    }
+
+    fn unselected_monitor(theme: &Theme) -> button::Style {
+        button::Style {
+            background: Some(iced::Background::from(theme.palette().primary)),
+            text_color: theme.palette().background,
+            border: Border {
+                color: iced::Color::from_rgb(0.0, 0.0, 0.0),
+                width: 0.0,
+                radius: Radius::new(2)
+            },
+            shadow: iced::Shadow {
+                color: theme.palette().background,
+                offset: iced::Vector::new(0.0, 1.0),
+                blur_radius: 0.0
+            },
+            snap: false
+        }
+    }
 }
 
 // this is for PURE ui updates. This can (and should) be called from anywhere 
@@ -220,20 +273,20 @@ pub fn update(this: &mut Window, message: UIUpdate) {
                 *pin_input = v
             }
         },
-        UIUpdate::UpdateWait(v) => {
-            if let UIState::Client { pin_input: _, key_input: _, wait, error: _ } = &mut this.ui_state {
-                *wait = v
-            } else if let UIState::Host { pin: _, key: _, wait, error: _ } = &mut this.ui_state {
-                *wait = v
-            }
-        },
-        UIUpdate::UpdateError(v) => {
-            if let UIState::Client { pin_input: _, key_input: _, wait: _, error } = &mut this.ui_state {
-                *error = v
-            } else if let UIState::Host { pin: _, key: _, wait: _, error } = &mut this.ui_state {
-                *error = v
-            }
-        },
+        // UIUpdate::UpdateWait(v) => {
+        //     if let UIState::Client { pin_input: _, key_input: _, wait, error: _ } = &mut this.ui_state {
+        //         *wait = v
+        //     } else if let UIState::Host { pin: _, key: _, wait, error: _ } = &mut this.ui_state {
+        //         *wait = v
+        //     }
+        // },
+        // UIUpdate::UpdateError(v) => {
+        //     if let UIState::Client { pin_input: _, key_input: _, wait: _, error } = &mut this.ui_state {
+        //         *error = v
+        //     } else if let UIState::Host { pin: _, key: _, wait: _, error } = &mut this.ui_state {
+        //         *error = v
+        //     }
+        // },
         UIUpdate::Connect => {
             if let UIState::Client { pin_input: _, key_input: _, wait: _, error: _ } = &mut this.ui_state {
                 this.ui_state = UIState::ConnectedClient;

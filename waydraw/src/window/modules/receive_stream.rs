@@ -73,7 +73,6 @@ pub fn update(this: &mut Window, message: P2PMessage) -> Task<Message> {
     match message {
         P2PMessage::MouseClick(button, state) => {
             this.mouse.click_mouse(button, state);
-
             Task::none()
         },
         P2PMessage::MouseMove(x, y) => {
@@ -92,11 +91,27 @@ pub fn update(this: &mut Window, message: P2PMessage) -> Task<Message> {
                 window_size.window_height = x;
                 window_size.window_width = y;
             }
-            
+
             Task::none()
         },
         P2PMessage::ScreenshotReceived(bytes) => {
-            if let UIState::ConnectedClient = this.ui_state {}
+            if let UIState::ConnectedClient = this.ui_state {
+                let mut encoder_lock = this.encoder.lock().unwrap();
+
+                let image_pixels = if let Some(encoder) = encoder_lock.as_mut() {
+                    encoder.decode(&bytes)
+                } else {
+                    return Task::none()
+                };
+
+                if image_pixels.is_empty() || image_pixels.len() != this.window_size.0 * this.window_size.1 * 4 {
+                    return Task::none();
+                }
+
+                let handle = image::Handle::from_rgba(this.window_size.0 as u32, this.window_size.1 as u32, image_pixels);
+
+                return image::allocate(handle).map(Message::ImageAllocated)
+            }
             Task::none()
         }
     }
