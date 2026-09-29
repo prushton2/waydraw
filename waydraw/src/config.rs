@@ -30,10 +30,16 @@ fn config_path() -> PathBuf {
         .map(PathBuf::from)
         .expect("APPDATA not set");
     
-    #[cfg(unix)]
+    #[cfg(target_os = "linux")]
     let base = std::env::var_os("XDG_CONFIG_HOME")
         .map(PathBuf::from)
         .unwrap_or_else(|| PathBuf::from(std::env::var_os("HOME").unwrap()).join(".config"));
+
+    #[cfg(target_os = "macos")]
+    let base = std::env::var_os("HOME")
+        .expect("No home directory found")
+        .map(PathBuf::from)
+        .join("Library/Application Support");
     
     base.join("waydraw")
 }
