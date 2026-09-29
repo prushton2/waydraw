@@ -1,4 +1,4 @@
-use std::{path::PathBuf, sync::Arc};
+use std::sync::Arc;
 use tokio::sync::Mutex;
 
 use anyhow::Result;
@@ -211,32 +211,4 @@ impl P2P {
     pub async fn close(&mut self) {
         let _ = self.router.shutdown().await;
     }
-}
-
-fn key_path() -> PathBuf {
-    let base = std::env::var_os("XDG_CONFIG_HOME")
-        .map(PathBuf::from)
-        .unwrap_or_else(|| PathBuf::from(std::env::var_os("HOME").unwrap()).join(".config"));
-    base.join("waydraw").join("secret_key")
-}
-
-pub fn load_or_create_secret_key() -> Result<SecretKey, P2PError> {
-    let path = key_path();
-
-    if let Ok(bytes) = std::fs::read(&path) {
-        if let Ok(bytes) = <[u8; 32]>::try_from(bytes.as_slice()) {
-            return Ok(SecretKey::from_bytes(&bytes));
-        }
-    }
-
-    let key = SecretKey::generate();
-    let err = |e: std::io::Error| P2PError::during("Saving secret key", P2PError::InputError(e.to_string()));
-    std::fs::create_dir_all(path.parent().unwrap()).map_err(err)?;
-    std::fs::write(&path, key.to_bytes()).map_err(err)?;
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt;
-        std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o600)).map_err(err)?;
-    }
-    Ok(key)
 }

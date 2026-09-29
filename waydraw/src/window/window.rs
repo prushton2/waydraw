@@ -209,7 +209,7 @@ fn read_monitors() -> Result<Vec<Monitor>, String> {
 
             let displayinfo_source = positions
                 .iter()
-                .find(|e| e.name == name)
+                .find(|e| e.name == name || e.id.to_string() == name)
                 .map(|e| e)
                 .unwrap();
 
@@ -217,8 +217,11 @@ fn read_monitors() -> Result<Vec<Monitor>, String> {
                 id: pinray_source.id.0.clone(),
                 position: (displayinfo_source.x, displayinfo_source.y),
                 resolution: (pinray_source.width, pinray_source.height),
+                label: format!("{} {}x{}", pinray_source.name, pinray_source.width, pinray_source.height),
+                #[cfg(target_os = "macos")] // Macos reports points, not pixels, which are already scaled, so we set the scale to 1.0
+                scale: 1.0,
+                #[cfg(not(target_os = "macos"))]
                 scale: displayinfo_source.scale_factor,
-                label: format!("{} {}x{}", pinray_source.name, pinray_source.width, pinray_source.height,)
             }
         })
         .collect::<Vec<Monitor>>();

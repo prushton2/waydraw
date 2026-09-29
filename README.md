@@ -3,12 +3,12 @@ Turn a laptop into a drawing tablet connected to another computer. Built using H
 
 ## Support
 
-OS | Support | Client Build | Server Build
+OS | Supported | Tested
 --|--|--|--
-Linux (Wayland) | Tested      | ✅ | ✅
-Linux (X11)     | Untested    | ✅ | ✅
-Windows         | Tested      | ✅ | ✅
-MacOS           | Unsupported | ❌ | ❌
+Linux (Wayland) | ✅ | ✅
+Linux (X11)     | ✅ | ❌
+Windows         | ✅ | ✅
+MacOS           | ❌ | ❌
 
 ## Usage
 
