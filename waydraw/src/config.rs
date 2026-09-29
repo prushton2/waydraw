@@ -25,9 +25,16 @@ impl Config {
 }
 
 fn config_path() -> PathBuf {
+    #[cfg(windows)]
+    let base = std::env::var_os("APPDATA")
+        .map(PathBuf::from)
+        .expect("APPDATA not set");
+    
+    #[cfg(unix)]
     let base = std::env::var_os("XDG_CONFIG_HOME")
         .map(PathBuf::from)
         .unwrap_or_else(|| PathBuf::from(std::env::var_os("HOME").unwrap()).join(".config"));
+    
     base.join("waydraw")
 }
 
