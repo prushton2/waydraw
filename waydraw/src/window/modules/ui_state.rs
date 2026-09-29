@@ -206,7 +206,7 @@ impl Styles {
     fn square_button(theme: &Theme) -> button::Style {
         button::Style {
             background: Some(iced::Background::from(theme.palette().primary)),
-            text_color: theme.palette().text,
+            text_color: theme.extended_palette().primary.base.text,
             border: Border {
                 color: iced::Color::from_rgb(0.0, 0.0, 0.0),
                 width: 0.0,
@@ -223,7 +223,7 @@ impl Styles {
 
     fn selected_monitor(theme: &Theme) -> button::Style {
         button::Style  {
-            background: Some(iced::Background::from(theme.extended_palette().primary.weak.color)),
+            background: Some(iced::Background::from(theme.palette().success)),
             text_color: theme.extended_palette().primary.base.text,
             border: Border {
                 color: iced::Color::from_rgb(0.0, 0.0, 0.0),
@@ -266,11 +266,15 @@ pub fn update(this: &mut Window, message: UIUpdate) {
         UIUpdate::UpdateKeyTextbox(v) => {
             if let UIState::Client { pin_input: _, key_input, wait: _, error: _ } = &mut this.ui_state {
                 *key_input = v
+            } else if let UIState::Host { pin: _, key, wait: _, error: _ } = &mut this.ui_state {
+                *key = v
             }
         },
         UIUpdate::UpdatePinTextbox(v) => {
             if let UIState::Client { pin_input, key_input: _, wait: _, error: _ } = &mut this.ui_state {
                 *pin_input = v
+            } else if let UIState::Host { pin, key: _, wait: _, error: _ } = &mut this.ui_state {
+                *pin = v
             }
         },
         UIUpdate::UpdateWait(v) => {
