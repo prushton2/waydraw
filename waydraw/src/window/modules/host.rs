@@ -21,11 +21,17 @@ pub enum ConnectFlow {
 pub fn update(this: &mut Window, message: ConnectFlow) -> Task<ConnectFlow> {
     match message {
         ConnectFlow::Register => {
-            if let UIState::Host { pin: _, key: _, wait, error } = &mut this.ui_state {
-                *error = "".to_owned();
-                *wait = "Registering...".to_owned();
+            if let UIState::Host { pin: _, key: _, wait: _, error: _ } = &mut this.ui_state {
+                ui_state::update(this, ui_state::UIUpdate::UpdateError("".to_owned()));
+                ui_state::update(this, ui_state::UIUpdate::UpdateWait("Registering...".to_owned()));
             } else {
                 return Task::none()
+            }
+
+            if this.monitors.iter().filter(|e| e.id == this.selected_monitor).nth(0).is_none() {
+                ui_state::update(this, ui_state::UIUpdate::UpdateError("Select a monitor".to_owned()));
+                ui_state::update(this, ui_state::UIUpdate::UpdateWait("".to_owned()));
+                return Task::none();
             }
 
             let key = this.config.secret_key.clone();

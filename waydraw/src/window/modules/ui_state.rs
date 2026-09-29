@@ -21,8 +21,8 @@ pub enum UIUpdate {
     SetModeClient,
     UpdatePinTextbox(String),
     UpdateKeyTextbox(String),
-    // UpdateWait(String),
-    // UpdateError(String),
+    UpdateWait(String),
+    UpdateError(String),
     Connect,
     Disconnect
 }
@@ -273,20 +273,20 @@ pub fn update(this: &mut Window, message: UIUpdate) {
                 *pin_input = v
             }
         },
-        // UIUpdate::UpdateWait(v) => {
-        //     if let UIState::Client { pin_input: _, key_input: _, wait, error: _ } = &mut this.ui_state {
-        //         *wait = v
-        //     } else if let UIState::Host { pin: _, key: _, wait, error: _ } = &mut this.ui_state {
-        //         *wait = v
-        //     }
-        // },
-        // UIUpdate::UpdateError(v) => {
-        //     if let UIState::Client { pin_input: _, key_input: _, wait: _, error } = &mut this.ui_state {
-        //         *error = v
-        //     } else if let UIState::Host { pin: _, key: _, wait: _, error } = &mut this.ui_state {
-        //         *error = v
-        //     }
-        // },
+        UIUpdate::UpdateWait(v) => {
+            if let UIState::Client { pin_input: _, key_input: _, wait, error: _ } = &mut this.ui_state {
+                *wait = v
+            } else if let UIState::Host { pin: _, key: _, wait, error: _ } = &mut this.ui_state {
+                *wait = v
+            }
+        },
+        UIUpdate::UpdateError(v) => {
+            if let UIState::Client { pin_input: _, key_input: _, wait: _, error } = &mut this.ui_state {
+                *error = v
+            } else if let UIState::Host { pin: _, key: _, wait: _, error } = &mut this.ui_state {
+                *error = v
+            }
+        },
         UIUpdate::Connect => {
             if let UIState::Client { pin_input: _, key_input: _, wait: _, error: _ } = &mut this.ui_state {
                 this.ui_state = UIState::ConnectedClient;
