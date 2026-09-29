@@ -10,11 +10,11 @@ on:
       - master
 
 jobs:
-  check-server:
+  check-waydraw:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: server
+        working-directory: waydraw
     env:
       CARGO_TERM_COLOR: always
       CARGO_PROFILE_TEST_DEBUG: 0
@@ -33,64 +33,12 @@ jobs:
     - name: Cache Rust dependencies and build artifacts
       uses: Swatinem/rust-cache@v2
       with:
-        workspaces: server
+        workspaces: waydraw
 
     - name: Install xcap dependencies
-      run: sudo apt-get install pkg-config libclang-dev libxcb1-dev libxrandr-dev libdbus-1-dev libpipewire-0.3-dev libwayland-dev libegl-dev
-
-    - run: cargo check
-
-  check-client:
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: client
-    env:
-      CARGO_TERM_COLOR: always
-      CARGO_PROFILE_TEST_DEBUG: 0
-      CARGO_PROFILE_DEV_DEBUG: 0
-    steps:
-
-    - name: "Checkout"
-      uses: actions/checkout@v5
-
-    - name: Install Rust (act only)
-      if: ${{ env.ACT }}
       run: |
-        curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal
-        echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
-
-    - name: Cache Rust dependencies and build artifacts
-      uses: Swatinem/rust-cache@v2
-      with:
-        workspaces: client
-
-    - run: cargo check
-
-  check-p2p:
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: p2p
-    env:
-      CARGO_TERM_COLOR: always
-      CARGO_PROFILE_TEST_DEBUG: 0
-      CARGO_PROFILE_DEV_DEBUG: 0
-    steps:
-
-    - name: "Checkout"
-      uses: actions/checkout@v5
-
-    - name: Install Rust (act only)
-      if: ${{ env.ACT }}
-      run: |
-        curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal
-        echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
-
-    - name: Cache Rust dependencies and build artifacts
-      uses: Swatinem/rust-cache@v2
-      with:
-        workspaces: p2p
+        sudo apt-get update
+        sudo apt-get install -y pkg-config libclang-dev libxcb1-dev libxrandr-dev libdbus-1-dev libpipewire-0.3-dev libwayland-dev libegl-dev libgbm-dev
 
     - run: cargo check
 
