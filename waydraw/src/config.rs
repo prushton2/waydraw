@@ -37,8 +37,8 @@ fn config_path() -> PathBuf {
 
     #[cfg(target_os = "macos")]
     let base = std::env::var_os("HOME")
-        .expect("No home directory found")
         .map(PathBuf::from)
+        .expect("No home directory found")
         .join("Library/Application Support");
     
     base.join("waydraw")
