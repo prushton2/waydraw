@@ -10,7 +10,7 @@ use crate::{p2p::{self, p2p::P2PError, protocol::{self, IntoBytes}}, window::{Wi
 pub enum ConnectFlow {
     PinSubmitted(String),
     KeySubmitted(String),
-    Connected(Result<(Arc<RwLock<Option<crate::p2p::P2P>>>, protocol::ServerHello), P2PError>)
+    Connected(Result<(Arc<RwLock<Option<crate::p2p::P2P>>>, protocol::ServerHello, String), P2PError>)
 }
 
 pub fn update(this: &mut Window, message: ConnectFlow) -> Task<ConnectFlow> {
@@ -84,7 +84,7 @@ pub fn update(this: &mut Window, message: ConnectFlow) -> Task<ConnectFlow> {
                     
                     let p2p: Arc<RwLock<Option<p2p::P2P>>> = Arc::new(RwLock::new(Some(p2p)));
 
-                    Ok((p2p, server_info))
+                    Ok((p2p, server_info, key))
                 },
                 ConnectFlow::Connected,
             )
@@ -102,13 +102,16 @@ pub fn update(this: &mut Window, message: ConnectFlow) -> Task<ConnectFlow> {
 
             *wait_ref = String::from("");
             
-            let (p2p, server_hello) = match result {
+            let (p2p, server_hello, key) = match result {
                 Ok(t) => t,
                 Err(e) => {
                     *error_ref = String::from(e);
                     return Task::none()
                 }
             };
+
+            this.config.known_hosts.insert(key, server_hello.name.clone());
+            this.config.write();
 
             let version = env!("CARGO_PKG_VERSION").split(".").map(|s| s.parse::<u8>().unwrap()).collect::<Vec<u8>>();
 
