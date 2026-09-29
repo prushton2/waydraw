@@ -1,18 +1,23 @@
+use serde::{Deserialize, Serialize};
+
 #[derive(Debug, Clone)]
+
+#[derive(Serialize, Deserialize)]
 pub struct Screenshot {
-    pub bytes: Vec<u8>
+    pub bytes: Vec<u8>,
+    pub width: usize,
+    pub height: usize
 }
 
 impl super::IntoBytes for Screenshot {
     fn into_bytes(self) -> Vec<u8> {
-        let mut bytes: Vec<u8> = vec![0x20];
-        bytes.extend(self.bytes);
-        bytes
+        let mut buf: Vec<u8> = vec![0x20];
+        buf.extend_from_slice(&rmp_serde::to_vec(&self).unwrap()[..]);
+        buf
     }
 
     fn from_bytes(bytes: &[u8]) -> Self {
-        Self {
-            bytes: Vec::from(bytes)
-        }
+        let message: Self = rmp_serde::from_slice(&bytes).unwrap();
+        message
     }
 }

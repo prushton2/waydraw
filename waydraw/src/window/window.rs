@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use iced::Task;
 use tokio::sync::RwLock;
 
@@ -29,7 +29,7 @@ impl Window {
         Self {
             config: crate::Config::load_or_generate(),
             p2p: Arc::new(RwLock::new(None)),
-            encoder: Arc::new(std::sync::Mutex::new(Some(Box::new(encoding::h264::H264::new().unwrap())))),
+            encoder: Arc::new(Mutex::new(Some(Box::new(encoding::h264::H264::new().unwrap())))),
             ui_state: ui_state::UIState::Host { pin: String::from(""), key: String::from(""), wait: String::from(""), error: String::from("") },
             
             monitors: monitors,
@@ -58,8 +58,7 @@ impl Window {
                 Task::none()
             },
             Message::P2PMessage(message) => {
-                let _ = receive_stream::update(self, message);
-                Task::none()
+                receive_stream::update(self, message) 
             },
 
             Message::ImageAllocated(result) => {
@@ -94,6 +93,7 @@ impl Window {
             },
             Message::MouseMove(x, y) => {
                 let p2p_arc = self.p2p.clone();
+                // let window_size = self.window_size.clone();
                 Task::perform(async move {
                         let p2p_lock = p2p_arc.read().await;
                         if let Some(p2p) = p2p_lock.as_ref() {
@@ -157,7 +157,6 @@ pub fn subscription(window: &Window) -> Subscription<Message> {
             recording: window.video_recorder.clone(),
             encoder: window.encoder.clone(),
             p2p: window.p2p.clone(),
-            client_window_size: (window.client_info.unwrap().window_width, window.client_info.unwrap().window_height)
         };
 
         subscriptions.push(

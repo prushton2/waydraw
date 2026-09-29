@@ -1,12 +1,8 @@
 use std::hash::Hash;
 use std::sync::Arc;
+use std::sync::Mutex;
 
 use tokio::sync::RwLock;
-
-use fast_image_resize::ResizeOptions;
-use fast_image_resize::Resizer;
-use fast_image_resize::images::Image;
-use fast_image_resize::images::ImageRef;
 
 use crate::encoding::Encoder;
 use crate::screen_capture::ScreenCapture;
@@ -17,9 +13,8 @@ use crate::p2p::protocol::IntoBytes;
 #[derive(Clone)]
 pub struct ScreencapStreamParameters {
     pub recording: Arc<std::sync::RwLock<Option<ScreenCapture>>>,
-    pub encoder: Arc<std::sync::Mutex<Option<Box<dyn Encoder>>>>,
+    pub encoder: Arc<Mutex<Option<Box<dyn Encoder>>>>,
     pub p2p: Arc<RwLock<Option<crate::p2p::P2P>>>,
-    pub client_window_size:(u32, u32),
 }
 
 impl Hash for ScreencapStreamParameters {
@@ -54,35 +49,35 @@ pub fn screencap_stream(params: &ScreencapStreamParameters) -> impl iced::future
             }
         };
 
-        let client_window_size = parameters.client_window_size;
+        // let client_window_size = parameters.client_window_size;
 
-        if client_window_size.0 == 0 || client_window_size.1 == 0 {
-            return Some((Message::Empty(()), parameters))
-        }
+        // if client_window_size.0 == 0 || client_window_size.1 == 0 {
+        //     return Some((Message::Empty(()), parameters))
+        // }
+                //     .resize_alg(fast_image_resize::ResizeAlg::Convolution(fast_image_resize::FilterType::Bilinear))
+                //     .use_alpha(false);
+
+                // let src = ImageRef::new(image.width, image.height, &image_bytes, fast_image_resize::PixelType::U8x4).unwrap();
+                // let mut dst = Image::new(client_window_size.0, client_window_size.1, fast_image_resize::PixelType::U8x4);
+                // let _ = Resizer::new().resize(&src, &mut dst, Some(&opts));
+
+                // let dst_bytes = &dst.into_vec();
 
         let image_bytes = image.to_tight_bytes().unwrap();
-
-        let opts = ResizeOptions::new()
-            .resize_alg(fast_image_resize::ResizeAlg::Convolution(fast_image_resize::FilterType::Bilinear))
-            .use_alpha(false);
-
-        let src = ImageRef::new(image.width, image.height, &image_bytes, fast_image_resize::PixelType::U8x4).unwrap();
-        let mut dst = Image::new(client_window_size.0, client_window_size.1, fast_image_resize::PixelType::U8x4);
-        let _ = Resizer::new().resize(&src, &mut dst, Some(&opts));
-
-        let dst_bytes = &dst.into_vec();
 
         let mut encoded_bytes: Vec<u8> = vec![];
 
         if let Some(encoder) = parameters.encoder.lock().unwrap().as_mut() {
-            encoded_bytes = encoder.encode(dst_bytes, client_window_size);
+            encoded_bytes = encoder.encode(&image_bytes, (image.width, image.height));
         }
 
         let p2p_lock = parameters.p2p.read().await;
         let p2p_ref = p2p_lock.as_ref().unwrap();
 
         let frame = crate::p2p::protocol::Screenshot {
-            bytes: encoded_bytes
+            bytes: encoded_bytes,
+            width: image.width as usize,
+            height: image.height as usize
         };
 
         let _ = p2p_ref.send(&frame.into_bytes()).await;

@@ -1,9 +1,10 @@
 use std::{hash::Hash, sync::Arc};
-
-use iced::{Task, widget::image};
-use crate::{p2p::protocol::{FromBytes, mouse_click::{MouseButton, MouseState}}, window::modules::ui_state::UIState};
-use crate::p2p;
 use tokio::sync::RwLock;
+
+use fast_image_resize::{ResizeOptions, Resizer, images::{Image, ImageRef}};
+use iced::{Task, widget::image};
+use crate::{p2p::protocol::{self, FromBytes, mouse_click::{MouseButton, MouseState}}, window::modules::ui_state::UIState};
+use crate::p2p;
 
 use crate::window::{Message, Window};
 
@@ -12,7 +13,7 @@ pub enum P2PMessage {
     MouseClick(MouseButton, MouseState),
     MouseMove(u32, u32),
     WindowResize(u32, u32),
-    ScreenshotReceived(Vec<u8>)
+    ScreenshotReceived(protocol::Screenshot)
 }
 
 pub struct P2PObject(pub Arc<RwLock<Option<p2p::P2P>>>);
@@ -59,7 +60,7 @@ pub fn p2p_stream(feed: &P2PObject) -> impl iced::futures::Stream<Item = Message
                 return Some((Message::P2PMessage(P2PMessage::WindowResize(t.window_width, t.window_height)), p2p))
             },
             FromBytes::Screenshot(t) => {
-                return Some((Message::P2PMessage(P2PMessage::ScreenshotReceived(t.bytes)), p2p))
+                return Some((Message::P2PMessage(P2PMessage::ScreenshotReceived(t)), p2p))
             }
             FromBytes::UnknownInstruction(_) => {},
             _ => {}
@@ -77,38 +78,50 @@ pub fn update(this: &mut Window, message: P2PMessage) -> Task<Message> {
         },
         P2PMessage::MouseMove(x, y) => {
             // println!("{} {}", x, y);
-            // let (offset_x, offset_y) = this.available_monitors[this.selected_monitor.unwrap()].position;
-            // let scale = this.available_monitors[this.selected_monitor.unwrap_or(0)].scale;
-            // let mouse_position = (
-            //     ((x as i32 + offset_x) as f32) / scale,
-            //     ((y as i32 + offset_y) as f32) / scale,
-            // );
-            this.mouse.move_mouse(x as i32, y as i32);
+            let selected_monitor = this.monitors.iter().filter(|e| e.id == this.selected_monitor).nth(0).unwrap();
+            let (offset_x, offset_y) = selected_monitor.position;
+            let scale = selected_monitor.scale;
+            let mouse_position = (
+                ((x as i32 + offset_x) as f32) / scale,
+                ((y as i32 + offset_y) as f32) / scale,
+            );
+            this.mouse.move_mouse(mouse_position.0 as i32, mouse_position.1 as i32);
             Task::none()
         },
         P2PMessage::WindowResize(x, y) => {
             if let Some(window_size) = this.client_info.as_mut() {
-                window_size.window_height = x;
-                window_size.window_width = y;
+                window_size.window_width = x;
+                window_size.window_height = y;
             }
 
             Task::none()
         },
-        P2PMessage::ScreenshotReceived(bytes) => {
+        P2PMessage::ScreenshotReceived(screenshot) => {
             if let UIState::ConnectedClient = this.ui_state {
                 let mut encoder_lock = this.encoder.lock().unwrap();
 
                 let image_pixels = if let Some(encoder) = encoder_lock.as_mut() {
-                    encoder.decode(&bytes)
+                    encoder.decode(&screenshot.bytes)
                 } else {
                     return Task::none()
                 };
 
-                if image_pixels.is_empty() || image_pixels.len() != this.window_size.0 * this.window_size.1 * 4 {
+                if image_pixels.len() != screenshot.width * screenshot.height * 4 {
+                    // Decoder produced no frame (e.g. waiting for a keyframe) or size mismatch
                     return Task::none();
                 }
 
-                let handle = image::Handle::from_rgba(this.window_size.0 as u32, this.window_size.1 as u32, image_pixels);
+                let opts = ResizeOptions::new()
+                    .resize_alg(fast_image_resize::ResizeAlg::Convolution(fast_image_resize::FilterType::Bilinear))
+                    .use_alpha(false);
+
+                let src = ImageRef::new(screenshot.width as u32, screenshot.height as u32, &image_pixels, fast_image_resize::PixelType::U8x4).unwrap();
+                let mut dst = Image::new(this.window_size.0 as u32, this.window_size.1 as u32, fast_image_resize::PixelType::U8x4);
+                let _ = Resizer::new().resize(&src, &mut dst, Some(&opts));
+
+                let dst_bytes = dst.into_vec();
+
+                let handle = image::Handle::from_rgba(this.window_size.0 as u32, this.window_size.1 as u32, dst_bytes);
 
                 return image::allocate(handle).map(Message::ImageAllocated)
             }
