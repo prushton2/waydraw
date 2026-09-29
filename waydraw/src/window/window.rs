@@ -125,6 +125,22 @@ impl Window {
 
             Message::WindowResize(x, y) => {
                 self.window_size = (x, y);
+                if let UIState::ConnectedClient = self.ui_state {
+                    let p2p_arc = self.p2p.clone();
+                    return Task::perform(async move {
+                            let lock = p2p_arc.read().await;
+                            if let Some(p2p) = lock.as_ref() {
+                                let message = protocol::WindowResized {
+                                    window_width: x as u32,
+                                    window_height: y as u32
+                                };
+                                let _ = p2p.send(&message.into_bytes()).await;
+                            }
+                            ()
+                        },
+                        Message::Empty
+                    )
+                }
                 Task::none()
             }
             Message::None => {

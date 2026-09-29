@@ -49,20 +49,6 @@ pub fn screencap_stream(params: &ScreencapStreamParameters) -> impl iced::future
             }
         };
 
-        // let client_window_size = parameters.client_window_size;
-
-        // if client_window_size.0 == 0 || client_window_size.1 == 0 {
-        //     return Some((Message::Empty(()), parameters))
-        // }
-                //     .resize_alg(fast_image_resize::ResizeAlg::Convolution(fast_image_resize::FilterType::Bilinear))
-                //     .use_alpha(false);
-
-                // let src = ImageRef::new(image.width, image.height, &image_bytes, fast_image_resize::PixelType::U8x4).unwrap();
-                // let mut dst = Image::new(client_window_size.0, client_window_size.1, fast_image_resize::PixelType::U8x4);
-                // let _ = Resizer::new().resize(&src, &mut dst, Some(&opts));
-
-                // let dst_bytes = &dst.into_vec();
-
         let image_bytes = image.to_tight_bytes().unwrap();
 
         let mut encoded_bytes: Vec<u8> = vec![];
