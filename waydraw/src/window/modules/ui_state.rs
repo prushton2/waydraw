@@ -170,7 +170,7 @@ impl Styles {
     fn client_host_selected(theme: &Theme) -> button::Style {
         button::Style {
             background: None,
-            text_color: theme.palette().primary,
+            text_color: theme.extended_palette().primary.base.color,
             border: Border {
                 color: theme.palette().background,
                 width: 0.0,
@@ -188,7 +188,7 @@ impl Styles {
     fn client_host_unselected(theme: &Theme) -> button::Style {
         button::Style {
             background: Some(iced::Background::from(theme.palette().primary)),
-            text_color: theme.palette().background,
+            text_color: theme.extended_palette().primary.base.text,
             border: Border {
                 color: iced::Color::from_rgb(0.0, 0.0, 0.0),
                 width: 0.0,
@@ -206,7 +206,7 @@ impl Styles {
     fn square_button(theme: &Theme) -> button::Style {
         button::Style {
             background: Some(iced::Background::from(theme.palette().primary)),
-            text_color: theme.palette().background,
+            text_color: theme.palette().text,
             border: Border {
                 color: iced::Color::from_rgb(0.0, 0.0, 0.0),
                 width: 0.0,
@@ -222,9 +222,9 @@ impl Styles {
     }
 
     fn selected_monitor(theme: &Theme) -> button::Style {
-        button::Style {
-            background: Some(iced::Background::from(theme.palette().success)),
-            text_color: theme.palette().background,
+        button::Style  {
+            background: Some(iced::Background::from(theme.extended_palette().primary.weak.color)),
+            text_color: theme.extended_palette().primary.base.text,
             border: Border {
                 color: iced::Color::from_rgb(0.0, 0.0, 0.0),
                 width: 0.0,
@@ -242,7 +242,7 @@ impl Styles {
     fn unselected_monitor(theme: &Theme) -> button::Style {
         button::Style {
             background: Some(iced::Background::from(theme.palette().primary)),
-            text_color: theme.palette().background,
+            text_color: theme.extended_palette().primary.base.text,
             border: Border {
                 color: iced::Color::from_rgb(0.0, 0.0, 0.0),
                 width: 0.0,
