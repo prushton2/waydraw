@@ -1,0 +1,222 @@
+use std::sync::Arc;
+
+use iced::Task;
+use tokio::sync::RwLock;
+
+use crate::screen_capture;
+use crate::window::Window;
+use crate::p2p::{self, protocol::{ClientHello, FromBytes, IntoBytes, ServerHello}};
+use crate::window::modules::ui_state::{self, UIState};
+
+#[derive(Clone)]
+pub enum ConnectFlow {
+    Register,
+    AwaitClient(Result<(Arc<RwLock<Option<p2p::P2P>>>, String, String), String>),
+    SendHello(Result<(), String>),
+    Connect(ClientHello),
+    Disconnect,
+    Null(())
+}
+
+pub fn update(this: &mut Window, message: ConnectFlow) -> Task<ConnectFlow> {
+    match message {
+        ConnectFlow::Register => {
+            if let UIState::Host { pin: _, key: _, wait, error } = &mut this.ui_state {
+                *error = "".to_owned();
+                *wait = "Registering...".to_owned();
+            } else {
+                return Task::none()
+            }
+
+            let key = this.config.secret_key.clone();
+
+            Task::perform(
+                async move {
+                    let (server, key) = p2p::P2P::init(key).await.map_err(|e| e.to_string())?;
+
+                    let pin = p2p::remote_key_store::generate_pin();
+                    let key = key.to_string();
+                    
+                    match p2p::remote_key_store::set(&pin, &key.to_string()).await {
+                        Ok(_) => {},
+                        Err(e) => return Err(e)
+                    };
+
+                    Ok((Arc::new(RwLock::new(Some(server))), key, pin))
+                },
+                ConnectFlow::AwaitClient
+            )
+        },
+
+        ConnectFlow::AwaitClient(result) => {   
+            let pin_ref: &mut String;
+            let key_ref: &mut String;
+            let wait_ref: &mut String;
+            let error_ref: &mut String;
+
+            if let UIState::Host { pin, key, wait, error } = &mut this.ui_state {
+                pin_ref = pin;
+                key_ref = key;
+                wait_ref = wait;
+                error_ref = error;
+            } else {
+                return Task::none()
+            }
+
+            let (p2p, key, pin) = match result {
+                Ok(t) => t,
+                Err(t) => {
+                    *error_ref = t;
+                    *wait_ref = String::from("");
+                    return Task::none()
+                }
+            };
+
+            this.p2p = p2p;
+            *key_ref = key;
+            *pin_ref = pin;
+
+            let arc = this.p2p.clone();
+            
+            *wait_ref = "Waiting for connection".to_owned();
+            Task::perform(
+            async move {
+                let mut lock = arc.write().await;
+                let p2p = lock.as_mut().unwrap();
+                match p2p.await_connection().await {
+                    Ok(_) => {},
+                    Err(e) => return Err(e.to_string())
+                };
+
+                Ok(())
+            },
+                ConnectFlow::SendHello,
+            )
+        },
+
+        ConnectFlow::SendHello(result) => {
+            let pin_ref: &mut String;
+            let wait_ref: &mut String;
+            let error_ref: &mut String;
+
+            if let UIState::Host { pin, key: _, wait, error } = &mut this.ui_state {
+                pin_ref = pin;
+                wait_ref = wait;
+                error_ref = error;
+            } else {
+                return Task::none()
+            }
+
+            if let Err(e) = result {
+                *error_ref = format!("Error awaiting connection: {}", e);
+                *wait_ref = String::from("");
+                return Task::none();
+            }
+
+            *wait_ref = "Sending Hello".to_owned();
+            // let selected_monitor = &this.available_monitors[this.selected_monitor.unwrap_or(0)];
+
+            // construct server info to send to client
+            let p2p_arc = this.p2p.clone();
+
+            let version = env!("CARGO_PKG_VERSION").split(".").map(|s| s.parse::<u8>().unwrap_or(0)).collect::<Vec<u8>>();
+
+            let server_info = ServerHello {
+                name: gethostname::gethostname().into_string().unwrap(),
+                version: (version[0], version[1], version[2]),
+                screen_width:  0,
+                screen_height: 0
+            };
+
+            let server_info_bytes = server_info.into_bytes();
+
+            let pin = pin_ref.clone();
+
+            Task::perform(
+                async move {
+                    p2p::remote_key_store::delete(&pin).await;
+
+                    let p2p_lock = p2p_arc.read().await;
+                    let p2p_ref = p2p_lock.as_ref().unwrap();
+                    
+                    let client_hello_bytes = p2p_ref.read().await.unwrap();
+                    let client_hello_enum = match FromBytes::parse(&client_hello_bytes[..]) {
+                        FromBytes::ClientHello(m) => m,
+                        t => panic!("Expected client hello, received other bytes: {:?}", t)
+                    };
+                    
+                    let _ = p2p_ref.send(&server_info_bytes).await;
+                    
+                    client_hello_enum
+                },
+                ConnectFlow::Connect
+            )
+        },
+
+        ConnectFlow::Connect(client_hello) => {
+            let pin_ref: &mut String;
+            let key_ref: &mut String;
+            let error_ref: &mut String;
+
+            if let UIState::Host { pin, key, wait: _, error } = &mut this.ui_state {
+                pin_ref = pin;
+                key_ref = key;
+                error_ref = error;
+            } else {
+                return Task::none()
+            }
+
+            let version = env!("CARGO_PKG_VERSION").split(".").map(|s| s.parse::<u8>().unwrap()).collect::<Vec<u8>>();
+
+            if client_hello.version.0 != version[0] {
+                this.p2p = Arc::new(RwLock::new(None));
+                *error_ref = format!("Incompatible versions: Client {}.{}.{} and Server {}.{}.{}. Please update each app to the same major version.", client_hello.version.0, client_hello.version.1, client_hello.version.2, version[0], version[1], version[2]);
+                *pin_ref = String::from("");
+                *key_ref = String::from("");
+                return Task::none();
+            }
+
+            this.client_info = Some(client_hello);
+            ui_state::update(this, ui_state::UIUpdate::Connect);
+
+            let recorder_arc = this.video_recorder.clone();
+            let monitor_name = this.selected_monitor.clone();
+            
+            let mut lock = recorder_arc.write().unwrap();
+            *lock = Some(screen_capture::ScreenCapture::new(&monitor_name).unwrap());
+            
+            Task::none()
+        },
+
+        ConnectFlow::Disconnect => {
+            ui_state::update(this, ui_state::UIUpdate::Disconnect);
+
+            let recorder_arc = this.video_recorder.clone();
+            let p2p_arc = this.p2p.clone();
+            this.p2p = Arc::new(RwLock::new(None));
+
+            let mut lock = recorder_arc.write().unwrap();
+            if let Some(recorder) = lock.as_ref() {
+                recorder.kill()
+            }
+            *lock = None;
+
+            Task::perform(
+                async move {
+                    let mut lock = p2p_arc.write().await;
+                    if let Some(p2p) = lock.as_mut() {
+                        let _ = p2p.close().await;
+                    } else {
+                        println!("Could not close connection");
+                    }
+                    
+                    ()
+                },
+                ConnectFlow::Null,
+            )
+        },
+        ConnectFlow::Null(_) => {
+            Task::none()
+        }
+    }
+}

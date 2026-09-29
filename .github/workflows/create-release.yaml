@@ -10,12 +10,12 @@ on:
       - master
 
 jobs:
-  build-server-linux:
+  build-linux:
     if: github.event.pull_request.merged == true
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: server
+        working-directory: waydraw
     env:
       CARGO_TERM_COLOR: always
     steps:
@@ -32,27 +32,29 @@ jobs:
     - name: Cache Rust dependencies and build artifacts
       uses: Swatinem/rust-cache@v2
       with:
-        workspaces: server
+        workspaces: waydraw
         cache-on-failure: true
 
     - name: Install xcap dependencies
-      run: sudo apt-get install pkg-config libclang-dev libxcb1-dev libxrandr-dev libdbus-1-dev libpipewire-0.3-dev libwayland-dev libegl-dev libgbm-dev
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y pkg-config libclang-dev libxcb1-dev libxrandr-dev libdbus-1-dev libpipewire-0.3-dev libwayland-dev libegl-dev libgbm-dev
 
     - name: build
       run: cargo build --release
 
     - uses: actions/upload-artifact@v4
       with:
-        name: server-bin
-        path: server/target/release/waydraw-server
+        name: waydraw
+        path: waydraw/target/release/waydraw
         if-no-files-found: error
 
-  build-client-linux:
+  build-windows:
     if: github.event.pull_request.merged == true
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: client
+        working-directory: waydraw
     env:
       CARGO_TERM_COLOR: always
     steps:
@@ -69,41 +71,7 @@ jobs:
     - name: Cache Rust dependencies and build artifacts
       uses: Swatinem/rust-cache@v2
       with:
-        workspaces: client
-        cache-on-failure: true
-
-    - name: build
-      run: cargo build --release
-
-    - uses: actions/upload-artifact@v4
-      with:
-        name: client-bin
-        path: client/target/release/waydraw-client
-        if-no-files-found: error
-
-  build-server-windows:
-    if: github.event.pull_request.merged == true
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: server
-    env:
-      CARGO_TERM_COLOR: always
-    steps:
-
-    - name: "Checkout"
-      uses: actions/checkout@v5
-
-    - name: Install Rust (act only)
-      if: ${{ env.ACT }}
-      run: |
-        curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal
-        echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
-
-    - name: Cache Rust dependencies and build artifacts
-      uses: Swatinem/rust-cache@v2
-      with:
-        workspaces: server
+        workspaces: waydraw
         cache-on-failure: true
 
     - name: Install dependencies
@@ -121,61 +89,15 @@ jobs:
 
     - uses: actions/upload-artifact@v4
       with:
-        name: server-exe
-        path: server/target/x86_64-pc-windows-gnu/release/waydraw-server.exe
-        if-no-files-found: error
-
-  build-client-windows:
-    if: github.event.pull_request.merged == true
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: client
-    env:
-      CARGO_TERM_COLOR: always
-    steps:
-
-    - name: "Checkout"
-      uses: actions/checkout@v5
-
-    - name: Install Rust (act only)
-      if: ${{ env.ACT }}
-      run: |
-        curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal
-        echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
-
-    - name: Cache Rust dependencies and build artifacts
-      uses: Swatinem/rust-cache@v2
-      with:
-        workspaces: client
-        cache-on-failure: true
-
-    - name: Install dependencies
-      run: |
-        rustup target add x86_64-pc-windows-gnu
-        sudo apt-get update
-        sudo apt-get install -y mingw-w64
-
-    - name: build
-      run: |
-        LIBSTDCXX=$(x86_64-w64-mingw32-g++ -print-file-name=libstdc++.a)
-        test -f "$LIBSTDCXX" || { echo "static libstdc++ not found"; exit 1; }
-        export RUSTFLAGS="-L native=$(dirname "$LIBSTDCXX") -lstatic=stdc++ -C link-arg=-static-libgcc -C link-arg=-static"
-        cargo build --release --target x86_64-pc-windows-gnu
-        
-    - uses: actions/upload-artifact@v4
-      with:
-        name: client-exe
-        path: client/target/x86_64-pc-windows-gnu/release/waydraw-client.exe
+        name: waydraw.exe
+        path: waydraw/target/x86_64-pc-windows-gnu/release/waydraw.exe
         if-no-files-found: error
 
   create-release:
     if: github.event.pull_request.merged == true
     needs:
-      - build-server-linux
-      - build-client-linux
-      - build-server-windows
-      - build-client-windows
+      - build-linux
+      - build-windows
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -187,37 +109,25 @@ jobs:
     - name: Determine version
       id: version
       run: |
-        version=$(grep -m1 '^version' server/Cargo.toml | cut -d'"' -f2)
+        version=$(grep -m1 '^version' waydraw/Cargo.toml | cut -d'"' -f2)
         echo "tag=v${version}" >> "$GITHUB_OUTPUT"
 
     - uses: actions/download-artifact@v4
       with:
-        name: server-bin
-        path: dist/linux-server
+        name: waydraw
+        path: dist/linux
 
     - uses: actions/download-artifact@v4
       with:
-        name: client-bin
-        path: dist/linux-client
-
-    - uses: actions/download-artifact@v4
-      with:
-        name: server-exe
-        path: dist/windows-server
-
-    - uses: actions/download-artifact@v4
-      with:
-        name: client-exe
-        path: dist/windows-client
+        name: waydraw.exe
+        path: dist/windows
 
     - name: Stage release assets
       run: |
         mkdir -p release
-        mv dist/linux-server/waydraw-server       release/waydraw-linux-server
-        mv dist/linux-client/waydraw-client       release/waydraw-linux-client
-        mv dist/windows-server/waydraw-server.exe release/waydraw-windows-server.exe
-        mv dist/windows-client/waydraw-client.exe release/waydraw-windows-client.exe
-        chmod +x release/waydraw-linux-*
+        mv dist/linux/waydraw       release/waydraw
+        mv dist/windows/waydraw.exe release/waydraw.exe
+        chmod +x release/waydraw
         ls -l release
 
     - name: Create Release
@@ -228,7 +138,5 @@ jobs:
         name: Release ${{ steps.version.outputs.tag }}
         generate_release_notes: true
         files: |
-          release/waydraw-linux-server
-          release/waydraw-linux-client
-          release/waydraw-windows-server.exe
-          release/waydraw-windows-client.exe
+          release/waydraw
+          release/waydraw.exe
