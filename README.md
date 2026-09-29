@@ -10,11 +10,6 @@ Linux (X11)     | ✅ | ❌
 Windows         | ✅ | ✅
 MacOS           | ❌ | ❌
 
-## Usage
-
-On the host machine, download the server app. On the client machine you want to use as the drawing tablet, download the client app.<br />
-After launching, select a display on the host machine and click 'Allow Connections'. On the client, either enter the pin or the key and click connect.
-
 ## Troubleshooting
 
 * Timeout Error
@@ -25,5 +20,7 @@ After launching, select a display on the host machine and click 'Allow Connectio
   * If the client stops receiving frames or sending mouse movements, force close the app and relaunch, and click disconnect on the host.
 
 ## Known Issues
+* MacOS
+  * I dont have a mac, so all my macos support is based on what claude says. Feel free to make patches for compatibility
 * Fractional scaling on Wayland
   * This is an issue in the display_info and pinray library, which I use for getting display info. This issue will persist until either library resolves the issue
