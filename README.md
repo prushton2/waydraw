@@ -4,7 +4,7 @@ Turn a laptop into a drawing tablet connected to another computer. Built using H
 ## Support
 
 OS | Supported | Tested
---|--|--|--
+--|--|--
 Linux (Wayland) | ✅ | ✅
 Linux (X11)     | ✅ | ❌
 Windows         | ✅ | ✅
