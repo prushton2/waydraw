@@ -77,14 +77,27 @@ pub fn update(this: &mut Window, message: P2PMessage) -> Task<Message> {
             Task::none()
         },
         P2PMessage::MouseMove(x, y) => {
-            // println!("{} {}", x, y);
             let selected_monitor = this.monitors.iter().filter(|e| e.id == this.selected_monitor).nth(0).unwrap();
+
             let (offset_x, offset_y) = selected_monitor.position;
+            let client_window_res = (this.client_info.unwrap().window_width, this.client_info.unwrap().window_height);
             let scale = selected_monitor.scale;
-            let mouse_position = (
-                ((x as i32 + offset_x) as f32) / scale,
-                ((y as i32 + offset_y) as f32) / scale,
+
+            let mouse_pct = (
+                x as f32 / client_window_res.0 as f32,
+                y as f32 / client_window_res.1 as f32
             );
+
+            let mouse_scaled_to_target_res = (
+                mouse_pct.0 * selected_monitor.resolution.0 as f32,
+                mouse_pct.1 * selected_monitor.resolution.1 as f32,
+            );
+
+            let mouse_position = (
+                ((mouse_scaled_to_target_res.0 as i32 + offset_x) as f32) / scale,
+                ((mouse_scaled_to_target_res.1 as i32 + offset_y) as f32) / scale,
+            );
+            
             this.mouse.move_mouse(mouse_position.0 as i32, mouse_position.1 as i32);
             Task::none()
         },
