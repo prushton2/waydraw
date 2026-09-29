@@ -35,7 +35,7 @@ pub fn view(this: &Window) -> iced::Element<'_, Message> {
             for (key, host) in &this.config.known_hosts {
                 buttons.push(
                     row![
-                        button(host.as_str()).on_press(Message::None).width(Fill).style(|t, _| Styles::square_button(t)),
+                        button(host.as_str()).on_press(Message::ClientConnectFlow(modules::client::ConnectFlow::KeySubmitted(key.clone()))).width(Fill).style(|t, _| Styles::square_button(t)),
                         button("X").on_press(Message::RemoveKnownHost(key.clone())).style(|t, _| Styles::square_button(t)),
                     ]
                     .spacing(0)
