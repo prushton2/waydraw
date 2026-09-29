@@ -45,7 +45,7 @@ jobs:
 
     - uses: actions/upload-artifact@v4
       with:
-        name: waydraw
+        name: waydraw-linux
         path: waydraw/target/release/waydraw
         if-no-files-found: error
 
@@ -89,8 +89,49 @@ jobs:
 
     - uses: actions/upload-artifact@v4
       with:
-        name: waydraw.exe
+        name: waydraw-windows.exe
         path: waydraw/target/x86_64-pc-windows-gnu/release/waydraw.exe
+        if-no-files-found: error
+
+  build-macos:
+    if: github.event.pull_request.merged == true
+    runs-on: macos-latest
+    defaults:
+      run:
+        working-directory: waydraw
+    env:
+      CARGO_TERM_COLOR: always
+      MACOSX_DEPLOYMENT_TARGET: "12.3"
+    steps:
+
+    - name: "Checkout"
+      uses: actions/checkout@v5
+
+    - name: Cache Rust dependencies and build artifacts
+      uses: Swatinem/rust-cache@v2
+      with:
+        workspaces: waydraw
+        cache-on-failure: true
+
+    - name: Install dependencies
+      run: rustup target add aarch64-apple-darwin x86_64-apple-darwin
+
+    - name: build
+      run: |
+        cargo build --release --target aarch64-apple-darwin
+        cargo build --release --target x86_64-apple-darwin
+        mkdir -p target/universal
+        lipo -create \
+          target/aarch64-apple-darwin/release/waydraw \
+          target/x86_64-apple-darwin/release/waydraw \
+          -output target/universal/waydraw-macos
+        # lipo invalidates the per-arch ad-hoc signatures; arm64 macOS refuses to run unsigned binaries
+        codesign --force --sign - target/universal/waydraw-macos
+
+    - uses: actions/upload-artifact@v4
+      with:
+        name: waydraw-macos
+        path: waydraw/target/universal/waydraw-macos
         if-no-files-found: error
 
   create-release:
@@ -98,6 +139,7 @@ jobs:
     needs:
       - build-linux
       - build-windows
+      - build-macos
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -114,7 +156,7 @@ jobs:
 
     - uses: actions/download-artifact@v4
       with:
-        name: waydraw
+        name: waydraw-linux
         path: dist/linux
 
     - uses: actions/download-artifact@v4
@@ -122,12 +164,18 @@ jobs:
         name: waydraw.exe
         path: dist/windows
 
+    - uses: actions/download-artifact@v4
+      with:
+        name: waydraw-macos
+        path: dist/macos
+
     - name: Stage release assets
       run: |
         mkdir -p release
-        mv dist/linux/waydraw       release/waydraw
-        mv dist/windows/waydraw.exe release/waydraw.exe
-        chmod +x release/waydraw
+        mv dist/linux/waydraw-linux         release/waydraw-linux
+        mv dist/windows/waydraw-windows.exe release/waydraw-windows.exe
+        mv dist/macos/waydraw-macos         release/waydraw-macos
+        chmod +x release/waydraw-linux release/waydraw-macos
         ls -l release
 
     - name: Create Release
@@ -138,5 +186,6 @@ jobs:
         name: Release ${{ steps.version.outputs.tag }}
         generate_release_notes: true
         files: |
-          release/waydraw
-          release/waydraw.exe
+          release/waydraw-linux
+          release/waydraw-windows.exe
+          release/waydraw-macos
