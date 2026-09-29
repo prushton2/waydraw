@@ -11,7 +11,7 @@ use crate::window::{Message, Window};
 pub enum P2PMessage {
     MouseClick(MouseButton, MouseState),
     MouseMove(u32, u32),
-    ClientWindowResize(u32, u32),
+    WindowResize(u32, u32),
     ScreenshotReceived(Vec<u8>)
 }
 
@@ -56,7 +56,7 @@ pub fn p2p_stream(feed: &P2PObject) -> impl iced::futures::Stream<Item = Message
                 return Some((Message::P2PMessage(P2PMessage::MouseMove(t.x, t.y)), p2p))
             },
             FromBytes::WindowResized(t) => {
-                return Some((Message::P2PMessage(P2PMessage::ClientWindowResize(t.window_width, t.window_height)), p2p))
+                return Some((Message::P2PMessage(P2PMessage::WindowResize(t.window_width, t.window_height)), p2p))
             },
             FromBytes::Screenshot(t) => {
                 return Some((Message::P2PMessage(P2PMessage::ScreenshotReceived(t.bytes)), p2p))
@@ -72,23 +72,27 @@ pub fn p2p_stream(feed: &P2PObject) -> impl iced::futures::Stream<Item = Message
 pub fn update(this: &mut Window, message: P2PMessage) -> Task<Message> {
     match message {
         P2PMessage::MouseClick(button, state) => {
-            // this.mouse.click_mouse(button, state);
+            this.mouse.click_mouse(button, state);
 
             Task::none()
         },
         P2PMessage::MouseMove(x, y) => {
-            println!("{} {}", x, y);
+            // println!("{} {}", x, y);
             // let (offset_x, offset_y) = this.available_monitors[this.selected_monitor.unwrap()].position;
             // let scale = this.available_monitors[this.selected_monitor.unwrap_or(0)].scale;
             // let mouse_position = (
             //     ((x as i32 + offset_x) as f32) / scale,
             //     ((y as i32 + offset_y) as f32) / scale,
             // );
-            // this.mouse.move_mouse(mouse_position.0 as i32, mouse_position.1 as i32);
+            this.mouse.move_mouse(x as i32, y as i32);
             Task::none()
         },
-        P2PMessage::ClientWindowResize(x, y) => {
-            // *this.client_window_size.lock().unwrap() = (x, y);
+        P2PMessage::WindowResize(x, y) => {
+            if let Some(window_size) = this.client_info.as_mut() {
+                window_size.window_height = x;
+                window_size.window_width = y;
+            }
+            
             Task::none()
         },
         P2PMessage::ScreenshotReceived(bytes) => {

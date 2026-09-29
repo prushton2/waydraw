@@ -3,6 +3,7 @@ use iced::Theme;
 pub mod config;
 pub mod p2p;
 pub mod encoding;
+pub mod mouse;
 
 mod window;
 

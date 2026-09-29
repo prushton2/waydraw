@@ -1,6 +1,5 @@
 use std::sync::Arc;
 
-use iced_core::image::{Allocation, Error};
 use tokio::sync::{Mutex, RwLock};
 
 use crate::p2p::protocol::{ClientHello, ServerHello};
@@ -23,7 +22,7 @@ pub struct Window {
     
     // Host side stuff
     client_info: Option<ClientHello>,
-
+    mouse: Box<dyn crate::mouse::Mouse>,
 
     // Misc
     window_size: (usize, usize)

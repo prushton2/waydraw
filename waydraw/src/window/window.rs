@@ -14,6 +14,11 @@ use super::Message;
 
 impl Window {
     pub fn boot() -> Self {
+        let mut mouse: Box<dyn crate::mouse::Mouse> = Box::new(crate::mouse::DummyMouse::new());
+        if !cfg!(debug_assertions) {
+            mouse = Box::new(crate::mouse::EnigoMouse::new());
+        }
+        
         Self {
             config: crate::Config::load_or_generate(),
             p2p: Arc::new(RwLock::new(None)),
@@ -24,6 +29,7 @@ impl Window {
             server_info: None,
 
             client_info: None,
+            mouse: mouse,
 
             window_size: (256, 256)
         }
