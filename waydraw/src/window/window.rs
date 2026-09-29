@@ -169,7 +169,6 @@ pub fn subscription(window: &Window) -> Subscription<Message> {
 
 pub struct Monitor {
     pub id: String,
-    pub name: String,
     pub position: (i32, i32),
     pub resolution: (u32, u32),
     pub scale: f32,
@@ -200,7 +199,6 @@ fn read_monitors() -> Result<Vec<Monitor>, String> {
 
             Monitor {
                 id: pinray_source.id.0.clone(),
-                name: pinray_source.name.clone(),
                 position: (displayinfo_source.x, displayinfo_source.y),
                 resolution: (pinray_source.width, pinray_source.height),
                 scale: displayinfo_source.scale_factor,
