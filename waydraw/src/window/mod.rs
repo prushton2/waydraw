@@ -15,7 +15,7 @@ pub mod window;
 mod modules;
 
 pub struct Window {
-    config: crate::Config,
+    pub config: crate::Config,
     p2p: Arc<RwLock<Option<crate::p2p::P2P>>>,
     encoder: Arc<std::sync::Mutex<Option<Box<dyn Encoder>>>>,
     ui_state: modules::ui_state::UIState,
@@ -55,6 +55,7 @@ pub enum Message {
 
     // Misc
     WindowResize(usize, usize),
+    ChangeTheme(iced::Theme),
     None,
     Empty(())
 }

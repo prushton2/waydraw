@@ -1,6 +1,6 @@
 use iced::{Border, Element, Theme};
 use iced::border::Radius;
-use iced::widget::{button, column, container, row, space, stack, text, text_input, MouseArea, image};
+use iced::widget::{MouseArea, button, column, container, image, pick_list, row, space, stack, text, text_input};
 use iced::{Alignment::Center, Length::Fill};
 
 use crate::window::window::Monitor;
@@ -44,42 +44,49 @@ pub fn view(this: &Window) -> iced::Element<'_, Message> {
                 buttons.push(space().height(5).into())
             }
 
-            return container (
+
+            return container(
                 column![
-                    row![
-                        button("Host").width(Fill).style(move |t, _| {Styles::client_host_unselected(t)}).on_press(Message::UIUpdate(UIUpdate::SetModeHost)),
-                        button("Client").width(Fill).style(move |t, _| {Styles::client_host_selected(t)}),
-                    ],
-                    text("Input device pin").width(Fill).align_x(Center),
-                    row![
-                        text_input("000000", pin_input).on_input(|e| Message::UIUpdate(UIUpdate::UpdatePinTextbox(e))),
-                        space().width(20),
-                        button("Connect").on_press(Message::ClientConnectFlow(modules::client::ConnectFlow::PinSubmitted(pin_input.clone())))
-                    ],
-                    
-                    text("OR").width(Fill).align_x(Center),
-                    
-                    text("Input device key").width(Fill).align_x(Center),
-                    row![
-                        text_input("", key_input).on_input(|e| Message::UIUpdate(UIUpdate::UpdateKeyTextbox(e))),
-                        space().width(20),
-                        button("Connect").on_press(Message::ClientConnectFlow(modules::client::ConnectFlow::KeySubmitted(key_input.clone())))
-                    ],
-                    
-                    text("OR").width(Fill).align_x(Center),
-                    
-                    text("Select previous device").width(Fill).align_x(Center),
-                    iced::widget::Column::from_vec(buttons.into()).width(Fill).align_x(Center),
-                    
-                    space().height(20),
-                    
-                    text(wait).width(Fill).align_x(Center),
-                    text(error).width(Fill).align_x(Center).style(|t| {text::danger(t)}),
+                    row![space().width(Fill), theme_dropdown(&this.config.theme)],
+                    column![
+                        space().height(Fill),
+                        row![
+                            button("Host").width(Fill).style(move |t, _| {Styles::client_host_unselected(t)}).on_press(Message::UIUpdate(UIUpdate::SetModeHost)),
+                            button("Client").width(Fill).style(move |t, _| {Styles::client_host_selected(t)}),
+                        ],
+                        text("Input device pin").width(Fill).align_x(Center),
+                        row![
+                            text_input("000000", pin_input).on_input(|e| Message::UIUpdate(UIUpdate::UpdatePinTextbox(e))),
+                            space().width(20),
+                            button("Connect").on_press(Message::ClientConnectFlow(modules::client::ConnectFlow::PinSubmitted(pin_input.clone())))
+                        ],
+                        
+                        text("OR").width(Fill).align_x(Center),
+                        
+                        text("Input device key").width(Fill).align_x(Center),
+                        row![
+                            text_input("", key_input).on_input(|e| Message::UIUpdate(UIUpdate::UpdateKeyTextbox(e))),
+                            space().width(20),
+                            button("Connect").on_press(Message::ClientConnectFlow(modules::client::ConnectFlow::KeySubmitted(key_input.clone())))
+                        ],
+                        
+                        text("OR").width(Fill).align_x(Center),
+                        
+                        text("Select previous device").width(Fill).align_x(Center),
+                        iced::widget::Column::from_vec(buttons.into()).width(Fill).align_x(Center),
+                        
+                        space().height(20),
+                        
+                        text(wait).width(Fill).align_x(Center),
+                        text(error).width(Fill).align_x(Center).style(|t| {text::danger(t)}),
+                        space().height(Fill),
+                    ]
+                    .max_width(400)
+                    .height(Fill)
                 ]
-                .max_width(400)
+                .width(Fill)
+                .align_x(Center)
             )
-            .center_x(Fill)
-            .center_y(Fill)
             .into()
         },
         UIState::Host{pin, key, wait, error} => {
@@ -99,66 +106,72 @@ pub fn view(this: &Window) -> iced::Element<'_, Message> {
                         .into()
                 ).collect();
 
-            return container (
+            return container(
                 column![
-                    row![
-                        button("Host").width(Fill).style(move |t, _| {Styles::client_host_selected(t)}),
-                        button("Client").width(Fill).style(move |t, _| {Styles::client_host_unselected(t)}).on_press(Message::UIUpdate(UIUpdate::SetModeClient)),
-                    ],
+                    row![space().width(Fill), theme_dropdown(&this.config.theme)],
                     column![
-                        text("Select a monitor").width(Fill).align_x(Center),
-                        iced::widget::Column::from_vec(monitor_buttons).width(Fill).align_x(Center),
-                        
-                        space().height(20),
-                        container(button("Allow Connections").on_press(Message::HostConnectFlow(modules::host::ConnectFlow::Register))).center_x(Fill),
-                        space().height(20),
-                        
-                        row![text("Pin"), space().width(24), text_input(pin, pin).on_input(|_| Message::None)],
-                        row![text("Key"), space().width(20), text_input(key, key).on_input(|_| Message::None)],
-                        
-                        text(wait).width(Fill).align_x(Center),
-                        text(error).width(Fill).align_x(Center).style(|t| {text::danger(t)}),
+                        space().height(Fill),
+                        row![
+                            button("Host").width(Fill).style(move |t, _| {Styles::client_host_selected(t)}),
+                            button("Client").width(Fill).style(move |t, _| {Styles::client_host_unselected(t)}).on_press(Message::UIUpdate(UIUpdate::SetModeClient)),
+                        ],
+                        column![
+                            text("Select a monitor").width(Fill).align_x(Center),
+                            iced::widget::Column::from_vec(monitor_buttons).width(Fill).align_x(Center),
+                            
+                            space().height(20),
+                            container(button("Allow Connections").on_press(Message::HostConnectFlow(modules::host::ConnectFlow::Register))).center_x(Fill),
+                            space().height(20),
+                            
+                            row![text("Pin"), space().width(24), text_input(pin, pin).on_input(|_| Message::None)],
+                            row![text("Key"), space().width(20), text_input(key, key).on_input(|_| Message::None)],
+                            
+                            text(wait).width(Fill).align_x(Center),
+                            text(error).width(Fill).align_x(Center).style(|t| {text::danger(t)}),
+                        ],
+                        space().height(Fill),
                     ]
+                    .max_width(400)
+                    .height(Fill)
                 ]
-                .max_width(400)
+                .width(Fill)
+                .align_x(Center)
             )
-            .center_x(Fill)
-            .center_y(Fill)
             .into()
         },
         UIState::ConnectedClient => {
             return container (
-            stack![
-                MouseArea::new(
-                    row![]
-                    .width(Fill)
-                    .height(Fill)
-                )
-                .on_move(|point| {return Message::MouseMove(point.x as i32, point.y as i32)})
-    
-                .on_press        (Message::MouseClick(MouseButton::Left,  MouseState::Pressed ))
-                .on_release      (Message::MouseClick(MouseButton::Left,  MouseState::Released))
-                .on_right_press  (Message::MouseClick(MouseButton::Right, MouseState::Pressed ))
-                .on_right_release(Message::MouseClick(MouseButton::Right, MouseState::Released)),
+                stack![
+                    MouseArea::new(
+                        row![]
+                        .width(Fill)
+                        .height(Fill)
+                    )
+                    .on_move(|point| {return Message::MouseMove(point.x as i32, point.y as i32)})
+        
+                    .on_press        (Message::MouseClick(MouseButton::Left,  MouseState::Pressed ))
+                    .on_release      (Message::MouseClick(MouseButton::Left,  MouseState::Released))
+                    .on_right_press  (Message::MouseClick(MouseButton::Right, MouseState::Pressed ))
+                    .on_right_release(Message::MouseClick(MouseButton::Right, MouseState::Released)),
 
-                match this.allocation.as_ref() {
-                    Some(allocation) => iced::Element::from(
-                        image(allocation.handle())
-                            .width(Fill)
-                            .height(Fill)
-                    ),
-                    None => space().width(Fill).height(Fill).into()
-                }
-            ]
-
-        )
-        .width(Fill)
-        .height(Fill)
-        .into()
+                    match this.allocation.as_ref() {
+                        Some(allocation) => iced::Element::from(
+                            image(allocation.handle())
+                                .width(Fill)
+                                .height(Fill)
+                        ),
+                        None => space().width(Fill).height(Fill).into()
+                    }
+                ]
+            )
+            .width(Fill)
+            .height(Fill)
+            .into()
         },
         UIState::ConnectedHost => {
             return column![
-                button("Disconnect").on_press(Message::Disconnect)
+                row![space().width(Fill), theme_dropdown(&this.config.theme)],
+                row![space().width(Fill), button("Disconnect").on_press(Message::Disconnect), space().width(Fill)]
             ].into()
         }
     }
@@ -306,4 +319,37 @@ pub fn update(this: &mut Window, message: UIUpdate) {
             }
         }
     }
+}
+
+fn theme_dropdown(theme: &iced::Theme) -> iced::Element<'static, Message> {
+    let options = [
+        iced::Theme::Light,
+        iced::Theme::Dark,
+        iced::Theme::Dracula,
+        iced::Theme::Nord,
+        iced::Theme::SolarizedLight,
+        iced::Theme::SolarizedDark,
+        iced::Theme::GruvboxLight,
+        iced::Theme::GruvboxDark,
+        iced::Theme::CatppuccinLatte,
+        iced::Theme::CatppuccinFrappe,
+        iced::Theme::CatppuccinMacchiato,
+        iced::Theme::CatppuccinMocha,
+        iced::Theme::TokyoNight,
+        iced::Theme::TokyoNightStorm,
+        iced::Theme::TokyoNightLight,
+        iced::Theme::KanagawaWave,
+        iced::Theme::KanagawaDragon,
+        iced::Theme::KanagawaLotus,
+        iced::Theme::Moonfly,
+        iced::Theme::Nightfly,
+        iced::Theme::Oxocarbon,
+        iced::Theme::Ferra
+    ];
+
+    return pick_list(
+        options,
+        Some(theme.clone()), 
+        Message::ChangeTheme
+    ).into()
 }

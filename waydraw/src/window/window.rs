@@ -27,7 +27,7 @@ impl Window {
         };
         
         Self {
-            config: crate::Config::load_or_generate(),
+            config: crate::config::Config::load_or_generate(),
             p2p: Arc::new(RwLock::new(None)),
             encoder: Arc::new(Mutex::new(Some(Box::new(encoding::h264::H264::new().unwrap())))),
             ui_state: ui_state::UIState::Host { pin: String::from(""), key: String::from(""), wait: String::from(""), error: String::from("") },
@@ -123,6 +123,12 @@ impl Window {
                 Task::none()
             }
 
+            // Misc
+            Message::ChangeTheme(theme) => {
+                self.config.theme = theme;
+                self.config.write();
+                Task::none()
+            }
             Message::WindowResize(x, y) => {
                 self.window_size = (x, y);
                 if let UIState::ConnectedClient = self.ui_state {

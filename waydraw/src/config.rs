@@ -1,11 +1,14 @@
 use std::{collections::HashMap, path::PathBuf};
 
+use iced::application::ThemeFn;
 use iroh::SecretKey;
+
+use crate::window;
 
 pub struct Config {
     pub secret_key: SecretKey,
     pub known_hosts: HashMap<String, String>,
-    pub theme: iced::Theme
+    pub theme: iced::Theme,
 }
 
 impl Config {
@@ -24,6 +27,7 @@ impl Config {
 
     pub fn write(&self) {
         write_hosts(&self.known_hosts);
+        write_theme(&self.theme);
     }
 }
 
@@ -122,5 +126,45 @@ fn load_theme() -> iced::Theme {
         "Oxocarbon"            => iced::Theme::Oxocarbon,
         "Ferra"                => iced::Theme::Ferra,
         _                      => iced::Theme::CatppuccinFrappe
+    }
+}
+
+fn write_theme(theme: &iced::Theme) {
+    let path = config_path().join("theme");
+
+    let theme = match theme {
+        iced::Theme::Light               => "Light",
+        iced::Theme::Dark                => "Dark",
+        iced::Theme::Dracula             => "Dracula",
+        iced::Theme::Nord                => "Nord",
+        iced::Theme::SolarizedLight      => "SolarizedLight",
+        iced::Theme::SolarizedDark       => "SolarizedDark",
+        iced::Theme::GruvboxLight        => "GruvboxLight",
+        iced::Theme::GruvboxDark         => "GruvboxDark",
+        iced::Theme::CatppuccinLatte     => "CatppuccinLatte",
+        iced::Theme::CatppuccinFrappe    => "CatppuccinFrappe",
+        iced::Theme::CatppuccinMacchiato => "CatppuccinMacchiato",
+        iced::Theme::CatppuccinMocha     => "CatppuccinMocha",
+        iced::Theme::TokyoNight          => "TokyoNight",
+        iced::Theme::TokyoNightStorm     => "TokyoNightStorm",
+        iced::Theme::TokyoNightLight     => "TokyoNightLight",
+        iced::Theme::KanagawaWave        => "KanagawaWave",
+        iced::Theme::KanagawaDragon      => "KanagawaDragon",
+        iced::Theme::KanagawaLotus       => "KanagawaLotus",
+        iced::Theme::Moonfly             => "Moonfly",
+        iced::Theme::Nightfly            => "Nightfly",
+        iced::Theme::Oxocarbon           => "Oxocarbon",
+        iced::Theme::Ferra               => "Ferra",
+        _                                => "CatppuccinFrappe"
+    };
+
+    std::fs::write(path, theme).unwrap();
+}
+
+pub struct Theme;
+
+impl ThemeFn<window::Window, iced::Theme> for Theme {
+    fn theme(&self, state: &window::Window) -> Option<iced::Theme> {
+        return Some(state.config.theme.clone())
     }
 }

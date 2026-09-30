@@ -9,14 +9,14 @@ mod window;
 pub use config::Config;
 
 fn main() {
-    let config = Config::load_or_generate();
-    
+    let theme = crate::config::Theme;
+
     let _ = iced::application(
         window::Window::boot,
         window::Window::update,
         window::Window::view
     )
-        .theme(config.theme)
+        .theme(theme)
         .subscription(window::window::subscription)
         .title("Waydraw")
         .run();
