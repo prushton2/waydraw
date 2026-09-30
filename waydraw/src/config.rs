@@ -4,7 +4,8 @@ use iroh::SecretKey;
 
 pub struct Config {
     pub secret_key: SecretKey,
-    pub known_hosts: HashMap<String, String>
+    pub known_hosts: HashMap<String, String>,
+    pub theme: iced::Theme
 }
 
 impl Config {
@@ -12,10 +13,12 @@ impl Config {
         // let config_path = config_path();
         let secret_key = load_or_create_secret_key().unwrap();
         let known_hosts = load_hosts();
+        let theme = load_theme();
 
         Self {
             secret_key,
-            known_hosts
+            known_hosts,
+            theme
         }
     }
 
@@ -85,4 +88,39 @@ fn write_hosts(map: &HashMap<String, String>) {
     let serialized = serde_json::to_string(map).unwrap();
 
     std::fs::write(path, serialized).unwrap();
+}
+
+fn load_theme() -> iced::Theme {
+    let path = config_path().join("theme");
+
+    let theme = match std::fs::read_to_string(&path) {
+        Ok(t) => t,
+        Err(_) => return iced::Theme::CatppuccinFrappe
+    };
+    
+    match theme.trim() {
+        "Light"                => iced::Theme::Light,
+        "Dark"                 => iced::Theme::Dark,
+        "Dracula"              => iced::Theme::Dracula,
+        "Nord"                 => iced::Theme::Nord,
+        "SolarizedLight"       => iced::Theme::SolarizedLight,
+        "SolarizedDark"        => iced::Theme::SolarizedDark,
+        "GruvboxLight"         => iced::Theme::GruvboxLight,
+        "GruvboxDark"          => iced::Theme::GruvboxDark,
+        "CatppuccinLatte"      => iced::Theme::CatppuccinLatte,
+        "CatppuccinFrappe"     => iced::Theme::CatppuccinFrappe,
+        "CatppuccinMacchiato"  => iced::Theme::CatppuccinMacchiato,
+        "CatppuccinMocha"      => iced::Theme::CatppuccinMocha,
+        "TokyoNight"           => iced::Theme::TokyoNight,
+        "TokyoNightStorm"      => iced::Theme::TokyoNightStorm,
+        "TokyoNightLight"      => iced::Theme::TokyoNightLight,
+        "KanagawaWave"         => iced::Theme::KanagawaWave,
+        "KanagawaDragon"       => iced::Theme::KanagawaDragon,
+        "KanagawaLotus"        => iced::Theme::KanagawaLotus,
+        "Moonfly"              => iced::Theme::Moonfly,
+        "Nightfly"             => iced::Theme::Nightfly,
+        "Oxocarbon"            => iced::Theme::Oxocarbon,
+        "Ferra"                => iced::Theme::Ferra,
+        _                      => iced::Theme::CatppuccinFrappe
+    }
 }
