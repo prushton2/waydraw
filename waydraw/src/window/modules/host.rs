@@ -54,37 +54,23 @@ pub fn update(this: &mut Window, message: ConnectFlow) -> Task<ConnectFlow> {
             )
         },
 
-        ConnectFlow::AwaitClient(result) => {   
-            let pin_ref: &mut String;
-            let key_ref: &mut String;
-            let wait_ref: &mut String;
-            let error_ref: &mut String;
-
-            if let UIState::Host { pin, key, wait, error } = &mut this.ui_state {
-                pin_ref = pin;
-                key_ref = key;
-                wait_ref = wait;
-                error_ref = error;
-            } else {
-                return Task::none()
-            }
-
+        ConnectFlow::AwaitClient(result) => {
             let (p2p, key, pin) = match result {
                 Ok(t) => t,
                 Err(t) => {
-                    *error_ref = t;
-                    *wait_ref = String::from("");
+                    ui_state::update(this, ui_state::UIUpdate::UpdateError(t));
+                    ui_state::update(this, ui_state::UIUpdate::UpdateWait(String::from("")));
                     return Task::none()
                 }
             };
 
             this.p2p = p2p;
-            *key_ref = key;
-            *pin_ref = pin;
+            ui_state::update(this, ui_state::UIUpdate::UpdateKeyTextbox(key));
+            ui_state::update(this, ui_state::UIUpdate::UpdatePinTextbox(pin));
 
             let arc = this.p2p.clone();
             
-            *wait_ref = "Waiting for connection".to_owned();
+            ui_state::update(this, ui_state::UIUpdate::UpdateWait("Waiting for connection".to_owned()));
             Task::perform(
             async move {
                 let mut lock = arc.write().await;
@@ -101,26 +87,13 @@ pub fn update(this: &mut Window, message: ConnectFlow) -> Task<ConnectFlow> {
         },
 
         ConnectFlow::SendHello(result) => {
-            let pin_ref: &mut String;
-            let wait_ref: &mut String;
-            let error_ref: &mut String;
-
-            if let UIState::Host { pin, key: _, wait, error } = &mut this.ui_state {
-                pin_ref = pin;
-                wait_ref = wait;
-                error_ref = error;
-            } else {
-                return Task::none()
-            }
-
             if let Err(e) = result {
-                *error_ref = format!("Error awaiting connection: {}", e);
-                *wait_ref = String::from("");
+                ui_state::update(this, ui_state::UIUpdate::UpdateError(format!("Error awaiting connection: {}", e)));
+                ui_state::update(this, ui_state::UIUpdate::UpdateWait(String::from("")));
                 return Task::none();
             }
 
-            *wait_ref = "Sending Hello".to_owned();
-            // let selected_monitor = &this.available_monitors[this.selected_monitor.unwrap_or(0)];
+            ui_state::update(this, ui_state::UIUpdate::UpdateWait(String::from("Sending Hello")));
 
             // construct server info to send to client
             let p2p_arc = this.p2p.clone();
@@ -136,11 +109,14 @@ pub fn update(this: &mut Window, message: ConnectFlow) -> Task<ConnectFlow> {
 
             let server_info_bytes = server_info.into_bytes();
 
-            let pin = pin_ref.clone();
+            let mut pin_copy: String = String::from("");
+            if let ui_state::UIState::Host { pin, key: _, wait: _, error: _ } = &this.ui_state {
+                pin_copy = pin.clone();
+            }
 
             Task::perform(
                 async move {
-                    p2p::remote_key_store::delete(&pin).await;
+                    p2p::remote_key_store::delete(&pin_copy).await;
 
                     let p2p_lock = p2p_arc.read().await;
                     let p2p_ref = p2p_lock.as_ref().unwrap();
@@ -160,25 +136,13 @@ pub fn update(this: &mut Window, message: ConnectFlow) -> Task<ConnectFlow> {
         },
 
         ConnectFlow::Connect(client_hello) => {
-            let pin_ref: &mut String;
-            let key_ref: &mut String;
-            let error_ref: &mut String;
-
-            if let UIState::Host { pin, key, wait: _, error } = &mut this.ui_state {
-                pin_ref = pin;
-                key_ref = key;
-                error_ref = error;
-            } else {
-                return Task::none()
-            }
-
             let version = env!("CARGO_PKG_VERSION").split(".").map(|s| s.parse::<u8>().unwrap()).collect::<Vec<u8>>();
 
             if client_hello.version.0 != version[0] {
                 this.p2p = Arc::new(RwLock::new(None));
-                *error_ref = format!("Incompatible versions: Client {}.{}.{} and Server {}.{}.{}. Please update each app to the same major version.", client_hello.version.0, client_hello.version.1, client_hello.version.2, version[0], version[1], version[2]);
-                *pin_ref = String::from("");
-                *key_ref = String::from("");
+                ui_state::update(this, ui_state::UIUpdate::UpdateError(format!("Incompatible versions: Client {}.{}.{} and Server {}.{}.{}. Please update each app to the same major version.", client_hello.version.0, client_hello.version.1, client_hello.version.2, version[0], version[1], version[2])));
+                ui_state::update(this, ui_state::UIUpdate::UpdateKeyTextbox(String::from("")));
+                ui_state::update(this, ui_state::UIUpdate::UpdatePinTextbox(String::from("")));
                 return Task::none();
             }
 

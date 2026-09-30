@@ -1,5 +1,3 @@
-use iced::Theme;
-
 pub mod config;
 pub mod p2p;
 pub mod encoding;
@@ -11,13 +9,14 @@ mod window;
 pub use config::Config;
 
 fn main() {
-    
+    let theme = crate::config::Theme;
+
     let _ = iced::application(
         window::Window::boot,
         window::Window::update,
         window::Window::view
     )
-        .theme(Theme::CatppuccinFrappe)
+        .theme(theme)
         .subscription(window::window::subscription)
         .title("Waydraw")
         .run();
