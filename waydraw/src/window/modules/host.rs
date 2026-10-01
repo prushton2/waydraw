@@ -99,14 +99,14 @@ pub fn update(this: &mut Window, message: ConnectFlow) -> Task<ConnectFlow> {
 
             let version = env!("CARGO_PKG_VERSION").split(".").map(|s| s.parse::<u8>().unwrap_or(0)).collect::<Vec<u8>>();
 
-            let server_info = ServerHello {
+            let mut server_info = ServerHello {
+                selected_codec: String::from(""),
                 name: gethostname::gethostname().into_string().unwrap(),
                 version: (version[0], version[1], version[2]),
                 screen_width:  0,
                 screen_height: 0
             };
 
-            let server_info_bytes = server_info.into_bytes();
 
             let mut pin_copy: String = String::from("");
             if let ui_state::UIState::Host { pin, key: _, wait: _, error: _ } = &this.ui_state {
@@ -121,14 +121,20 @@ pub fn update(this: &mut Window, message: ConnectFlow) -> Task<ConnectFlow> {
                     let p2p_ref = p2p_lock.as_ref().unwrap();
                     
                     let client_hello_bytes = p2p_ref.read().await.unwrap();
-                    let client_hello_enum = match FromBytes::parse(&client_hello_bytes[..]) {
+                    let client_hello = match FromBytes::parse(&client_hello_bytes[..]) {
                         FromBytes::ClientHello(m) => m,
                         t => panic!("Expected client hello, received other bytes: {:?}", t)
                     };
+
+                    // if client_hello.supported_codecs.contains(&"H.264".to_owned())
+
+
+                    server_info.selected_codec = "H.264".to_owned();
                     
+                    let server_info_bytes = server_info.into_bytes();
                     let _ = p2p_ref.send(&server_info_bytes).await;
                     
-                    client_hello_enum
+                    client_hello
                 },
                 ConnectFlow::Connect
             )

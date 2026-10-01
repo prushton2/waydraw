@@ -80,7 +80,11 @@ pub fn update(this: &mut Window, message: P2PMessage) -> Task<Message> {
             let selected_monitor = this.monitors.iter().filter(|e| e.id == this.selected_monitor).nth(0).unwrap();
 
             let (offset_x, offset_y) = selected_monitor.position;
-            let client_window_res = (this.client_info.unwrap().window_width, this.client_info.unwrap().window_height);
+            let client_window_res = if let Some(ci) = &this.client_info {
+                (ci.window_width, ci.window_height)
+            } else {
+                return Task::none()
+            };
             let scale = selected_monitor.scale;
 
             let mouse_pct = (

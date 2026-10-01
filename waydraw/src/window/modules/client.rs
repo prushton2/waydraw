@@ -59,6 +59,7 @@ pub fn update(this: &mut Window, message: ConnectFlow) -> Task<ConnectFlow> {
                     let version = env!("CARGO_PKG_VERSION").split(".").map(|s| s.parse::<u8>().unwrap()).collect::<Vec<u8>>();
 
                     let client_hello = protocol::ClientHello {
+                        supported_codecs: vec!["H.264".to_owned()],
                         version: (version[0], version[1], version[2]),
                         window_width:  window_size_clone.0 as u32,
                         window_height: window_size_clone.1 as u32
