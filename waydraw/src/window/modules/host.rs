@@ -40,11 +40,10 @@ pub fn update(this: &mut Window, message: ConnectFlow) -> Task<ConnectFlow> {
                 async move {
                     let (server, key) = p2p::P2P::init(key).await.map_err(|e| e.to_string())?;
 
-                    let pin = p2p::remote_key_store::generate_pin();
                     let key = key.to_string();
                     
-                    match p2p::remote_key_store::set(&pin, &key.to_string()).await {
-                        Ok(_) => {},
+                    let pin = match p2p::remote_key_store::set(&key.to_string()).await {
+                        Ok(t) => t,
                         Err(e) => return Err(e)
                     };
 
