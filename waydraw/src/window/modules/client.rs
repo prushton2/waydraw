@@ -4,7 +4,7 @@ use iced::Task;
 use iroh::EndpointId;
 use tokio::sync::RwLock;
 
-use crate::{p2p::{self, p2p::P2PError, protocol::{self, IntoBytes}}, window::Window};
+use crate::{encoding, p2p::{self, p2p::P2PError, protocol::{self, IntoBytes}}, window::Window};
 use crate::window::modules::*;
 
 #[derive(Clone)]
@@ -59,7 +59,7 @@ pub fn update(this: &mut Window, message: ConnectFlow) -> Task<ConnectFlow> {
                     let version = env!("CARGO_PKG_VERSION").split(".").map(|s| s.parse::<u8>().unwrap()).collect::<Vec<u8>>();
 
                     let client_hello = protocol::ClientHello {
-                        supported_codecs: vec!["H.264".to_owned()],
+                        supported_codecs: encoding::get_compatible_codecs().iter().map(|e| e.to_string()).collect(),
                         version: (version[0], version[1], version[2]),
                         window_width:  window_size_clone.0 as u32,
                         window_height: window_size_clone.1 as u32
@@ -91,6 +91,10 @@ pub fn update(this: &mut Window, message: ConnectFlow) -> Task<ConnectFlow> {
                     return Task::none()
                 }
             };
+
+            let mut encoder_lock = this.encoder.lock().unwrap();
+            *encoder_lock = Some(encoding::get_codec(&server_hello.selected_codec).unwrap());
+            drop(encoder_lock);
 
             this.config.known_hosts.insert(key, server_hello.name.clone());
             this.config.write();

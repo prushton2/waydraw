@@ -4,7 +4,7 @@ use std::sync::Mutex;
 
 use tokio::sync::RwLock;
 
-use crate::encoding::Encoder;
+use crate::encoding::Codec;
 use crate::screen_capture::ScreenCapture;
 use crate::window::Message;
 use crate::p2p::protocol::IntoBytes;
@@ -13,7 +13,7 @@ use crate::p2p::protocol::IntoBytes;
 #[derive(Clone)]
 pub struct ScreencapStreamParameters {
     pub recording: Arc<std::sync::RwLock<Option<ScreenCapture>>>,
-    pub encoder: Arc<Mutex<Option<Box<dyn Encoder>>>>,
+    pub encoder: Arc<Mutex<Option<Box<dyn Codec>>>>,
     pub p2p: Arc<RwLock<Option<crate::p2p::P2P>>>,
 }
 

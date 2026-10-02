@@ -4,7 +4,6 @@ use tokio::sync::RwLock;
 
 use iced::Subscription;
 
-use crate::encoding;
 use crate::p2p::protocol::{self, IntoBytes};
 use crate::window::modules;
 use crate::window::modules::screencap_stream::ScreencapStreamParameters;
@@ -29,7 +28,7 @@ impl Window {
         Self {
             config: crate::config::Config::load_or_generate(),
             p2p: Arc::new(RwLock::new(None)),
-            encoder: Arc::new(Mutex::new(Some(Box::new(encoding::h264::H264::new().unwrap())))),
+            encoder: Arc::new(Mutex::new(None)),
             ui_state: ui_state::UIState::Host { pin: String::from(""), key: String::from(""), wait: String::from(""), error: String::from("") },
             
             monitors: monitors,

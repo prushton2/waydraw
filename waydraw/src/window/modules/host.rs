@@ -3,7 +3,7 @@ use std::sync::Arc;
 use iced::Task;
 use tokio::sync::RwLock;
 
-use crate::screen_capture;
+use crate::{encoding, screen_capture};
 use crate::window::Window;
 use crate::p2p::{self, protocol::{ClientHello, FromBytes, IntoBytes, ServerHello}};
 use crate::window::modules::ui_state::{self, UIState};
@@ -13,7 +13,7 @@ pub enum ConnectFlow {
     Register,
     AwaitClient(Result<(Arc<RwLock<Option<p2p::P2P>>>, String, String), String>),
     SendHello(Result<(), String>),
-    Connect(ClientHello),
+    Connect((ClientHello, String)),
     Disconnect,
     Null(())
 }
@@ -126,21 +126,22 @@ pub fn update(this: &mut Window, message: ConnectFlow) -> Task<ConnectFlow> {
                         t => panic!("Expected client hello, received other bytes: {:?}", t)
                     };
 
-                    // if client_hello.supported_codecs.contains(&"H.264".to_owned())
-
-
-                    server_info.selected_codec = "H.264".to_owned();
+                    let compatible_codecs = encoding::get_compatible_codecs();
+                    let matched_codecs = client_hello.supported_codecs.iter().filter(|e| compatible_codecs.contains(&(**e).as_str())).collect::<Vec<&String>>();
                     
+                    let selected_codec = matched_codecs[0].clone();
+
+                    server_info.selected_codec = selected_codec.clone();
                     let server_info_bytes = server_info.into_bytes();
                     let _ = p2p_ref.send(&server_info_bytes).await;
                     
-                    client_hello
+                    (client_hello, selected_codec)
                 },
                 ConnectFlow::Connect
             )
         },
 
-        ConnectFlow::Connect(client_hello) => {
+        ConnectFlow::Connect((client_hello, selected_codec)) => {
             let version = env!("CARGO_PKG_VERSION").split(".").map(|s| s.parse::<u8>().unwrap()).collect::<Vec<u8>>();
 
             if client_hello.version.0 != version[0] {
@@ -156,6 +157,8 @@ pub fn update(this: &mut Window, message: ConnectFlow) -> Task<ConnectFlow> {
 
             let recorder_arc = this.video_recorder.clone();
             let monitor_name = this.selected_monitor.clone();
+            let mut encoder_lock = this.encoder.lock().unwrap();
+            *encoder_lock = Some(encoding::get_codec(&selected_codec).unwrap());
             
             let mut lock = recorder_arc.write().unwrap();
             *lock = Some(screen_capture::ScreenCapture::new(&monitor_name).unwrap());

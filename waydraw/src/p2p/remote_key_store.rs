@@ -1,6 +1,6 @@
 use reqwest;
 
-const URL: &str = "https://keyserver.prushton.com";
+const URL: &str = "http://localhost:3000";
 
 pub async fn set(value: &str) -> Result<String, String> {
     let client = reqwest::Client::new();

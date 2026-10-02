@@ -7,7 +7,7 @@ use iced_core::image::{Allocation, Error};
 use crate::p2p::protocol::{ClientHello, ServerHello};
 use crate::screen_capture::ScreenCapture;
 use crate::window::window::Monitor;
-use crate::{encoding::Encoder, window::modules::receive_stream};
+use crate::{encoding::Codec, window::modules::receive_stream};
 
 use crate::p2p::protocol::mouse_click::{MouseButton, MouseState};
 
@@ -17,7 +17,7 @@ mod modules;
 pub struct Window {
     pub config: crate::Config,
     p2p: Arc<RwLock<Option<crate::p2p::P2P>>>,
-    encoder: Arc<std::sync::Mutex<Option<Box<dyn Encoder>>>>,
+    encoder: Arc<std::sync::Mutex<Option<Box<dyn Codec>>>>,
     ui_state: modules::ui_state::UIState,
     monitors: Vec<Monitor>,
     selected_monitor: String,
