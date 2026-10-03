@@ -172,12 +172,16 @@ pub fn update(this: &mut Window, message: ConnectFlow) -> Task<ConnectFlow> {
             let recorder_arc = this.video_recorder.clone();
             let p2p_arc = this.p2p.clone();
             this.p2p = Arc::new(RwLock::new(None));
-
+            
             let mut lock = recorder_arc.write().unwrap();
             if let Some(recorder) = lock.as_ref() {
                 recorder.kill()
             }
             *lock = None;
+
+            let mut lock = this.heartbeat.lock().unwrap();
+            lock.last_message = None;
+            drop(lock);
 
             Task::perform(
                 async move {

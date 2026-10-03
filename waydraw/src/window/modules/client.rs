@@ -11,7 +11,9 @@ use crate::window::modules::*;
 pub enum ConnectFlow {
     PinSubmitted(String),
     KeySubmitted(String),
-    Connected(Result<(Arc<RwLock<Option<crate::p2p::P2P>>>, protocol::ServerHello, String), P2PError>)
+    Connected(Result<(Arc<RwLock<Option<crate::p2p::P2P>>>, protocol::ServerHello, String), P2PError>),
+    Disconnect,
+    Null(())
 }
 
 pub fn update(this: &mut Window, message: ConnectFlow) -> Task<ConnectFlow> {
@@ -114,6 +116,33 @@ pub fn update(this: &mut Window, message: ConnectFlow) -> Task<ConnectFlow> {
 
             Task::none()
 
+        },
+        ConnectFlow::Disconnect => {
+            ui_state::update(this, ui_state::UIUpdate::Disconnect);
+
+            let p2p_arc = this.p2p.clone();
+            this.p2p = Arc::new(RwLock::new(None));
+
+            let mut lock = this.heartbeat.lock().unwrap();
+            lock.last_message = None;
+            drop(lock);
+
+            Task::perform(
+                async move {
+                    let mut lock = p2p_arc.write().await;
+                    if let Some(p2p) = lock.as_mut() {
+                        let _ = p2p.close().await;
+                    } else {
+                        println!("Could not close connection");
+                    }
+                    
+                    ()
+                },
+                ConnectFlow::Null,
+            )
+        },
+        ConnectFlow::Null(_) => {
+            Task::none()
         }
     }
 }

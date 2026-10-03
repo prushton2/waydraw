@@ -6,6 +6,7 @@ use iced_core::image::{Allocation, Error};
 
 use crate::p2p::protocol::{ClientHello, ServerHello};
 use crate::screen_capture::ScreenCapture;
+use crate::window::modules::heartbeat;
 use crate::window::window::Monitor;
 use crate::{encoding::Codec, window::modules::receive_stream};
 
@@ -16,6 +17,8 @@ mod modules;
 
 pub struct Window {
     pub config: crate::Config,
+    heartbeat: Arc<std::sync::Mutex<heartbeat::Heartbeat>>,
+
     p2p: Arc<RwLock<Option<crate::p2p::P2P>>>,
     encoder: Arc<std::sync::Mutex<Option<Box<dyn Codec>>>>,
     ui_state: modules::ui_state::UIState,
@@ -40,6 +43,7 @@ pub enum Message {
     UIUpdate(modules::ui_state::UIUpdate),
     P2PMessage(receive_stream::P2PMessage),
     RemoveKnownHost(String),
+    HeartbeatMessage(heartbeat::HeartbeatMessage),
 
     // Client side stuff
     ImageAllocated(Result<Allocation, Error>),

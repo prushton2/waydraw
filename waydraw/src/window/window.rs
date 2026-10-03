@@ -1,11 +1,11 @@
 use std::sync::{Arc, Mutex};
+use std::time;
 use iced::Task;
 use tokio::sync::RwLock;
 
 use iced::Subscription;
 
 use crate::p2p::protocol::{self, IntoBytes};
-use crate::window::modules;
 use crate::window::modules::screencap_stream::ScreencapStreamParameters;
 use crate::window::modules::ui_state::UIState;
 use crate::window::modules::*;
@@ -27,6 +27,7 @@ impl Window {
         
         Self {
             config: crate::config::Config::load_or_generate(),
+            heartbeat: Arc::new(Mutex::new(heartbeat::Heartbeat::new(time::Duration::from_secs(5), time::Duration::from_secs(1)))),
             p2p: Arc::new(RwLock::new(None)),
             encoder: Arc::new(Mutex::new(None)),
             ui_state: ui_state::UIState::Host { pin: String::from(""), key: String::from(""), wait: String::from(""), error: String::from("") },
@@ -67,10 +68,13 @@ impl Window {
 
                 Task::none()
             },
+            Message::HeartbeatMessage(message) => {
+                heartbeat::update(self, message)
+            }
 
             // Client stuff
             Message::ClientConnectFlow(message) => {
-                modules::client::update(self, message).map(Message::ClientConnectFlow)
+                client::update(self, message).map(Message::ClientConnectFlow)
             },
             Message::MouseClick(button, state) => {
                 let p2p_arc = self.p2p.clone();
@@ -112,10 +116,20 @@ impl Window {
 
             // Host stuff
             Message::HostConnectFlow(message) => {
-                modules::host::update(self, message).map(Message::HostConnectFlow)
+                host::update(self, message).map(Message::HostConnectFlow)
             },
             Message::Disconnect => {
-                modules::host::update(self, modules::host::ConnectFlow::Disconnect).map(Message::HostConnectFlow)
+                match self.ui_state {
+                    UIState::ConnectedHost => {
+                        host::update(self, host::ConnectFlow::Disconnect).map(Message::HostConnectFlow)
+                    },
+                    UIState::ConnectedClient => {
+                        client::update(self, client::ConnectFlow::Disconnect).map(Message::ClientConnectFlow)
+                    },
+                    _ => {
+                        Task::none()
+                    }
+                }
             },
             Message::SelectMonitor(v) => {
                 self.selected_monitor = v;
@@ -170,6 +184,12 @@ pub fn subscription(window: &Window) -> Subscription<Message> {
     if let UIState::ConnectedClient | UIState::ConnectedHost = window.ui_state {
         subscriptions.push(
             iced::Subscription::run_with(receive_stream::P2PObject(window.p2p.clone()), receive_stream::p2p_stream),
+        );
+
+        let hb_params = heartbeat::HeartbeatParameters(window.heartbeat.clone());
+
+        subscriptions.push(
+            iced::Subscription::run_with(hb_params, heartbeat::stream)
         );
     }
 

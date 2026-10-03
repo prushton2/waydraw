@@ -11,6 +11,7 @@ use crate::window::{Message, Window};
 #[derive(Clone)]
 pub enum P2PMessage {
     MouseClick(MouseButton, MouseState),
+    Heartbeat,
     MouseMove(u32, u32),
     WindowResize(u32, u32),
     ScreenshotReceived(protocol::Screenshot)
@@ -61,7 +62,10 @@ pub fn p2p_stream(feed: &P2PObject) -> impl iced::futures::Stream<Item = Message
             },
             FromBytes::Screenshot(t) => {
                 return Some((Message::P2PMessage(P2PMessage::ScreenshotReceived(t)), p2p))
-            }
+            },
+            FromBytes::Heartbeat(_) => {
+                return Some((Message::P2PMessage(P2PMessage::Heartbeat), p2p))
+            },
             FromBytes::UnknownInstruction(_) => {},
             _ => {}
         }
@@ -142,6 +146,12 @@ pub fn update(this: &mut Window, message: P2PMessage) -> Task<Message> {
 
                 return image::allocate(handle).map(Message::ImageAllocated)
             }
+            Task::none()
+        },
+        P2PMessage::Heartbeat => {
+            let mut lock = this.heartbeat.lock().unwrap();
+            let now = std::time::Instant::now();
+            lock.last_message = Some(now);
             Task::none()
         }
     }

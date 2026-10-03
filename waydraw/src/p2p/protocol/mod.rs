@@ -4,6 +4,7 @@ pub mod mouse_move;
 pub mod mouse_click;
 pub mod window_resized;
 pub mod screenshot;
+pub mod heartbeat;
 
 pub use server_hello::ServerHello;
 pub use client_hello::ClientHello;
@@ -11,6 +12,7 @@ pub use mouse_move::MouseMove;
 pub use mouse_click::MouseClick;
 pub use window_resized::WindowResized;
 pub use screenshot::Screenshot;
+pub use heartbeat::Heartbeat;
 
 #[derive(Debug, Clone)]
 pub enum FromBytes {
@@ -19,6 +21,7 @@ pub enum FromBytes {
     MouseMove(MouseMove),
     MouseClick(MouseClick),
     WindowResized(WindowResized),
+    Heartbeat(Heartbeat),
     Screenshot(Screenshot),
     UnknownInstruction(Vec<u8>),
 }
@@ -38,6 +41,7 @@ impl FromBytes {
             0x00 => Self::ServerHello(ServerHello::from_bytes(&bytes[1..])),
             0x01 => Self::ClientHello(ClientHello::from_bytes(&bytes[1..])),
             0x02 => Self::WindowResized(WindowResized::from_bytes(&bytes[1..])),
+            0x03 => Self::Heartbeat(Heartbeat::from_bytes(&bytes[1..])),
             0x10 => Self::MouseMove(MouseMove::from_bytes(&bytes[1..])),
             0x11 => Self::MouseClick(MouseClick::from_bytes(&bytes[1..])),
             0x20 => Self::Screenshot(Screenshot::from_bytes(&bytes[1..])),
