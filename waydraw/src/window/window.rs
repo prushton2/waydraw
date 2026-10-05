@@ -164,7 +164,7 @@ impl Window {
                 let confirmed = DialogBuilder::message()
                     .set_level(native_dialog::MessageLevel::Warning)
                     .set_title("Are you sure you want to reset your device ID?")
-                    .set_text("Devices will no longer be able to connect to you via the known hosts section")
+                    .set_text("Any devices that have you as a known host will need to be reconnected to.")
                     .confirm()
                     .show()
                     .unwrap_or(true); // This will fail on people who use TWMs or whatever and dont have the proper libs, and i dont really care about that
