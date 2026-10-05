@@ -1,7 +1,7 @@
 use iced::{Border, Element, Theme};
 use iced::border::Radius;
 use iced::widget::{Column, MouseArea, button, column, container, image, pick_list, row, space, stack, text, text_input};
-use iced::{Alignment::{self, Center}, Length::{self, Fill}};
+use iced::{Alignment, Length};
 
 use crate::window::window::Monitor;
 use crate::window::{Message, Window, modules};
@@ -49,18 +49,18 @@ pub fn view(this: &Window) -> iced::Element<'_, Message> {
                 ).collect();
 
             return Widgets::ribbon_wrapper(this, column![
-                text("Select a monitor").width(Fill).align_x(Center),
-                iced::widget::Column::from_vec(monitor_buttons).width(Fill).align_x(Center),
+                text("Select a monitor").width(Length::Fill).align_x(Alignment::Center),
+                iced::widget::Column::from_vec(monitor_buttons).width(Length::Fill).align_x(Alignment::Center),
                 
                 space().height(20),
-                container(button("Allow Connections").on_press(Message::HostConnectFlow(modules::host::ConnectFlow::Register))).center_x(Fill),
+                container(button("Allow Connections").on_press(Message::HostConnectFlow(modules::host::ConnectFlow::Register))).center_x(Length::Fill),
                 space().height(20),
                 
                 row![text("Pin"), space().width(24), text_input(pin, pin).on_input(|_| Message::None)],
                 row![text("Key"), space().width(20), text_input(key, key).on_input(|_| Message::None)],
                 
-                text(wait).width(Fill).align_x(Center),
-                text(error).width(Fill).align_x(Center).style(|t| {text::danger(t)}),
+                text(wait).width(Length::Fill).align_x(Alignment::Center),
+                text(error).width(Length::Fill).align_x(Alignment::Center).style(|t| {text::danger(t)}),
             ].into());
         },
         UIState::Client{pin_input, key_input, wait, error} => {
@@ -69,7 +69,7 @@ pub fn view(this: &Window) -> iced::Element<'_, Message> {
             for (key, host) in &this.config.known_hosts {
                 buttons.push(
                     row![
-                        button(host.as_str()).on_press(Message::ClientConnectFlow(modules::client::ConnectFlow::KeySubmitted(key.clone()))).width(Fill).style(|t, _| Styles::square_button(t)),
+                        button(host.as_str()).on_press(Message::ClientConnectFlow(modules::client::ConnectFlow::KeySubmitted(key.clone()))).width(Length::Fill).style(|t, _| Styles::square_button(t)),
                         button("X").on_press(Message::RemoveKnownHost(key.clone())).style(|t, _| Styles::square_button(t)),
                     ]
                     .spacing(0)
@@ -79,31 +79,31 @@ pub fn view(this: &Window) -> iced::Element<'_, Message> {
             }
 
             return Widgets::ribbon_wrapper(this, column![
-                text("Input device pin").width(Fill).align_x(Center),
+                text("Input device pin").width(Length::Fill).align_x(Alignment::Center),
                 row![
                     text_input("000000", pin_input).on_input(|e| Message::UIUpdate(UIUpdate::UpdatePinTextbox(e))),
                     space().width(20),
                     button("Connect").on_press(Message::ClientConnectFlow(modules::client::ConnectFlow::PinSubmitted(pin_input.clone())))
                 ],
                 
-                text("OR").width(Fill).align_x(Center),
+                text("OR").width(Length::Fill).align_x(Alignment::Center),
                 
-                text("Input device key").width(Fill).align_x(Center),
+                text("Input device key").width(Length::Fill).align_x(Alignment::Center),
                 row![
                     text_input("", key_input).on_input(|e| Message::UIUpdate(UIUpdate::UpdateKeyTextbox(e))),
                     space().width(20),
                     button("Connect").on_press(Message::ClientConnectFlow(modules::client::ConnectFlow::KeySubmitted(key_input.clone())))
                 ],
                 
-                text("OR").width(Fill).align_x(Center),
+                text("OR").width(Length::Fill).align_x(Alignment::Center),
                 
-                text("Select previous device").width(Fill).align_x(Center),
-                Column::from_vec(buttons.into()).width(Fill).align_x(Center),
+                text("Select previous device").width(Length::Fill).align_x(Alignment::Center),
+                Column::from_vec(buttons.into()).width(Length::Fill).align_x(Alignment::Center),
                 
                 space().height(20),
                 
-                text(wait).width(Fill).align_x(Center),
-                text(error).width(Fill).align_x(Center).style(|t| {text::danger(t)}),
+                text(wait).width(Length::Fill).align_x(Alignment::Center),
+                text(error).width(Length::Fill).align_x(Alignment::Center).style(|t| {text::danger(t)}),
             ].into());
         },
         UIState::Settings => {
@@ -127,7 +127,7 @@ pub fn view(this: &Window) -> iced::Element<'_, Message> {
 
             return Widgets::ribbon_wrapper(this, column![
                     Widgets::center_separator(text("Select Theme").into(), Widgets::theme_dropdown(&this.config.theme)),
-                    Widgets::center_separator(text("Edit known hosts").into(), Column::from_vec(known_hosts).width(Fill).into()),
+                    Widgets::center_separator(text("Edit known hosts").into(), Column::from_vec(known_hosts).width(Length::Fill).into()),
                     Widgets::center_separator(text("Reset Device ID").into(), button("Reset").on_press(Message::ResetSecretKey).into())
                 ].spacing(10).into()
             ).into();
@@ -137,11 +137,11 @@ pub fn view(this: &Window) -> iced::Element<'_, Message> {
                 stack![
                     MouseArea::new(
                         row![]
-                        .width(Fill)
-                        .height(Fill)
+                        .width(Length::Fill)
+                        .height(Length::Fill)
                     )
                     .on_move(|point| {return Message::MouseMove(point.x as i32, point.y as i32)})
-        
+
                     .on_press        (Message::MouseClick(MouseButton::Left,  MouseState::Pressed ))
                     .on_release      (Message::MouseClick(MouseButton::Left,  MouseState::Released))
                     .on_right_press  (Message::MouseClick(MouseButton::Right, MouseState::Pressed ))
@@ -150,20 +150,20 @@ pub fn view(this: &Window) -> iced::Element<'_, Message> {
                     match this.allocation.as_ref() {
                         Some(allocation) => iced::Element::from(
                             image(allocation.handle())
-                                .width(Fill)
-                                .height(Fill)
+                                .width(Length::Fill)
+                                .height(Length::Fill)
                         ),
-                        None => space().width(Fill).height(Fill).into()
+                        None => space().width(Length::Fill).height(Length::Fill).into()
                     }
                 ]
             )
-            .width(Fill)
-            .height(Fill)
+            .width(Length::Fill)
+            .height(Length::Fill)
             .into()
         },
         UIState::ConnectedHost => {
             return column![
-                row![space().width(Fill), button("Disconnect").on_press(Message::Disconnect), space().width(Fill)]
+                row![space().width(Length::Fill), button("Disconnect").on_press(Message::Disconnect), space().width(Length::Fill)]
             ].into()
         }
     }
@@ -368,23 +368,23 @@ impl Widgets {
         let buttons: iced::Element<'static, Message> = match this.ui_state {
             UIState::Host { pin: _, key: _, wait: _, error: _ } => {
                 row![
-                    button("Host").width(Fill).style(move |t, _| {Styles::client_host_selected(t)}),
-                    button("Client").width(Fill).style(move |t, _| {Styles::client_host_unselected(t)}).on_press(Message::UIUpdate(UIUpdate::SetModeClient)),
-                    button("Settings").width(Fill).style(move |t, _| {Styles::client_host_unselected(t)}).on_press(Message::UIUpdate(UIUpdate::SetModeSettings)),
+                    button("Host").width(Length::Fill).style(move |t, _| {Styles::client_host_selected(t)}),
+                    button("Client").width(Length::Fill).style(move |t, _| {Styles::client_host_unselected(t)}).on_press(Message::UIUpdate(UIUpdate::SetModeClient)),
+                    button("Settings").width(Length::Fill).style(move |t, _| {Styles::client_host_unselected(t)}).on_press(Message::UIUpdate(UIUpdate::SetModeSettings)),
                 ].into()
             },
             UIState::Client { pin_input: _, key_input: _, wait: _, error: _ } => {
                 row![
-                    button("Host").width(Fill).style(move |t, _| {Styles::client_host_unselected(t)}).on_press(Message::UIUpdate(UIUpdate::SetModeHost)),
-                    button("Client").width(Fill).style(move |t, _| {Styles::client_host_selected(t)}),
-                    button("Settings").width(Fill).style(move |t, _| {Styles::client_host_unselected(t)}).on_press(Message::UIUpdate(UIUpdate::SetModeSettings)),
+                    button("Host").width(Length::Fill).style(move |t, _| {Styles::client_host_unselected(t)}).on_press(Message::UIUpdate(UIUpdate::SetModeHost)),
+                    button("Client").width(Length::Fill).style(move |t, _| {Styles::client_host_selected(t)}),
+                    button("Settings").width(Length::Fill).style(move |t, _| {Styles::client_host_unselected(t)}).on_press(Message::UIUpdate(UIUpdate::SetModeSettings)),
                 ].into()
             },
             UIState::Settings => {
                 row![
-                    button("Host").width(Fill).style(move |t, _| {Styles::client_host_unselected(t)}).on_press(Message::UIUpdate(UIUpdate::SetModeHost)),
-                    button("Client").width(Fill).style(move |t, _| {Styles::client_host_unselected(t)}).on_press(Message::UIUpdate(UIUpdate::SetModeClient)),
-                    button("Settings").width(Fill).style(move |t, _| {Styles::client_host_selected(t)}),
+                    button("Host").width(Length::Fill).style(move |t, _| {Styles::client_host_unselected(t)}).on_press(Message::UIUpdate(UIUpdate::SetModeHost)),
+                    button("Client").width(Length::Fill).style(move |t, _| {Styles::client_host_unselected(t)}).on_press(Message::UIUpdate(UIUpdate::SetModeClient)),
+                    button("Settings").width(Length::Fill).style(move |t, _| {Styles::client_host_selected(t)}),
                 ].into()
             }
             _ => row![].into()
@@ -396,20 +396,20 @@ impl Widgets {
                 space().height(10),
                 column![element]
                 .max_width(400),
-                space().height(Fill)
+                space().height(Length::Fill)
             ]
             .max_width(600)
-            .align_x(Center)
+            .align_x(Alignment::Center)
         )
-        .align_x(Center)
+        .align_x(Alignment::Center)
         .into()
     }
 
     pub fn center_separator<'a>(left: iced::Element<'a, Message>, right: iced::Element<'a, Message>) -> iced::Element<'a, Message> {
         return row![
-            row![space().width(Fill), text_input("", "").width(Length::Shrink).style(|t, _| Styles::invisible_text_input(t)), left].width(Length::Fill).align_y(Center),
+            row![space().width(Length::Fill), text_input("", "").width(Length::Shrink).style(|t, _| Styles::invisible_text_input(t)), left].width(Length::Fill).align_y(Alignment::Center),
             space().width(10),
-            row![right, text_input("", "").width(Length::Shrink).style(|t, _| Styles::invisible_text_input(t))].width(Length::Fill).align_y(Center)
+            row![right, text_input("", "").width(Length::Shrink).style(|t, _| Styles::invisible_text_input(t))].width(Length::Fill).align_y(Alignment::Center)
         ].into()
     }
 }
