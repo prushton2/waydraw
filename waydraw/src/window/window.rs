@@ -167,7 +167,7 @@ impl Window {
                     .set_text("Devices will no longer be able to connect to you via the known hosts section")
                     .confirm()
                     .show()
-                    .unwrap();
+                    .unwrap_or(true); // This will fail on people who use TWMs or whatever and dont have the proper libs, and i dont really care about that
 
                 if confirmed {
                     self.config.secret_key = iroh::SecretKey::generate();
