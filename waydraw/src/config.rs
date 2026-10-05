@@ -29,6 +29,18 @@ impl Config {
         write_hosts(&self.known_hosts);
         write_theme(&self.theme);
     }
+
+    pub fn overwrite_secret_key(&self) {
+        let path = config_path().join("secret_key");
+
+        std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+        std::fs::write(&path, self.secret_key.to_bytes()).unwrap();
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o600)).unwrap();
+        }
+    }
 }
 
 fn config_path() -> PathBuf {

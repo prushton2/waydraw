@@ -57,9 +57,16 @@ pub enum Message {
     SelectMonitor(String),
     Disconnect,
 
+    // Settings
+    ChangeTheme(iced::Theme),
+    /// Key, New hostname
+    UpdateKnownHostName(String, String), 
+    /// Key, New key
+    UpdateKnownHostKey(String, String),
+    ResetSecretKey,
+    // ResetSecretKey(bool),
     // Misc
     WindowResize(usize, usize),
-    ChangeTheme(iced::Theme),
     None,
     Empty(())
 }

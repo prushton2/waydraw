@@ -1,7 +1,7 @@
 use iced::{Border, Element, Theme};
 use iced::border::Radius;
-use iced::widget::{MouseArea, button, column, container, image, pick_list, row, space, stack, text, text_input};
-use iced::{Alignment::Center, Length::Fill};
+use iced::widget::{Column, MouseArea, button, column, container, image, pick_list, row, space, stack, text, text_input};
+use iced::{Alignment::Center, Length::{self, Fill}};
 
 use crate::window::window::Monitor;
 use crate::window::{Message, Window, modules};
@@ -13,12 +13,14 @@ pub enum UIState {
     ConnectedHost,
     Client{pin_input: String, key_input: String, wait: String, error: String},
     ConnectedClient,
+    Settings,
 }
 
 #[derive(Clone)]
 pub enum UIUpdate {
     SetModeHost,
     SetModeClient,
+    SetModeSettings,
     UpdatePinTextbox(String),
     UpdateKeyTextbox(String),
     UpdateWait(String),
@@ -29,66 +31,6 @@ pub enum UIUpdate {
 
 pub fn view(this: &Window) -> iced::Element<'_, Message> {
     match &this.ui_state {
-        UIState::Client{pin_input, key_input, wait, error} => {
-            let mut buttons = vec![];
-
-            for (key, host) in &this.config.known_hosts {
-                buttons.push(
-                    row![
-                        button(host.as_str()).on_press(Message::ClientConnectFlow(modules::client::ConnectFlow::KeySubmitted(key.clone()))).width(Fill).style(|t, _| Styles::square_button(t)),
-                        button("X").on_press(Message::RemoveKnownHost(key.clone())).style(|t, _| Styles::square_button(t)),
-                    ]
-                    .spacing(0)
-                    .into()
-                );
-                buttons.push(space().height(5).into())
-            }
-
-
-            return container(
-                column![
-                    row![space().width(Fill), theme_dropdown(&this.config.theme)],
-                    column![
-                        space().height(Fill),
-                        row![
-                            button("Host").width(Fill).style(move |t, _| {Styles::client_host_unselected(t)}).on_press(Message::UIUpdate(UIUpdate::SetModeHost)),
-                            button("Client").width(Fill).style(move |t, _| {Styles::client_host_selected(t)}),
-                        ],
-                        text("Input device pin").width(Fill).align_x(Center),
-                        row![
-                            text_input("000000", pin_input).on_input(|e| Message::UIUpdate(UIUpdate::UpdatePinTextbox(e))),
-                            space().width(20),
-                            button("Connect").on_press(Message::ClientConnectFlow(modules::client::ConnectFlow::PinSubmitted(pin_input.clone())))
-                        ],
-                        
-                        text("OR").width(Fill).align_x(Center),
-                        
-                        text("Input device key").width(Fill).align_x(Center),
-                        row![
-                            text_input("", key_input).on_input(|e| Message::UIUpdate(UIUpdate::UpdateKeyTextbox(e))),
-                            space().width(20),
-                            button("Connect").on_press(Message::ClientConnectFlow(modules::client::ConnectFlow::KeySubmitted(key_input.clone())))
-                        ],
-                        
-                        text("OR").width(Fill).align_x(Center),
-                        
-                        text("Select previous device").width(Fill).align_x(Center),
-                        iced::widget::Column::from_vec(buttons.into()).width(Fill).align_x(Center),
-                        
-                        space().height(20),
-                        
-                        text(wait).width(Fill).align_x(Center),
-                        text(error).width(Fill).align_x(Center).style(|t| {text::danger(t)}),
-                        space().height(Fill),
-                    ]
-                    .max_width(400)
-                    .height(Fill)
-                ]
-                .width(Fill)
-                .align_x(Center)
-            )
-            .into()
-        },
         UIState::Host{pin, key, wait, error} => {
 
             let monitor_buttons: Vec<Element<'_, Message>> = this.monitors
@@ -106,38 +48,89 @@ pub fn view(this: &Window) -> iced::Element<'_, Message> {
                         .into()
                 ).collect();
 
-            return container(
-                column![
-                    row![space().width(Fill), theme_dropdown(&this.config.theme)],
-                    column![
-                        space().height(Fill),
-                        row![
-                            button("Host").width(Fill).style(move |t, _| {Styles::client_host_selected(t)}),
-                            button("Client").width(Fill).style(move |t, _| {Styles::client_host_unselected(t)}).on_press(Message::UIUpdate(UIUpdate::SetModeClient)),
-                        ],
-                        column![
-                            text("Select a monitor").width(Fill).align_x(Center),
-                            iced::widget::Column::from_vec(monitor_buttons).width(Fill).align_x(Center),
-                            
-                            space().height(20),
-                            container(button("Allow Connections").on_press(Message::HostConnectFlow(modules::host::ConnectFlow::Register))).center_x(Fill),
-                            space().height(20),
-                            
-                            row![text("Pin"), space().width(24), text_input(pin, pin).on_input(|_| Message::None)],
-                            row![text("Key"), space().width(20), text_input(key, key).on_input(|_| Message::None)],
-                            
-                            text(wait).width(Fill).align_x(Center),
-                            text(error).width(Fill).align_x(Center).style(|t| {text::danger(t)}),
-                        ],
-                        space().height(Fill),
+            return Widgets::ribbon_wrapper(this, column![
+                text("Select a monitor").width(Fill).align_x(Center),
+                iced::widget::Column::from_vec(monitor_buttons).width(Fill).align_x(Center),
+                
+                space().height(20),
+                container(button("Allow Connections").on_press(Message::HostConnectFlow(modules::host::ConnectFlow::Register))).center_x(Fill),
+                space().height(20),
+                
+                row![text("Pin"), space().width(24), text_input(pin, pin).on_input(|_| Message::None)],
+                row![text("Key"), space().width(20), text_input(key, key).on_input(|_| Message::None)],
+                
+                text(wait).width(Fill).align_x(Center),
+                text(error).width(Fill).align_x(Center).style(|t| {text::danger(t)}),
+            ].into());
+        },
+        UIState::Client{pin_input, key_input, wait, error} => {
+            let mut buttons = vec![];
+
+            for (key, host) in &this.config.known_hosts {
+                buttons.push(
+                    row![
+                        button(host.as_str()).on_press(Message::ClientConnectFlow(modules::client::ConnectFlow::KeySubmitted(key.clone()))).width(Fill).style(|t, _| Styles::square_button(t)),
+                        button("X").on_press(Message::RemoveKnownHost(key.clone())).style(|t, _| Styles::square_button(t)),
                     ]
-                    .max_width(400)
-                    .height(Fill)
-                ]
-                .width(Fill)
-                .align_x(Center)
-            )
-            .into()
+                    .spacing(0)
+                    .into()
+                );
+                buttons.push(space().height(5).into())
+            }
+
+            return Widgets::ribbon_wrapper(this, column![
+                text("Input device pin").width(Fill).align_x(Center),
+                row![
+                    text_input("000000", pin_input).on_input(|e| Message::UIUpdate(UIUpdate::UpdatePinTextbox(e))),
+                    space().width(20),
+                    button("Connect").on_press(Message::ClientConnectFlow(modules::client::ConnectFlow::PinSubmitted(pin_input.clone())))
+                ],
+                
+                text("OR").width(Fill).align_x(Center),
+                
+                text("Input device key").width(Fill).align_x(Center),
+                row![
+                    text_input("", key_input).on_input(|e| Message::UIUpdate(UIUpdate::UpdateKeyTextbox(e))),
+                    space().width(20),
+                    button("Connect").on_press(Message::ClientConnectFlow(modules::client::ConnectFlow::KeySubmitted(key_input.clone())))
+                ],
+                
+                text("OR").width(Fill).align_x(Center),
+                
+                text("Select previous device").width(Fill).align_x(Center),
+                Column::from_vec(buttons.into()).width(Fill).align_x(Center),
+                
+                space().height(20),
+                
+                text(wait).width(Fill).align_x(Center),
+                text(error).width(Fill).align_x(Center).style(|t| {text::danger(t)}),
+            ].into());
+        },
+        UIState::Settings => {
+            let mut known_hosts = vec![];
+
+            for (key, host) in &this.config.known_hosts {
+                known_hosts.push(
+                    row![
+                        text_input("Host", host).on_input(|v| Message::UpdateKnownHostName(key.clone(), v)),
+                        text_input("Secret Key", key).on_input(|v| Message::UpdateKnownHostKey(key.clone(), v))
+                    ]
+                    .spacing(5)
+                    .into()
+                );
+                known_hosts.push(space().height(5).into());
+            }
+
+            if known_hosts.len() == 0 {
+                known_hosts = vec![text("No known hosts. Connect to a device and it will appear here.").into()];
+            }
+
+            return Widgets::ribbon_wrapper(this, column![
+                row![text("Select Theme"), space().width(10), Widgets::theme_dropdown(&this.config.theme)].align_y(Center),
+                row![row![text("Edit known hosts"), text_input("", "").style(|t, _| Styles::invisible_text_input(t)).width(Length::Shrink)].align_y(Center), space().width(10), Column::from_vec(known_hosts).width(Fill)],
+                row![text("Reset Device ID"), space().width(10), button("Reset").on_press(Message::ResetSecretKey)].align_y(Center)
+                ].spacing(10).into()
+            ).into();
         },
         UIState::ConnectedClient => {
             return container (
@@ -170,7 +163,6 @@ pub fn view(this: &Window) -> iced::Element<'_, Message> {
         },
         UIState::ConnectedHost => {
             return column![
-                row![space().width(Fill), theme_dropdown(&this.config.theme)],
                 row![space().width(Fill), button("Disconnect").on_press(Message::Disconnect), space().width(Fill)]
             ].into()
         }
@@ -180,6 +172,20 @@ pub fn view(this: &Window) -> iced::Element<'_, Message> {
 struct Styles;
 
 impl Styles {
+    fn invisible_text_input(theme: &Theme) -> text_input::Style {
+        text_input::Style {
+            background: iced::Background::Color(theme.palette().background),
+            border: Border { 
+                color: theme.palette().background,
+                width: 0.0,
+                radius: Radius::new(0)
+            },
+            icon: theme.palette().background,
+            placeholder: theme.palette().background,
+            value: theme.palette().background,
+            selection: theme.palette().background
+        }
+    }
     fn client_host_selected(theme: &Theme) -> button::Style {
         button::Style {
             background: None,
@@ -274,8 +280,9 @@ impl Styles {
 // this is for PURE ui updates. This can (and should) be called from anywhere 
 pub fn update(this: &mut Window, message: UIUpdate) {
     match message {
-        UIUpdate::SetModeClient => this.ui_state = UIState::Client { pin_input: String::from(""), key_input: String::from(""), wait: String::from(""), error: String::from("") },
-        UIUpdate::SetModeHost   => this.ui_state = UIState::Host   { pin: String::from(""), key: String::from(""), wait: String::from(""), error: String::from("") },
+        UIUpdate::SetModeClient   => this.ui_state = UIState::Client { pin_input: String::from(""), key_input: String::from(""), wait: String::from(""), error: String::from("") },
+        UIUpdate::SetModeHost     => this.ui_state = UIState::Host   { pin: String::from(""), key: String::from(""), wait: String::from(""), error: String::from("") },
+        UIUpdate::SetModeSettings => this.ui_state = UIState::Settings,
         UIUpdate::UpdateKeyTextbox(v) => {
             if let UIState::Client { pin_input: _, key_input, wait: _, error: _ } = &mut this.ui_state {
                 *key_input = v
@@ -321,35 +328,80 @@ pub fn update(this: &mut Window, message: UIUpdate) {
     }
 }
 
-fn theme_dropdown(theme: &iced::Theme) -> iced::Element<'static, Message> {
-    let options = [
-        iced::Theme::Light,
-        iced::Theme::Dark,
-        iced::Theme::Dracula,
-        iced::Theme::Nord,
-        iced::Theme::SolarizedLight,
-        iced::Theme::SolarizedDark,
-        iced::Theme::GruvboxLight,
-        iced::Theme::GruvboxDark,
-        iced::Theme::CatppuccinLatte,
-        iced::Theme::CatppuccinFrappe,
-        iced::Theme::CatppuccinMacchiato,
-        iced::Theme::CatppuccinMocha,
-        iced::Theme::TokyoNight,
-        iced::Theme::TokyoNightStorm,
-        iced::Theme::TokyoNightLight,
-        iced::Theme::KanagawaWave,
-        iced::Theme::KanagawaDragon,
-        iced::Theme::KanagawaLotus,
-        iced::Theme::Moonfly,
-        iced::Theme::Nightfly,
-        iced::Theme::Oxocarbon,
-        iced::Theme::Ferra
-    ];
+struct Widgets;
 
-    return pick_list(
-        options,
-        Some(theme.clone()), 
-        Message::ChangeTheme
-    ).into()
+impl Widgets {
+    pub fn theme_dropdown(theme: &iced::Theme) -> iced::Element<'static, Message> {
+        let options = [
+            iced::Theme::Light,
+            iced::Theme::Dark,
+            iced::Theme::Dracula,
+            iced::Theme::Nord,
+            iced::Theme::SolarizedLight,
+            iced::Theme::SolarizedDark,
+            iced::Theme::GruvboxLight,
+            iced::Theme::GruvboxDark,
+            iced::Theme::CatppuccinLatte,
+            iced::Theme::CatppuccinFrappe,
+            iced::Theme::CatppuccinMacchiato,
+            iced::Theme::CatppuccinMocha,
+            iced::Theme::TokyoNight,
+            iced::Theme::TokyoNightStorm,
+            iced::Theme::TokyoNightLight,
+            iced::Theme::KanagawaWave,
+            iced::Theme::KanagawaDragon,
+            iced::Theme::KanagawaLotus,
+            iced::Theme::Moonfly,
+            iced::Theme::Nightfly,
+            iced::Theme::Oxocarbon,
+            iced::Theme::Ferra
+        ];
+    
+        return pick_list(
+            options,
+            Some(theme.clone()), 
+            Message::ChangeTheme
+        ).into()
+    }
+
+    pub fn ribbon_wrapper<'a>(this: &'a Window, element: iced::Element<'a, Message>) -> iced::Element<'a, Message> {
+        let buttons: iced::Element<'static, Message> = match this.ui_state {
+            UIState::Host { pin: _, key: _, wait: _, error: _ } => {
+                row![
+                    button("Host").width(Fill).style(move |t, _| {Styles::client_host_selected(t)}),
+                    button("Client").width(Fill).style(move |t, _| {Styles::client_host_unselected(t)}).on_press(Message::UIUpdate(UIUpdate::SetModeClient)),
+                    button("Settings").width(Fill).style(move |t, _| {Styles::client_host_unselected(t)}).on_press(Message::UIUpdate(UIUpdate::SetModeSettings)),
+                ].into()
+            },
+            UIState::Client { pin_input: _, key_input: _, wait: _, error: _ } => {
+                row![
+                    button("Host").width(Fill).style(move |t, _| {Styles::client_host_unselected(t)}).on_press(Message::UIUpdate(UIUpdate::SetModeHost)),
+                    button("Client").width(Fill).style(move |t, _| {Styles::client_host_selected(t)}),
+                    button("Settings").width(Fill).style(move |t, _| {Styles::client_host_unselected(t)}).on_press(Message::UIUpdate(UIUpdate::SetModeSettings)),
+                ].into()
+            },
+            UIState::Settings => {
+                row![
+                    button("Host").width(Fill).style(move |t, _| {Styles::client_host_unselected(t)}).on_press(Message::UIUpdate(UIUpdate::SetModeHost)),
+                    button("Client").width(Fill).style(move |t, _| {Styles::client_host_unselected(t)}).on_press(Message::UIUpdate(UIUpdate::SetModeClient)),
+                    button("Settings").width(Fill).style(move |t, _| {Styles::client_host_selected(t)}),
+                ].into()
+            }
+            _ => row![].into()
+        };
+
+        return container(
+            column![
+                buttons,
+                space().height(10),
+                column![element]
+                .max_width(400),
+                space().height(Fill)
+            ]
+            .max_width(600)
+            .align_x(Center)
+        )
+        .align_x(Center)
+        .into()
+    }
 }

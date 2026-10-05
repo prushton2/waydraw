@@ -1,6 +1,7 @@
 use std::sync::{Arc, Mutex};
 use std::time;
 use iced::Task;
+use native_dialog::DialogBuilder;
 use tokio::sync::RwLock;
 
 use iced::Subscription;
@@ -134,14 +135,48 @@ impl Window {
             Message::SelectMonitor(v) => {
                 self.selected_monitor = v;
                 Task::none()
-            }
+            },
 
-            // Misc
+            // Settings
             Message::ChangeTheme(theme) => {
                 self.config.theme = theme;
                 self.config.write();
                 Task::none()
+            },
+            Message::UpdateKnownHostKey(current_key, new_key ) => {
+                let host = self.config.known_hosts.remove(&current_key).unwrap_or(String::from("UNKNOWN_HOST"));
+                self.config.known_hosts.insert(new_key, host);
+                self.config.write();
+                Task::none()
+            },
+            Message::UpdateKnownHostName(current_key, new_host, ) => {
+                for (key, host) in &mut self.config.known_hosts {
+                    if key == &current_key {
+                        *host = new_host;
+                        break;
+                    }
+                }
+                self.config.write();
+                Task::none()
+            },
+
+            Message::ResetSecretKey => {
+                let confirmed = DialogBuilder::message()
+                    .set_level(native_dialog::MessageLevel::Warning)
+                    .set_title("Are you sure you want to reset your device ID?")
+                    .set_text("Devices will no longer be able to connect to you via the known hosts section")
+                    .confirm()
+                    .show()
+                    .unwrap();
+
+                if confirmed {
+                    self.config.secret_key = iroh::SecretKey::generate();
+                    self.config.overwrite_secret_key();
+                }
+                Task::none()
             }
+
+            // Misc
             Message::WindowResize(x, y) => {
                 self.window_size = (x, y);
                 if let UIState::ConnectedClient = self.ui_state {

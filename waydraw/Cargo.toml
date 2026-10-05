@@ -12,6 +12,7 @@ gethostname = "1.1.0"
 iced = { version = "0.14.0", features = ["tokio", "image", "canvas"] }
 iced_core = "0.14.0"
 iroh = "1.2.0"
+native-dialog = "0.9.7"
 openh264 = "0.9.8"
 pinray = "0.2.5"
 rand = "0.10.3"
