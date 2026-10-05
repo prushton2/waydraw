@@ -16,9 +16,16 @@ impl H264 {
             decoder
         })
     }
+
+    pub fn check() -> Result<(), String> {
+        match H264::new() {
+            Ok(_) => Ok(()),
+            Err(e) => Err(e.to_string())
+        }
+    }
 }
 
-impl super::Encoder for H264 {
+impl super::Codec for H264 {
     fn encode(&mut self, bytes: &Vec<u8>, window_size: (u32, u32)) -> Vec<u8> {
         let rgba_slice = formats::RgbaSliceU8::new(bytes, (window_size.0 as usize, window_size.1 as usize));
         let yuv_buffer = formats::YUVBuffer::from_rgba8_source(rgba_slice);

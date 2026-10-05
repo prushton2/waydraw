@@ -11,6 +11,7 @@ use crate::window::{Message, Window};
 #[derive(Clone)]
 pub enum P2PMessage {
     MouseClick(MouseButton, MouseState),
+    Heartbeat,
     MouseMove(u32, u32),
     WindowResize(u32, u32),
     ScreenshotReceived(protocol::Screenshot)
@@ -61,7 +62,10 @@ pub fn p2p_stream(feed: &P2PObject) -> impl iced::futures::Stream<Item = Message
             },
             FromBytes::Screenshot(t) => {
                 return Some((Message::P2PMessage(P2PMessage::ScreenshotReceived(t)), p2p))
-            }
+            },
+            FromBytes::Heartbeat(_) => {
+                return Some((Message::P2PMessage(P2PMessage::Heartbeat), p2p))
+            },
             FromBytes::UnknownInstruction(_) => {},
             _ => {}
         }
@@ -80,7 +84,11 @@ pub fn update(this: &mut Window, message: P2PMessage) -> Task<Message> {
             let selected_monitor = this.monitors.iter().filter(|e| e.id == this.selected_monitor).nth(0).unwrap();
 
             let (offset_x, offset_y) = selected_monitor.position;
-            let client_window_res = (this.client_info.unwrap().window_width, this.client_info.unwrap().window_height);
+            let client_window_res = if let Some(ci) = &this.client_info {
+                (ci.window_width, ci.window_height)
+            } else {
+                return Task::none()
+            };
             let scale = selected_monitor.scale;
 
             let mouse_pct = (
@@ -138,6 +146,12 @@ pub fn update(this: &mut Window, message: P2PMessage) -> Task<Message> {
 
                 return image::allocate(handle).map(Message::ImageAllocated)
             }
+            Task::none()
+        },
+        P2PMessage::Heartbeat => {
+            let mut lock = this.heartbeat.lock().unwrap();
+            let now = std::time::Instant::now();
+            lock.last_message = Some(now);
             Task::none()
         }
     }

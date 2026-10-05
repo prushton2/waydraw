@@ -3,7 +3,7 @@ use std::sync::Arc;
 use iced::Task;
 use tokio::sync::RwLock;
 
-use crate::screen_capture;
+use crate::{encoding, screen_capture};
 use crate::window::Window;
 use crate::p2p::{self, protocol::{ClientHello, FromBytes, IntoBytes, ServerHello}};
 use crate::window::modules::ui_state::{self, UIState};
@@ -13,7 +13,7 @@ pub enum ConnectFlow {
     Register,
     AwaitClient(Result<(Arc<RwLock<Option<p2p::P2P>>>, String, String), String>),
     SendHello(Result<(), String>),
-    Connect(ClientHello),
+    Connect((ClientHello, String)),
     Disconnect,
     Null(())
 }
@@ -40,11 +40,10 @@ pub fn update(this: &mut Window, message: ConnectFlow) -> Task<ConnectFlow> {
                 async move {
                     let (server, key) = p2p::P2P::init(key).await.map_err(|e| e.to_string())?;
 
-                    let pin = p2p::remote_key_store::generate_pin();
                     let key = key.to_string();
                     
-                    match p2p::remote_key_store::set(&pin, &key.to_string()).await {
-                        Ok(_) => {},
+                    let pin = match p2p::remote_key_store::set(&key.to_string()).await {
+                        Ok(t) => t,
                         Err(e) => return Err(e)
                     };
 
@@ -100,14 +99,14 @@ pub fn update(this: &mut Window, message: ConnectFlow) -> Task<ConnectFlow> {
 
             let version = env!("CARGO_PKG_VERSION").split(".").map(|s| s.parse::<u8>().unwrap_or(0)).collect::<Vec<u8>>();
 
-            let server_info = ServerHello {
+            let mut server_info = ServerHello {
+                selected_codec: String::from(""),
                 name: gethostname::gethostname().into_string().unwrap(),
                 version: (version[0], version[1], version[2]),
                 screen_width:  0,
                 screen_height: 0
             };
 
-            let server_info_bytes = server_info.into_bytes();
 
             let mut pin_copy: String = String::from("");
             if let ui_state::UIState::Host { pin, key: _, wait: _, error: _ } = &this.ui_state {
@@ -122,20 +121,27 @@ pub fn update(this: &mut Window, message: ConnectFlow) -> Task<ConnectFlow> {
                     let p2p_ref = p2p_lock.as_ref().unwrap();
                     
                     let client_hello_bytes = p2p_ref.read().await.unwrap();
-                    let client_hello_enum = match FromBytes::parse(&client_hello_bytes[..]) {
+                    let client_hello = match FromBytes::parse(&client_hello_bytes[..]) {
                         FromBytes::ClientHello(m) => m,
                         t => panic!("Expected client hello, received other bytes: {:?}", t)
                     };
+
+                    let compatible_codecs = encoding::get_compatible_codecs();
+                    let matched_codecs = client_hello.supported_codecs.iter().filter(|e| compatible_codecs.contains(&(**e).as_str())).collect::<Vec<&String>>();
                     
+                    let selected_codec = matched_codecs[0].clone();
+
+                    server_info.selected_codec = selected_codec.clone();
+                    let server_info_bytes = server_info.into_bytes();
                     let _ = p2p_ref.send(&server_info_bytes).await;
                     
-                    client_hello_enum
+                    (client_hello, selected_codec)
                 },
                 ConnectFlow::Connect
             )
         },
 
-        ConnectFlow::Connect(client_hello) => {
+        ConnectFlow::Connect((client_hello, selected_codec)) => {
             let version = env!("CARGO_PKG_VERSION").split(".").map(|s| s.parse::<u8>().unwrap()).collect::<Vec<u8>>();
 
             if client_hello.version.0 != version[0] {
@@ -151,6 +157,8 @@ pub fn update(this: &mut Window, message: ConnectFlow) -> Task<ConnectFlow> {
 
             let recorder_arc = this.video_recorder.clone();
             let monitor_name = this.selected_monitor.clone();
+            let mut encoder_lock = this.encoder.lock().unwrap();
+            *encoder_lock = Some(encoding::get_codec(&selected_codec).unwrap());
             
             let mut lock = recorder_arc.write().unwrap();
             *lock = Some(screen_capture::ScreenCapture::new(&monitor_name).unwrap());
@@ -164,12 +172,16 @@ pub fn update(this: &mut Window, message: ConnectFlow) -> Task<ConnectFlow> {
             let recorder_arc = this.video_recorder.clone();
             let p2p_arc = this.p2p.clone();
             this.p2p = Arc::new(RwLock::new(None));
-
+            
             let mut lock = recorder_arc.write().unwrap();
             if let Some(recorder) = lock.as_ref() {
                 recorder.kill()
             }
             *lock = None;
+
+            let mut lock = this.heartbeat.lock().unwrap();
+            lock.last_message = None;
+            drop(lock);
 
             Task::perform(
                 async move {

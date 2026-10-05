@@ -4,14 +4,16 @@ use iced::Task;
 use iroh::EndpointId;
 use tokio::sync::RwLock;
 
-use crate::{p2p::{self, p2p::P2PError, protocol::{self, IntoBytes}}, window::Window};
+use crate::{encoding, p2p::{self, p2p::P2PError, protocol::{self, IntoBytes}}, window::Window};
 use crate::window::modules::*;
 
 #[derive(Clone)]
 pub enum ConnectFlow {
     PinSubmitted(String),
     KeySubmitted(String),
-    Connected(Result<(Arc<RwLock<Option<crate::p2p::P2P>>>, protocol::ServerHello, String), P2PError>)
+    Connected(Result<(Arc<RwLock<Option<crate::p2p::P2P>>>, protocol::ServerHello, String), P2PError>),
+    Disconnect,
+    Null(())
 }
 
 pub fn update(this: &mut Window, message: ConnectFlow) -> Task<ConnectFlow> {
@@ -59,6 +61,7 @@ pub fn update(this: &mut Window, message: ConnectFlow) -> Task<ConnectFlow> {
                     let version = env!("CARGO_PKG_VERSION").split(".").map(|s| s.parse::<u8>().unwrap()).collect::<Vec<u8>>();
 
                     let client_hello = protocol::ClientHello {
+                        supported_codecs: encoding::get_compatible_codecs().iter().map(|e| e.to_string()).collect(),
                         version: (version[0], version[1], version[2]),
                         window_width:  window_size_clone.0 as u32,
                         window_height: window_size_clone.1 as u32
@@ -91,6 +94,10 @@ pub fn update(this: &mut Window, message: ConnectFlow) -> Task<ConnectFlow> {
                 }
             };
 
+            let mut encoder_lock = this.encoder.lock().unwrap();
+            *encoder_lock = Some(encoding::get_codec(&server_hello.selected_codec).unwrap());
+            drop(encoder_lock);
+
             this.config.known_hosts.insert(key, server_hello.name.clone());
             this.config.write();
 
@@ -109,6 +116,33 @@ pub fn update(this: &mut Window, message: ConnectFlow) -> Task<ConnectFlow> {
 
             Task::none()
 
+        },
+        ConnectFlow::Disconnect => {
+            ui_state::update(this, ui_state::UIUpdate::Disconnect);
+
+            let p2p_arc = this.p2p.clone();
+            this.p2p = Arc::new(RwLock::new(None));
+
+            let mut lock = this.heartbeat.lock().unwrap();
+            lock.last_message = None;
+            drop(lock);
+
+            Task::perform(
+                async move {
+                    let mut lock = p2p_arc.write().await;
+                    if let Some(p2p) = lock.as_mut() {
+                        let _ = p2p.close().await;
+                    } else {
+                        println!("Could not close connection");
+                    }
+                    
+                    ()
+                },
+                ConnectFlow::Null,
+            )
+        },
+        ConnectFlow::Null(_) => {
+            Task::none()
         }
     }
 }

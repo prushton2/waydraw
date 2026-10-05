@@ -6,8 +6,9 @@ use iced_core::image::{Allocation, Error};
 
 use crate::p2p::protocol::{ClientHello, ServerHello};
 use crate::screen_capture::ScreenCapture;
+use crate::window::modules::heartbeat;
 use crate::window::window::Monitor;
-use crate::{encoding::Encoder, window::modules::receive_stream};
+use crate::{encoding::Codec, window::modules::receive_stream};
 
 use crate::p2p::protocol::mouse_click::{MouseButton, MouseState};
 
@@ -16,8 +17,10 @@ mod modules;
 
 pub struct Window {
     pub config: crate::Config,
+    heartbeat: Arc<std::sync::Mutex<heartbeat::Heartbeat>>,
+
     p2p: Arc<RwLock<Option<crate::p2p::P2P>>>,
-    encoder: Arc<std::sync::Mutex<Option<Box<dyn Encoder>>>>,
+    encoder: Arc<std::sync::Mutex<Option<Box<dyn Codec>>>>,
     ui_state: modules::ui_state::UIState,
     monitors: Vec<Monitor>,
     selected_monitor: String,
@@ -40,6 +43,7 @@ pub enum Message {
     UIUpdate(modules::ui_state::UIUpdate),
     P2PMessage(receive_stream::P2PMessage),
     RemoveKnownHost(String),
+    HeartbeatMessage(heartbeat::HeartbeatMessage),
 
     // Client side stuff
     ImageAllocated(Result<Allocation, Error>),
@@ -53,9 +57,16 @@ pub enum Message {
     SelectMonitor(String),
     Disconnect,
 
+    // Settings
+    ChangeTheme(iced::Theme),
+    /// Key, New hostname
+    UpdateKnownHostName(String, String), 
+    /// Key, New key
+    UpdateKnownHostKey(String, String),
+    ResetSecretKey,
+    // ResetSecretKey(bool),
     // Misc
     WindowResize(usize, usize),
-    ChangeTheme(iced::Theme),
     None,
     Empty(())
 }

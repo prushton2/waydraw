@@ -1,12 +1,12 @@
 use std::sync::{Arc, Mutex};
+use std::time;
 use iced::Task;
+use native_dialog::DialogBuilder;
 use tokio::sync::RwLock;
 
 use iced::Subscription;
 
-use crate::encoding;
 use crate::p2p::protocol::{self, IntoBytes};
-use crate::window::modules;
 use crate::window::modules::screencap_stream::ScreencapStreamParameters;
 use crate::window::modules::ui_state::UIState;
 use crate::window::modules::*;
@@ -28,8 +28,9 @@ impl Window {
         
         Self {
             config: crate::config::Config::load_or_generate(),
+            heartbeat: Arc::new(Mutex::new(heartbeat::Heartbeat::new(time::Duration::from_secs(5), time::Duration::from_secs(1)))),
             p2p: Arc::new(RwLock::new(None)),
-            encoder: Arc::new(Mutex::new(Some(Box::new(encoding::h264::H264::new().unwrap())))),
+            encoder: Arc::new(Mutex::new(None)),
             ui_state: ui_state::UIState::Host { pin: String::from(""), key: String::from(""), wait: String::from(""), error: String::from("") },
             
             monitors: monitors,
@@ -68,10 +69,13 @@ impl Window {
 
                 Task::none()
             },
+            Message::HeartbeatMessage(message) => {
+                heartbeat::update(self, message)
+            }
 
             // Client stuff
             Message::ClientConnectFlow(message) => {
-                modules::client::update(self, message).map(Message::ClientConnectFlow)
+                client::update(self, message).map(Message::ClientConnectFlow)
             },
             Message::MouseClick(button, state) => {
                 let p2p_arc = self.p2p.clone();
@@ -113,22 +117,66 @@ impl Window {
 
             // Host stuff
             Message::HostConnectFlow(message) => {
-                modules::host::update(self, message).map(Message::HostConnectFlow)
+                host::update(self, message).map(Message::HostConnectFlow)
             },
             Message::Disconnect => {
-                modules::host::update(self, modules::host::ConnectFlow::Disconnect).map(Message::HostConnectFlow)
+                match self.ui_state {
+                    UIState::ConnectedHost => {
+                        host::update(self, host::ConnectFlow::Disconnect).map(Message::HostConnectFlow)
+                    },
+                    UIState::ConnectedClient => {
+                        client::update(self, client::ConnectFlow::Disconnect).map(Message::ClientConnectFlow)
+                    },
+                    _ => {
+                        Task::none()
+                    }
+                }
             },
             Message::SelectMonitor(v) => {
                 self.selected_monitor = v;
                 Task::none()
-            }
+            },
 
-            // Misc
+            // Settings
             Message::ChangeTheme(theme) => {
                 self.config.theme = theme;
                 self.config.write();
                 Task::none()
+            },
+            Message::UpdateKnownHostKey(current_key, new_key ) => {
+                let host = self.config.known_hosts.remove(&current_key).unwrap_or(String::from("UNKNOWN_HOST"));
+                self.config.known_hosts.insert(new_key, host);
+                self.config.write();
+                Task::none()
+            },
+            Message::UpdateKnownHostName(current_key, new_host, ) => {
+                for (key, host) in &mut self.config.known_hosts {
+                    if key == &current_key {
+                        *host = new_host;
+                        break;
+                    }
+                }
+                self.config.write();
+                Task::none()
+            },
+
+            Message::ResetSecretKey => {
+                let confirmed = DialogBuilder::message()
+                    .set_level(native_dialog::MessageLevel::Warning)
+                    .set_title("Are you sure you want to reset your device ID?")
+                    .set_text("Devices will no longer be able to connect to you via the known hosts section")
+                    .confirm()
+                    .show()
+                    .unwrap_or(true); // This will fail on people who use TWMs or whatever and dont have the proper libs, and i dont really care about that
+
+                if confirmed {
+                    self.config.secret_key = iroh::SecretKey::generate();
+                    self.config.overwrite_secret_key();
+                }
+                Task::none()
             }
+
+            // Misc
             Message::WindowResize(x, y) => {
                 self.window_size = (x, y);
                 if let UIState::ConnectedClient = self.ui_state {
@@ -171,6 +219,12 @@ pub fn subscription(window: &Window) -> Subscription<Message> {
     if let UIState::ConnectedClient | UIState::ConnectedHost = window.ui_state {
         subscriptions.push(
             iced::Subscription::run_with(receive_stream::P2PObject(window.p2p.clone()), receive_stream::p2p_stream),
+        );
+
+        let hb_params = heartbeat::HeartbeatParameters(window.heartbeat.clone());
+
+        subscriptions.push(
+            iced::Subscription::run_with(hb_params, heartbeat::stream)
         );
     }
 

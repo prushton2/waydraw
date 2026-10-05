@@ -5,7 +5,8 @@ pub struct ServerHello {
     pub name: String,
     pub version: (u8, u8, u8),
     pub screen_width: u32,
-    pub screen_height: u32
+    pub screen_height: u32,
+    pub selected_codec: String
 }
 
 impl super::IntoBytes for ServerHello {
