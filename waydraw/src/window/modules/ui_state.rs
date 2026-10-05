@@ -1,7 +1,7 @@
 use iced::{Border, Element, Theme};
 use iced::border::Radius;
 use iced::widget::{Column, MouseArea, button, column, container, image, pick_list, row, space, stack, text, text_input};
-use iced::{Alignment::Center, Length::{self, Fill}};
+use iced::{Alignment::{self, Center}, Length::{self, Fill}};
 
 use crate::window::window::Monitor;
 use crate::window::{Message, Window, modules};
@@ -126,9 +126,9 @@ pub fn view(this: &Window) -> iced::Element<'_, Message> {
             }
 
             return Widgets::ribbon_wrapper(this, column![
-                row![text("Select Theme"), space().width(10), Widgets::theme_dropdown(&this.config.theme)].align_y(Center),
-                row![row![text("Edit known hosts"), text_input("", "").style(|t, _| Styles::invisible_text_input(t)).width(Length::Shrink)].align_y(Center), space().width(10), Column::from_vec(known_hosts).width(Fill)],
-                row![text("Reset Device ID"), space().width(10), button("Reset").on_press(Message::ResetSecretKey)].align_y(Center)
+                    Widgets::center_separator(text("Select Theme").into(), Widgets::theme_dropdown(&this.config.theme)),
+                    Widgets::center_separator(text("Edit known hosts").into(), Column::from_vec(known_hosts).width(Fill).into()),
+                    Widgets::center_separator(text("Reset Device ID").into(), button("Reset").on_press(Message::ResetSecretKey).into())
                 ].spacing(10).into()
             ).into();
         },
@@ -403,5 +403,13 @@ impl Widgets {
         )
         .align_x(Center)
         .into()
+    }
+
+    pub fn center_separator<'a>(left: iced::Element<'a, Message>, right: iced::Element<'a, Message>) -> iced::Element<'a, Message> {
+        return row![
+            row![space().width(Fill), text_input("", "").width(Length::Shrink).style(|t, _| Styles::invisible_text_input(t)), left].width(Length::Fill).align_y(Center),
+            space().width(10),
+            row![right, text_input("", "").width(Length::Shrink).style(|t, _| Styles::invisible_text_input(t))].width(Length::Fill).align_y(Center)
+        ].into()
     }
 }
