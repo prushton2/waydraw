@@ -8,14 +8,14 @@ OS | Supported | Tested
 Linux (Wayland) | ✅ | ✅
 Linux (X11)     | ✅ | ❌
 Windows         | ✅ | ✅
-MacOS           | ❌ | ❌
+MacOS           | ✅ | ✅
 
 ## Troubleshooting
 
 * Timeout Error
   * click 'Allow Connections' on the server to generate a new pin, and retry connecting with the new pin
 * TLS Error
-  * Some networks cause issues with Iroh, the peer-to-peer library. These issues prevent Iroh from ensuring a private TLS connection. If you encounter this, try another network or use a VPN.
+  * Some networks may try to intercept the TLS of Iroh, the peer-to-peer library. Neither I nor Iroh will allow connecting with a bad TLS cert, please try a different network or a VPN.
 * Random freeze
   * If the client stops receiving frames or sending mouse movements, force close the app and relaunch, and click disconnect on the host.
 
