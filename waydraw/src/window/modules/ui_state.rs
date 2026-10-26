@@ -162,9 +162,48 @@ pub fn view(this: &Window) -> iced::Element<'_, Message> {
             .into()
         },
         UIState::ConnectedHost => {
-            return column![
-                row![space().width(Length::Fill), button("Disconnect").on_press(Message::Disconnect), space().width(Length::Fill)]
-            ].into()
+            fn deref<'a>(option: &'a Option<String>) -> &'a str {
+                option.as_deref().unwrap_or("Unknown")
+            }
+
+            fn info_row<'a>(label: &'a str, value: &'a str) -> Element<'a, Message> {
+                row![
+                    text(label).width(Length::Fixed(80.0)).style(text::secondary),
+                    text(value),
+                ]
+                .spacing(12)
+                .into()
+            }
+
+            let mut card = column![text("Connected").size(22)]
+                .spacing(8)
+                .align_x(Alignment::Start);
+
+            if let Some(client_info) = this.client_info.as_ref() {
+                card = card
+                    .push(info_row("Device", deref(&client_info.host_name)))
+                    .push(info_row("OS", deref(&client_info.name)))
+                    .push(info_row("Version", deref(&client_info.os_version)))
+                    .push(info_row("Kernel", deref(&client_info.kernel_version)));
+            }
+
+            card = card.push(
+                container(
+                    button(text("Disconnect").align_x(Alignment::Center))
+                        .on_press(Message::Disconnect),
+                )
+                .center_x(Length::Fill)
+                .padding(iced::Padding::ZERO.top(12)),
+            );
+
+            container(
+                container(card)
+                    .padding(20)
+                    .max_width(420)
+                    .style(container::rounded_box),
+            )
+            .center(Length::Fill)
+            .into()
         }
     }
 }

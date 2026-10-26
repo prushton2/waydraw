@@ -124,11 +124,11 @@ impl Window {
                 Task::perform(async move {
                     if let Some(lock) = p2p_arc.read().await.as_ref() {
                         let message = protocol::Goodbye {};
-                        lock.send(&message.into_bytes()).await;
+                        let _ = lock.send(&message.into_bytes()).await;
                     }                    
                 }, 
                 |_| Message::PostDisconnectCleanup)
-            }
+            },
             Message::PostDisconnectCleanup => {
                 match self.ui_state {
                     UIState::ConnectedHost => {
@@ -184,7 +184,7 @@ impl Window {
                     self.config.overwrite_secret_key();
                 }
                 Task::none()
-            }
+            },
 
             // Misc
             Message::WindowResize(x, y) => {
@@ -206,7 +206,7 @@ impl Window {
                     )
                 }
                 Task::none()
-            }
+            },
             Message::None => {
                 Task::none()
             },

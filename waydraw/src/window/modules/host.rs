@@ -6,7 +6,7 @@ use tokio::sync::RwLock;
 
 use crate::p2p::protocol;
 use crate::{encoding, screen_capture};
-use crate::window::{Message, Window};
+use crate::window::Window;
 use crate::p2p::{self, protocol::{ClientHello, FromBytes, IntoBytes, ServerHello}};
 use crate::window::modules::ui_state::{self, UIState};
 

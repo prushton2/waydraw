@@ -1,7 +1,7 @@
 use std::{ops::Add, sync::{Arc, Mutex}};
 
 use iced::Task;
-use crate::{p2p::protocol::{self, IntoBytes}, window::{self, Message, modules::{self, ui_state::UIState}}};
+use crate::{p2p::protocol::{self, IntoBytes}, window::{self, Message}};
 
 pub struct Heartbeat {
     /// Time to live without receiving a heartbeat
@@ -83,15 +83,7 @@ pub fn update(this: &mut window::Window, message: HeartbeatMessage) -> Task<Mess
             )
         },
         HeartbeatMessage::Disconnect => {
-            match this.ui_state {
-                UIState::ConnectedClient => {
-                    modules::client::update(this, modules::client::ConnectFlow::Disconnect).map(Message::ClientConnectFlow)
-                }
-                UIState::ConnectedHost => {
-                    modules::host::update(this, modules::host::ConnectFlow::Disconnect).map(Message::HostConnectFlow)
-                }
-                _ => Task::none()
-            }
+            Task::done(Message::Disconnect)
         }
     }
 }
