@@ -1,6 +1,6 @@
-use iced::{Border, Element, Theme};
+use iced::{Border, Element, Padding, Theme};
 use iced::border::Radius;
-use iced::widget::{Column, MouseArea, button, column, container, image, pick_list, row, space, stack, text, text_input};
+use iced::widget::{Column, MouseArea, button, column, container, image, pick_list, row, space, stack, text, text_input, scrollable};
 use iced::{Alignment, Length};
 
 use crate::window::window::Monitor;
@@ -125,11 +125,22 @@ pub fn view(this: &Window) -> iced::Element<'_, Message> {
                 known_hosts = vec![text("No known hosts. Connect to a device and it will appear here.").into()];
             }
 
-            return Widgets::ribbon_wrapper(this, column![
-                    Widgets::center_separator(text("Select Theme").into(), Widgets::theme_dropdown(&this.config.theme)),
-                    Widgets::center_separator(text("Edit known hosts").into(), Column::from_vec(known_hosts).width(Length::Fill).into()),
-                    Widgets::center_separator(text("Reset Device ID").into(), button("Reset").on_press(Message::ResetSecretKey).into())
-                ].spacing(10).into()
+            return Widgets::ribbon_wrapper(this, 
+                scrollable(
+                    column![
+                        Widgets::center_title("Settings"),
+                        Widgets::center_separator(text("Select Theme").into(), Widgets::theme_dropdown(&this.config.theme)),
+                        Widgets::center_separator(text("Edit known hosts").into(), Column::from_vec(known_hosts).width(Length::Fill).into()),
+                        Widgets::center_separator(text("Reset Device ID").into(), button("Reset").on_press(Message::ResetSecretKey).into()),
+                        Widgets::center_title("Device Info"),
+                        Widgets::center_separator(text("Device").into(),  text(sysinfo::System::host_name().unwrap_or_default()).into()),
+                        Widgets::center_separator(text("OS").into(),      text(sysinfo::System::name().unwrap_or_default()).into()),
+                        Widgets::center_separator(text("Version").into(), text(sysinfo::System::os_version().unwrap_or_default()).into()),
+                        Widgets::center_separator(text("Kernel").into(),  text(sysinfo::System::kernel_version().unwrap_or_default()).into()),
+                    ]
+                    .padding(Padding::ZERO.right(12))
+                    .spacing(10)
+                ).into()
             ).into();
         },
         UIState::ConnectedClient => {
@@ -162,10 +173,6 @@ pub fn view(this: &Window) -> iced::Element<'_, Message> {
             .into()
         },
         UIState::ConnectedHost => {
-            fn deref<'a>(option: &'a Option<String>) -> &'a str {
-                option.as_deref().unwrap_or("Unknown")
-            }
-
             fn info_row<'a>(label: &'a str, value: &'a str) -> Element<'a, Message> {
                 row![
                     text(label).width(Length::Fixed(80.0)).style(text::secondary),
@@ -181,10 +188,10 @@ pub fn view(this: &Window) -> iced::Element<'_, Message> {
 
             if let Some(client_info) = this.client_info.as_ref() {
                 card = card
-                    .push(info_row("Device", deref(&client_info.host_name)))
-                    .push(info_row("OS", deref(&client_info.name)))
+                    .push(info_row("Device",  deref(&client_info.host_name)))
+                    .push(info_row("OS",      deref(&client_info.name)))
                     .push(info_row("Version", deref(&client_info.os_version)))
-                    .push(info_row("Kernel", deref(&client_info.kernel_version)));
+                    .push(info_row("Kernel",  deref(&client_info.kernel_version)));
             }
 
             card = card.push(
@@ -451,4 +458,20 @@ impl Widgets {
             row![right, text_input("", "").width(Length::Shrink).style(|t, _| Styles::invisible_text_input(t))].width(Length::Fill).align_y(Alignment::Center)
         ].into()
     }
+
+    pub fn center_title<'a> (inner_text: &'a str) -> iced::Element<'a, Message> {
+        column![
+            text(""),
+            row![
+                space().width(Length::Fill),
+                text(inner_text).size(22).style(text::primary),
+                space().width(Length::Fill),
+            ]   
+        ].into()
+    }
+}
+
+
+fn deref<'a>(option: &'a Option<String>) -> &'a str {
+    option.as_deref().unwrap_or("Unknown")
 }
