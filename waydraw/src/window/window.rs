@@ -120,6 +120,16 @@ impl Window {
                 host::update(self, message).map(Message::HostConnectFlow)
             },
             Message::Disconnect => {
+                let p2p_arc = self.p2p.clone();
+                Task::perform(async move {
+                    if let Some(lock) = p2p_arc.read().await.as_ref() {
+                        let message = protocol::Goodbye {};
+                        lock.send(&message.into_bytes()).await;
+                    }                    
+                }, 
+                |_| Message::PostDisconnectCleanup)
+            }
+            Message::PostDisconnectCleanup => {
                 match self.ui_state {
                     UIState::ConnectedHost => {
                         host::update(self, host::ConnectFlow::Disconnect).map(Message::HostConnectFlow)

@@ -55,7 +55,6 @@ pub enum Message {
     // Host side stuff
     HostConnectFlow(modules::host::ConnectFlow),
     SelectMonitor(String),
-    Disconnect,
 
     // Settings
     ChangeTheme(iced::Theme),
@@ -67,6 +66,9 @@ pub enum Message {
     // ResetSecretKey(bool),
     // Misc
     WindowResize(usize, usize),
+    Disconnect,
+    PostDisconnectCleanup,
+    
     None,
     Empty(())
 }

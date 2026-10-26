@@ -1,10 +1,12 @@
 use std::sync::Arc;
 
 use iced::Task;
+use sysinfo::System;
 use tokio::sync::RwLock;
 
+use crate::p2p::protocol;
 use crate::{encoding, screen_capture};
-use crate::window::Window;
+use crate::window::{Message, Window};
 use crate::p2p::{self, protocol::{ClientHello, FromBytes, IntoBytes, ServerHello}};
 use crate::window::modules::ui_state::{self, UIState};
 
@@ -101,7 +103,7 @@ pub fn update(this: &mut Window, message: ConnectFlow) -> Task<ConnectFlow> {
 
             let mut server_info = ServerHello {
                 selected_codec: String::from(""),
-                name: gethostname::gethostname().into_string().unwrap(),
+                name: System::host_name().unwrap_or(String::from("Unnamed Device")).into(),
                 version: (version[0], version[1], version[2]),
                 screen_width:  0,
                 screen_height: 0
@@ -152,6 +154,23 @@ pub fn update(this: &mut Window, message: ConnectFlow) -> Task<ConnectFlow> {
                 return Task::none();
             }
 
+            let confirmed = native_dialog::DialogBuilder::message()
+                .set_title("Confirm Connection")
+                .set_text(
+                    format!("A Waydraw client is attempting to connect to your device.\n\n{} running {} version {} with kernel {}", 
+                    client_hello.host_name.as_ref().unwrap_or(&String::from("Unknown")),
+                    client_hello.name.as_ref().unwrap_or(&String::from("Unknown")),
+                    client_hello.os_version.as_ref().unwrap_or(&String::from("Unknown")),
+                    client_hello.kernel_version.as_ref().unwrap_or(&String::from("Unknown")),
+                ))
+                .confirm()
+                .show()
+                .unwrap_or(true);
+
+            if !confirmed {
+                return Task::done(ConnectFlow::Disconnect)
+            }
+
             this.client_info = Some(client_hello);
             ui_state::update(this, ui_state::UIUpdate::Connect);
 
@@ -187,6 +206,8 @@ pub fn update(this: &mut Window, message: ConnectFlow) -> Task<ConnectFlow> {
                 async move {
                     let mut lock = p2p_arc.write().await;
                     if let Some(p2p) = lock.as_mut() {
+                        let message = protocol::Goodbye {};
+                        let _ = p2p.send(&message.into_bytes()).await;
                         let _ = p2p.close().await;
                     } else {
                         println!("Could not close connection");
