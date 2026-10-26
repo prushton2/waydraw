@@ -112,18 +112,44 @@ jobs:
       run: |
         cargo build --release --target aarch64-apple-darwin
         cargo build --release --target x86_64-apple-darwin
-        mkdir -p target/universal
+
+        version=$(grep -m1 '^version' Cargo.toml | cut -d'"' -f2)
+        APP=target/universal/Waydraw.app
+        mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
+
         lipo -create \
           target/aarch64-apple-darwin/release/waydraw \
           target/x86_64-apple-darwin/release/waydraw \
-          -output target/universal/waydraw-macos
-        # lipo invalidates the per-arch ad-hoc signatures; arm64 macOS refuses to run unsigned binaries
-        codesign --force --sign - target/universal/waydraw-macos
+          -output "$APP/Contents/MacOS/waydraw"
+
+        cat > "$APP/Contents/Info.plist" <<EOF
+        <?xml version="1.0" encoding="UTF-8"?>
+        <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+        <plist version="1.0">
+        <dict>
+          <key>CFBundleExecutable</key>          <string>waydraw</string>
+          <key>CFBundleIdentifier</key>          <string>com.prushton.waydraw</string>
+          <key>CFBundleName</key>                <string>Waydraw</string>
+          <key>CFBundleDisplayName</key>         <string>Waydraw</string>
+          <key>CFBundlePackageType</key>         <string>APPL</string>
+          <key>CFBundleShortVersionString</key>  <string>${version}</string>
+          <key>CFBundleVersion</key>             <string>${version}</string>
+          <key>LSMinimumSystemVersion</key>      <string>${MACOSX_DEPLOYMENT_TARGET}</string>
+          <key>NSHighResolutionCapable</key>     <true/>
+        </dict>
+        </plist>
+        EOF
+
+        # sign the bundle (not just the binary) so the identity covers Info.plist
+        codesign --force --sign - "$APP"
+
+        # ditto keeps the bundle structure, exec bits and signature intact
+        ditto -c -k --keepParent "$APP" target/universal/waydraw-macos.zip
 
     - uses: actions/upload-artifact@v4
       with:
         name: waydraw-macos
-        path: waydraw/target/universal/waydraw-macos
+        path: waydraw/target/universal/waydraw-macos.zip
         if-no-files-found: error
 
   create-release:
@@ -165,10 +191,9 @@ jobs:
         mkdir -p release
         mv dist/linux/waydraw               release/waydraw-linux
         mv dist/windows/waydraw.exe         release/waydraw-windows.exe
-        mv dist/macos/waydraw-macos         release/waydraw-macos
-        chmod +x release/waydraw-linux release/waydraw-macos
-        ls -l release
-
+        mv dist/macos/waydraw-macos.zip     release/waydraw-macos.zip
+        chmod +x release/waydraw-linux
+        
     - name: Create Release
       if: ${{ !env.ACT }}
       uses: softprops/action-gh-release@v2
@@ -179,4 +204,4 @@ jobs:
         files: |
           release/waydraw-linux
           release/waydraw-windows.exe
-          release/waydraw-macos
+          release/waydraw-macos.zip

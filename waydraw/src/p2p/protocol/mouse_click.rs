@@ -1,32 +1,14 @@
-#[derive(Debug, Copy, Clone)]
+use serde::{Deserialize, Serialize};
+
+#[derive(Debug, Clone, waydraw_macros::IntoBytes, Serialize, Deserialize)]
+#[opcode(0x11)]
 pub struct MouseClick {
     pub button: MouseButton,
     pub state: MouseState
 }
 
-impl super::IntoBytes for MouseClick {
-    fn into_bytes(self) -> Vec<u8> {
-        let mut buf: Vec<u8> = vec![0x11, 0x00];
-        
-        buf[1] |= u8::from(self.button);
-        buf[1] <<= 1;
-        buf[1] |= u8::from(self.state);
-        
-        buf
-    }
 
-    fn from_bytes(bytes: &[u8]) -> Self {
-        let button = (bytes[0] >> 1) & 1;
-        let state = bytes[0] & 1;
-
-        Self {
-            button: button.try_into().unwrap(),
-            state:  state.try_into().unwrap()
-        }
-    }
-}
-
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Copy, Clone, Serialize, Deserialize)]
 pub enum MouseButton {
     Left,
     Right
@@ -52,7 +34,7 @@ impl TryFrom<u8> for MouseButton {
     }
 }
 
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Copy, Clone, Serialize, Deserialize)]
 pub enum MouseState {
     Released,
     Pressed

@@ -4,6 +4,7 @@ use tokio::sync::RwLock;
 use fast_image_resize::{ResizeOptions, Resizer, images::{Image, ImageRef}};
 use iced::{Task, widget::image};
 use crate::{p2p::protocol::{self, FromBytes, mouse_click::{MouseButton, MouseState}}, window::modules::ui_state::UIState};
+use crate::window::modules;
 use crate::p2p;
 
 use crate::window::{Message, Window};
@@ -14,7 +15,8 @@ pub enum P2PMessage {
     Heartbeat,
     MouseMove(u32, u32),
     WindowResize(u32, u32),
-    ScreenshotReceived(protocol::Screenshot)
+    ScreenshotReceived(protocol::Screenshot),
+    Goodbye
 }
 
 pub struct P2PObject(pub Arc<RwLock<Option<p2p::P2P>>>);
@@ -65,6 +67,9 @@ pub fn p2p_stream(feed: &P2PObject) -> impl iced::futures::Stream<Item = Message
             },
             FromBytes::Heartbeat(_) => {
                 return Some((Message::P2PMessage(P2PMessage::Heartbeat), p2p))
+            },
+            FromBytes::Goodbye(_) => {
+                return Some((Message::P2PMessage(P2PMessage::Goodbye), p2p))
             },
             FromBytes::UnknownInstruction(_) => {},
             _ => {}
@@ -153,6 +158,17 @@ pub fn update(this: &mut Window, message: P2PMessage) -> Task<Message> {
             let now = std::time::Instant::now();
             lock.last_message = Some(now);
             Task::none()
-        }
+        },
+        P2PMessage::Goodbye => {
+            match this.ui_state {
+                UIState::ConnectedClient => {
+                    modules::client::update(this, modules::client::ConnectFlow::Disconnect).map(Message::ClientConnectFlow)
+                }
+                UIState::ConnectedHost => {
+                    modules::host::update(this, modules::host::ConnectFlow::Disconnect).map(Message::HostConnectFlow)
+                }
+                _ => Task::none()
+            }
+        },
     }
 }

@@ -1,14 +1,5 @@
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, waydraw_macros::IntoBytes, Serialize, Deserialize)]
+#[opcode(0x03)]
 pub struct Heartbeat {}
-
-impl super::IntoBytes for Heartbeat {
-    fn into_bytes(self) -> Vec<u8> {
-        vec![0x03]
-    }
-
-    fn from_bytes(_bytes: &[u8]) -> Self {
-        Self {}
-    }
-}

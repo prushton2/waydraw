@@ -8,19 +8,23 @@ OS | Supported | Tested
 Linux (Wayland) | ✅ | ✅
 Linux (X11)     | ✅ | ❌
 Windows         | ✅ | ✅
-MacOS           | ❌ | ❌
+MacOS           | ✅ | ✅
 
 ## Troubleshooting
 
 * Timeout Error
   * click 'Allow Connections' on the server to generate a new pin, and retry connecting with the new pin
 * TLS Error
-  * Some networks cause issues with Iroh, the peer-to-peer library. These issues prevent Iroh from ensuring a private TLS connection. If you encounter this, try another network or use a VPN.
+  * Some networks may try to intercept the TLS of Iroh, the peer-to-peer library. Neither I nor Iroh will allow connecting with a bad TLS cert, please try a different network or a VPN.
 * Random freeze
   * If the client stops receiving frames or sending mouse movements, force close the app and relaunch, and click disconnect on the host.
 
 ## Known Issues
 * MacOS
-  * I dont have a mac, so all my macos support is based on what claude says. Feel free to make patches for compatibility
+  * You must allow the in the `Accessbility` and `Screen & System Audio Recording` settings for the app to be able to be a host
+  * On first launch, use `right click -> open`
+  * Macos will not remember the accessibility settings between versions, since I dont have an Apple developer ID
+* Windows
+  * The app is flagged as a virus by default. Microsoft defender remains a mystery to me, so I just ended up disabling it for waydraw to work.
 * Fractional scaling on Wayland
   * This is an issue in the display_info and pinray library, which I use for getting display info. This issue will persist until either library resolves the issue

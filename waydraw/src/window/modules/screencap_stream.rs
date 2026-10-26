@@ -33,8 +33,13 @@ pub fn screencap_stream(params: &ScreencapStreamParameters) -> impl iced::future
     let params_clone = params.clone();
    
     iced::futures::stream::unfold(params_clone, |parameters| async move {
+        #[cfg(not(debug_assertions))]
         tokio::time::sleep(std::time::Duration::from_millis(1000/30)).await;
-
+        
+        // slower image sending on debug mode to keep it from being slow
+        #[cfg(debug_assertions)]
+        tokio::time::sleep(std::time::Duration::from_secs(10)).await;
+        
         let image_result = {
             let recording_lock = parameters.recording.read().unwrap();
             recording_lock.as_ref().unwrap().latest()

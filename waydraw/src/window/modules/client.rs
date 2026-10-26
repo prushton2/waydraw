@@ -64,7 +64,12 @@ pub fn update(this: &mut Window, message: ConnectFlow) -> Task<ConnectFlow> {
                         supported_codecs: encoding::get_compatible_codecs().iter().map(|e| e.to_string()).collect(),
                         version: (version[0], version[1], version[2]),
                         window_width:  window_size_clone.0 as u32,
-                        window_height: window_size_clone.1 as u32
+                        window_height: window_size_clone.1 as u32,
+
+                        name: sysinfo::System::name(),
+                        kernel_version: sysinfo::System::kernel_version(),
+                        os_version: sysinfo::System::os_version(),
+                        host_name: sysinfo::System::host_name(),
                     };
 
                     let _ = p2p.send(&client_hello.into_bytes()).await;
@@ -131,6 +136,8 @@ pub fn update(this: &mut Window, message: ConnectFlow) -> Task<ConnectFlow> {
                 async move {
                     let mut lock = p2p_arc.write().await;
                     if let Some(p2p) = lock.as_mut() {
+                        let message = protocol::Goodbye {};
+                        let _ = p2p.send(&message.into_bytes()).await;
                         let _ = p2p.close().await;
                     } else {
                         println!("Could not close connection");
