@@ -2,7 +2,6 @@
 Turn a laptop into a drawing tablet connected to another computer. Built using H.264 for video encoding, Enigo for mouse control, Iced for UI, Pinray for screen capture, and Iroh for peer-to-peer connections.
 
 ## Support
-
 OS | Supported | Tested
 --|--|--
 Linux (Wayland) | ✅ | ✅
@@ -11,7 +10,6 @@ Windows         | ✅ | ✅
 MacOS           | ✅ | ✅
 
 ## Troubleshooting
-
 * Timeout Error
   * click 'Allow Connections' on the server to generate a new pin, and retry connecting with the new pin
 * TLS Error
@@ -19,12 +17,18 @@ MacOS           | ✅ | ✅
 * Random freeze
   * If the client stops receiving frames or sending mouse movements, force close the app and relaunch, and click disconnect on the host.
 
-## Known Issues
+## Using
+* Linux
+  * Make sure the app has execute permissions with `chmod +x ~/Downloads/waydraw-linux`
 * MacOS
-  * You must allow the in the `Accessbility` and `Screen & System Audio Recording` settings for the app to be able to be a host
+  * You must allow waydraw in the `Accessbility` and `Screen & System Audio Recording` accessibility settings for the app to be able to be a host
   * On first launch, use `right click -> open`
-  * Macos will not remember the accessibility settings between versions, since I dont have an Apple developer ID
+  * Macos will not remember the accessibility settings between versions, since I dont have an Apple developer ID.
 * Windows
   * The app is flagged as a virus by default. Microsoft defender remains a mystery to me, so I just ended up disabling it for waydraw to work.
+
+## Known Issues
 * Fractional scaling on Wayland
+  * pinray and display_info report fractional scaling by rounding down to the nearest integer
   * This is an issue in the display_info and pinray library, which I use for getting display info. This issue will persist until either library resolves the issue
+  
