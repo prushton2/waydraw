@@ -291,7 +291,7 @@ fn read_monitors() -> Result<Vec<Monitor>, String> {
                 #[cfg(target_os = "macos")] // Macos reports points, not pixels, which are already scaled, so we set the scale to 1.0
                 scale: 1.0,
                 #[cfg(not(target_os = "macos"))]
-                scale: displayinfo_source.scale_factor,
+                scale: pinray_source.scale_factor_milli as f32 / 1000.0,
             }
         })
         .collect::<Vec<Monitor>>();

@@ -4729,8 +4729,7 @@ checksum = "13bee6c73da26345c729282832b60b0363cf3dd9f4bfd81d8551b7a1c889a113"
 [[package]]
 name = "pinray"
 version = "0.2.7"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "dd6aa7c63c2bcb0c5b2002286a7a02b9c411ca1ff09740eab31ac35b8e53e247"
+source = "git+https://github.com/prushton2/pinray#417a6b62be47d3134d0816bf8d9e1ae922d634f4"
 dependencies = [
  "pinray-core",
  "pinray-platform-linux",
@@ -4741,8 +4740,7 @@ dependencies = [
 [[package]]
 name = "pinray-core"
 version = "0.2.7"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c05a2686fe623b9cf321acf3e8bb327c1ba2aba0462e715da95c464e0bd58280"
+source = "git+https://github.com/prushton2/pinray#417a6b62be47d3134d0816bf8d9e1ae922d634f4"
 dependencies = [
  "thiserror 2.0.21",
  "tracing",
@@ -4751,13 +4749,14 @@ dependencies = [
 [[package]]
 name = "pinray-platform-linux"
 version = "0.2.7"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "66bdd404e1b885dbb9067207d788c7ec5d5abbc5facef9483ea66d8ab69da2e0"
+source = "git+https://github.com/prushton2/pinray#417a6b62be47d3134d0816bf8d9e1ae922d634f4"
 dependencies = [
  "pinray-core",
  "pipewire",
  "serde",
  "tracing",
+ "wayland-client",
+ "wayland-protocols",
  "x11rb",
  "zbus",
 ]
@@ -4765,8 +4764,7 @@ dependencies = [
 [[package]]
 name = "pinray-platform-macos"
 version = "0.2.7"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "329353ea7276b89656cccb61a51cec6622c2a5073af8128465bf92316ac73936"
+source = "git+https://github.com/prushton2/pinray#417a6b62be47d3134d0816bf8d9e1ae922d634f4"
 dependencies = [
  "block2 0.6.2",
  "dispatch2",
@@ -4784,8 +4782,7 @@ dependencies = [
 [[package]]
 name = "pinray-platform-windows"
 version = "0.2.7"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a746dc849ec42b8f984d456e26f6b0f2f4dc3a99d1e0fd180b384107dce501f2"
+source = "git+https://github.com/prushton2/pinray#417a6b62be47d3134d0816bf8d9e1ae922d634f4"
 dependencies = [
  "pinray-core",
  "tracing",
