@@ -4,7 +4,7 @@ use iced::Task;
 use iroh::EndpointId;
 use tokio::sync::RwLock;
 
-use crate::{encoding, p2p::{self, p2p::P2PError, protocol::{self, IntoBytes}}, window::Window};
+use crate::{encoding, p2p::{self, p2p::P2PError, protocol::{self, IntoBytes}}, window::{Window, window::get_version}};
 use crate::window::modules::*;
 
 #[derive(Clone)]
@@ -57,12 +57,10 @@ pub fn update(this: &mut Window, message: ConnectFlow) -> Task<ConnectFlow> {
                     let parsed_key = key.parse::<EndpointId>().map_err(|_| P2PError::during("Error reading key", P2PError::InputError("Invalid key or pin".to_string())))?;
 
                     let p2p = p2p::P2P::connect(parsed_key).await?;
-                    
-                    let version = env!("CARGO_PKG_VERSION").split(".").map(|s| s.parse::<u8>().unwrap()).collect::<Vec<u8>>();
 
                     let client_hello = protocol::ClientHello {
                         supported_codecs: encoding::get_compatible_codecs().iter().map(|e| e.to_string()).collect(),
-                        version: (version[0], version[1], version[2]),
+                        version: get_version(),
                         window_width:  window_size_clone.0 as u32,
                         window_height: window_size_clone.1 as u32,
 
@@ -106,17 +104,17 @@ pub fn update(this: &mut Window, message: ConnectFlow) -> Task<ConnectFlow> {
             this.config.known_hosts.insert(key, server_hello.name.clone());
             this.config.write();
 
-            let version = env!("CARGO_PKG_VERSION").split(".").map(|s| s.parse::<u8>().unwrap()).collect::<Vec<u8>>();
+            let version = get_version();
 
-            if server_hello.version.0 != version[0] {
-                ui_state::update(this, ui_state::UIUpdate::UpdateError(format!("Incompatible versions: Server {}.{}.{} and Client {}.{}.{}. Please update each app to the same major version.", server_hello.version.0, server_hello.version.1, server_hello.version.2, version[0], version[1], version[2])));
+            if server_hello.version.0 != version.0 {
+                ui_state::update(this, ui_state::UIUpdate::UpdateError(format!("Incompatible versions: Server {}.{}.{} and Client {}.{}.{}. Please update each app to the same major version.", server_hello.version.0, server_hello.version.1, server_hello.version.2, version.0, version.1, version.2)));
                 this.p2p = Arc::new(RwLock::new(None));
                 return Task::none();
             }
             
             this.p2p = p2p;
             this.server_info = Some(server_hello);
-
+            
             ui_state::update(this, ui_state::UIUpdate::Connect);
 
             Task::none()
