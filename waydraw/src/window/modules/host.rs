@@ -5,6 +5,7 @@ use sysinfo::System;
 use tokio::sync::RwLock;
 
 use crate::p2p::protocol;
+use crate::window::window::get_version;
 use crate::{encoding, screen_capture};
 use crate::window::Window;
 use crate::p2p::{self, protocol::{ClientHello, FromBytes, IntoBytes, ServerHello}};
@@ -99,12 +100,10 @@ pub fn update(this: &mut Window, message: ConnectFlow) -> Task<ConnectFlow> {
             // construct server info to send to client
             let p2p_arc = this.p2p.clone();
 
-            let version = env!("CARGO_PKG_VERSION").split(".").map(|s| s.parse::<u8>().unwrap_or(0)).collect::<Vec<u8>>();
-
             let mut server_info = ServerHello {
                 selected_codec: String::from(""),
                 name: System::host_name().unwrap_or(String::from("Unnamed Device")).into(),
-                version: (version[0], version[1], version[2]),
+                version: get_version(),
                 screen_width:  0,
                 screen_height: 0
             };
@@ -144,11 +143,11 @@ pub fn update(this: &mut Window, message: ConnectFlow) -> Task<ConnectFlow> {
         },
 
         ConnectFlow::Connect((client_hello, selected_codec)) => {
-            let version = env!("CARGO_PKG_VERSION").split(".").map(|s| s.parse::<u8>().unwrap()).collect::<Vec<u8>>();
+            let version = get_version();
 
-            if client_hello.version.0 != version[0] {
+            if client_hello.version.0 != version.0 {
                 this.p2p = Arc::new(RwLock::new(None));
-                ui_state::update(this, ui_state::UIUpdate::UpdateError(format!("Incompatible versions: Client {}.{}.{} and Server {}.{}.{}. Please update each app to the same major version.", client_hello.version.0, client_hello.version.1, client_hello.version.2, version[0], version[1], version[2])));
+                ui_state::update(this, ui_state::UIUpdate::UpdateError(format!("Incompatible versions: Client {}.{}.{} and Server {}.{}.{}. Please update each app to the same major version.", client_hello.version.0, client_hello.version.1, client_hello.version.2, version.0, version.1, version.2)));
                 ui_state::update(this, ui_state::UIUpdate::UpdateKeyTextbox(String::from("")));
                 ui_state::update(this, ui_state::UIUpdate::UpdatePinTextbox(String::from("")));
                 return Task::none();
