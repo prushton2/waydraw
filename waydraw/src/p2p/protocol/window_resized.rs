@@ -4,5 +4,5 @@ use serde::{Deserialize, Serialize};
 #[opcode(0x02)]
 pub struct WindowResized {
     pub window_width: u32,
-    pub window_height: u32
+    pub window_height: u32,
 }

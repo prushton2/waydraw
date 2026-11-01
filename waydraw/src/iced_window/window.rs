@@ -1,18 +1,18 @@
-use std::sync::{Arc, Mutex};
-use std::time;
 use iced::Task;
 use native_dialog::DialogBuilder;
+use std::sync::{Arc, Mutex};
+use std::time;
 use tokio::sync::RwLock;
 
 use iced::Subscription;
 
+use crate::iced_window::modules::screencap_stream::ScreencapStreamParameters;
+use crate::iced_window::modules::ui_state::UIState;
+use crate::iced_window::modules::*;
 use crate::p2p::protocol::{self, IntoBytes};
-use crate::window::modules::screencap_stream::ScreencapStreamParameters;
-use crate::window::modules::ui_state::UIState;
-use crate::window::modules::*;
 
-use super::Window;
 use super::Message;
+use super::Window;
 
 impl Window {
     pub fn boot() -> Self {
@@ -21,26 +21,31 @@ impl Window {
             mouse = Box::new(crate::mouse::EnigoMouse::new());
         }
 
-        let monitors = match read_monitors() {
-            Ok(t) => t,
-            Err(_) => vec![]
-        };
-        
+        let monitors = read_monitors().unwrap_or_default();
+
         Self {
             config: crate::config::Config::load_or_generate(),
-            heartbeat: Arc::new(Mutex::new(heartbeat::Heartbeat::new(time::Duration::from_secs(5), time::Duration::from_secs(1)))),
+            heartbeat: Arc::new(Mutex::new(heartbeat::Heartbeat::new(
+                time::Duration::from_secs(5),
+                time::Duration::from_secs(1),
+            ))),
             p2p: Arc::new(RwLock::new(None)),
             encoder: Arc::new(Mutex::new(None)),
-            ui_state: ui_state::UIState::Host { pin: String::from(""), key: String::from(""), wait: String::from(""), error: String::from("") },
-            
-            monitors: monitors,
+            ui_state: ui_state::UIState::Host {
+                pin: String::from(""),
+                key: String::from(""),
+                wait: String::from(""),
+                error: String::from(""),
+            },
+
+            monitors,
             selected_monitor: String::from(""),
 
             allocation: None,
             server_info: None,
 
             client_info: None,
-            mouse: mouse,
+            mouse,
             video_recorder: Arc::new(std::sync::RwLock::new(None)),
 
             window_size: (256, 256),
@@ -52,15 +57,13 @@ impl Window {
             Message::UIUpdate(message) => {
                 ui_state::update(self, message);
                 Task::none()
-            },
+            }
             Message::RemoveKnownHost(host) => {
                 self.config.known_hosts.remove(&host);
                 self.config.write();
                 Task::none()
-            },
-            Message::P2PMessage(message) => {
-                receive_stream::update(self, message) 
-            },
+            }
+            Message::P2PMessage(message) => receive_stream::update(self, message),
 
             Message::ImageAllocated(result) => {
                 if let Ok(allocation) = result {
@@ -68,98 +71,92 @@ impl Window {
                 }
 
                 Task::none()
-            },
-            Message::HeartbeatMessage(message) => {
-                heartbeat::update(self, message)
             }
+            Message::HeartbeatMessage(message) => heartbeat::update(self, message),
 
             // Client stuff
             Message::ClientConnectFlow(message) => {
                 client::update(self, message).map(Message::ClientConnectFlow)
-            },
+            }
             Message::MouseClick(button, state) => {
                 let p2p_arc = self.p2p.clone();
-                Task::perform(async move {
+                Task::perform(
+                    async move {
                         let p2p_lock = p2p_arc.read().await;
                         if let Some(p2p) = p2p_lock.as_ref() {
-                            
-                            let message = protocol::MouseClick {
-                                button, state
-                            };
+                            let message = protocol::MouseClick { button, state };
 
                             let _ = p2p.send(&message.into_bytes()).await;
                         }
-
-                        ()
                     },
-                    Message::Empty
+                    |_| Message::None,
                 )
-            },
+            }
             Message::MouseMove(x, y) => {
                 let p2p_arc = self.p2p.clone();
                 // let window_size = self.window_size.clone();
-                Task::perform(async move {
+                Task::perform(
+                    async move {
                         let p2p_lock = p2p_arc.read().await;
                         if let Some(p2p) = p2p_lock.as_ref() {
-                            
                             let message = protocol::MouseMove {
-                                x: x as u32, y: y as u32
+                                x: x as u32,
+                                y: y as u32,
                             };
 
                             let _ = p2p.send(&message.into_bytes()).await;
                         }
-
-                        ()
                     },
-                    Message::Empty
+                    |_| Message::None,
                 )
-            },
+            }
 
             // Host stuff
             Message::HostConnectFlow(message) => {
                 host::update(self, message).map(Message::HostConnectFlow)
-            },
+            }
             Message::Disconnect => {
                 let p2p_arc = self.p2p.clone();
-                Task::perform(async move {
-                    if let Some(lock) = p2p_arc.read().await.as_ref() {
-                        let message = protocol::Goodbye {};
-                        let _ = lock.send(&message.into_bytes()).await;
-                    }                    
-                }, 
-                |_| Message::PostDisconnectCleanup)
-            },
-            Message::PostDisconnectCleanup => {
-                match self.ui_state {
-                    UIState::ConnectedHost => {
-                        host::update(self, host::ConnectFlow::Disconnect).map(Message::HostConnectFlow)
+                Task::perform(
+                    async move {
+                        if let Some(lock) = p2p_arc.read().await.as_ref() {
+                            let message = protocol::Goodbye {};
+                            let _ = lock.send(&message.into_bytes()).await;
+                        }
                     },
-                    UIState::ConnectedClient => {
-                        client::update(self, client::ConnectFlow::Disconnect).map(Message::ClientConnectFlow)
-                    },
-                    _ => {
-                        Task::none()
-                    }
+                    |_| Message::PostDisconnectCleanup,
+                )
+            }
+            Message::PostDisconnectCleanup => match self.ui_state {
+                UIState::ConnectedHost => {
+                    host::update(self, host::ConnectFlow::Disconnect).map(Message::HostConnectFlow)
                 }
+                UIState::ConnectedClient => client::update(self, client::ConnectFlow::Disconnect)
+                    .map(Message::ClientConnectFlow),
+                _ => Task::none(),
             },
             Message::SelectMonitor(v) => {
                 self.selected_monitor = v;
                 Task::none()
-            },
+            }
 
             // Settings
             Message::ChangeTheme(theme) => {
                 self.config.theme = theme;
                 self.config.write();
                 Task::none()
-            },
-            Message::UpdateKnownHostKey(current_key, new_key ) => {
-                let host = self.config.known_hosts.remove(&current_key).unwrap_or(String::from("UNKNOWN_HOST"));
+            }
+            Message::UpdateKnownHostKey(current_key, new_key) => {
+                let host = self
+                    .config
+                    .known_hosts
+                    .remove(&current_key)
+                    .unwrap_or(String::from("UNKNOWN_HOST"));
                 self.config.known_hosts.insert(new_key, host);
                 self.config.write();
                 Task::none()
-            },
-            Message::UpdateKnownHostName(current_key, new_host, ) => {
+            }
+            Message::UpdateKnownHostName(current_key, new_host) => {
                 for (key, host) in &mut self.config.known_hosts {
                     if key == &current_key {
                         *host = new_host;
@@ -168,13 +165,15 @@ impl Window {
                 }
                 self.config.write();
                 Task::none()
-            },
+            }
 
             Message::ResetSecretKey => {
                 let confirmed = DialogBuilder::message()
                     .set_level(native_dialog::MessageLevel::Warning)
                     .set_title("Are you sure you want to reset your device ID?")
-                    .set_text("Any devices that have you as a known host will need to be reconnected to.")
+                    .set_text(
+                        "Any devices that have you as a known host will need to be reconnected to.",
+                    )
                     .confirm()
                     .show()
                     .unwrap_or(true); // This will fail on people who use TWMs or whatever and dont have the proper libs, and i dont really care about that
@@ -184,58 +183,53 @@ impl Window {
                     self.config.overwrite_secret_key();
                 }
                 Task::none()
-            },
+            }
 
             // Misc
             Message::WindowResize(x, y) => {
                 self.window_size = (x, y);
                 if let UIState::ConnectedClient = self.ui_state {
                     let p2p_arc = self.p2p.clone();
-                    return Task::perform(async move {
+                    return Task::perform(
+                        async move {
                             let lock = p2p_arc.read().await;
                             if let Some(p2p) = lock.as_ref() {
                                 let message = protocol::WindowResized {
                                     window_width: x as u32,
-                                    window_height: y as u32
+                                    window_height: y as u32,
                                 };
                                 let _ = p2p.send(&message.into_bytes()).await;
                             }
-                            ()
                         },
-                        Message::Empty
-                    )
+                        |_| Message::None,
+                    );
                 }
                 Task::none()
-            },
-            Message::None => {
-                Task::none()
-            },
-            Message::Empty(_) => {
-                Task::none()
             }
+            Message::None => Task::none(),
         }
     }
 
     pub fn view(&self) -> iced::Element<'_, Message> {
-        return ui_state::view(self);
+        ui_state::view(self)
     }
 }
 
 pub fn subscription(window: &Window) -> Subscription<Message> {
     let mut subscriptions = vec![
-        iced::window::resize_events().map(|(_id, size)| Message::WindowResize(size.width as usize, size.height as usize))
+        iced::window::resize_events()
+            .map(|(_id, size)| Message::WindowResize(size.width as usize, size.height as usize)),
     ];
 
     if let UIState::ConnectedClient | UIState::ConnectedHost = window.ui_state {
-        subscriptions.push(
-            iced::Subscription::run_with(receive_stream::P2PObject(window.p2p.clone()), receive_stream::p2p_stream),
-        );
+        subscriptions.push(iced::Subscription::run_with(
+            receive_stream::P2PObject(window.p2p.clone()),
+            receive_stream::p2p_stream,
+        ));
 
         let hb_params = heartbeat::HeartbeatParameters(window.heartbeat.clone());
 
-        subscriptions.push(
-            iced::Subscription::run_with(hb_params, heartbeat::stream)
-        );
+        subscriptions.push(iced::Subscription::run_with(hb_params, heartbeat::stream));
     }
 
     if let UIState::ConnectedHost = window.ui_state {
@@ -245,12 +239,13 @@ pub fn subscription(window: &Window) -> Subscription<Message> {
             p2p: window.p2p.clone(),
         };
 
-        subscriptions.push(
-            iced::Subscription::run_with(screencap_stream, screencap_stream::screencap_stream),
-        );
+        subscriptions.push(iced::Subscription::run_with(
+            screencap_stream,
+            screencap_stream::screencap_stream,
+        ));
     }
 
-    return iced::Subscription::batch(subscriptions)
+    iced::Subscription::batch(subscriptions)
 }
 
 pub struct Monitor {
@@ -280,7 +275,6 @@ fn read_monitors() -> Result<Vec<Monitor>, String> {
             let displayinfo_source = positions
                 .iter()
                 .find(|e| e.name == name || e.id.to_string() == name)
-                .map(|e| e)
                 .unwrap();
 
             Monitor {
@@ -296,18 +290,16 @@ fn read_monitors() -> Result<Vec<Monitor>, String> {
         })
         .collect::<Vec<Monitor>>();
 
-    return Ok(monitors)
+    Ok(monitors)
 }
 
 pub fn get_version() -> (u8, u8, u8) {
     // split off the -rc-n tag
     let version = env!("CARGO_PKG_VERSION")
         .split(".")
-        .map(|s| {
-            match s.parse::<u8>() {
-                Ok(t) => t,
-                Err(_) => s.split_once('-').unwrap().0.parse::<u8>().unwrap()
-            }
+        .map(|s| match s.parse::<u8>() {
+            Ok(t) => t,
+            Err(_) => s.split_once('-').unwrap().0.parse::<u8>().unwrap(),
         })
         .collect::<Vec<u8>>();
 

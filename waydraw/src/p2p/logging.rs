@@ -1,20 +1,27 @@
 use std::sync::{Arc, Mutex, OnceLock};
-use tracing_subscriber::{fmt, prelude::*, reload, EnvFilter, Registry};
+use tracing_subscriber::{EnvFilter, Registry, fmt, prelude::*, reload};
 
 #[derive(Clone, Default)]
 pub struct StringWriter(pub Arc<Mutex<String>>);
 
 impl std::io::Write for StringWriter {
     fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
-        self.0.lock().unwrap().push_str(&String::from_utf8_lossy(buf));
+        self.0
+            .lock()
+            .unwrap()
+            .push_str(&String::from_utf8_lossy(buf));
         Ok(buf.len())
     }
-    fn flush(&mut self) -> std::io::Result<()> { Ok(()) }
+    fn flush(&mut self) -> std::io::Result<()> {
+        Ok(())
+    }
 }
 
 impl<'a> tracing_subscriber::fmt::MakeWriter<'a> for StringWriter {
     type Writer = Self;
-    fn make_writer(&'a self) -> Self::Writer { self.clone() }
+    fn make_writer(&'a self) -> Self::Writer {
+        self.clone()
+    }
 }
 
 pub struct Logging {
@@ -32,7 +39,10 @@ pub fn logging() -> &'static Logging {
             .with(filter)
             .with(fmt::layer().with_writer(logs.clone()).with_ansi(false))
             .try_init();
-        Logging { filter: handle, logs }
+        Logging {
+            filter: handle,
+            logs,
+        }
     })
 }
 

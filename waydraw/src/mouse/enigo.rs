@@ -1,20 +1,33 @@
+use crate::p2p::protocol::mouse_click::{MouseButton, MouseState};
 use enigo::Mouse;
 use enigo::{Button, Coordinate::Abs, Enigo, Settings};
-use crate::p2p::protocol::mouse_click::{MouseButton, MouseState};
+
 pub struct EnigoMouse {
-    enigo: Enigo
+    enigo: Enigo,
 }
 
 impl EnigoMouse {
     pub fn new() -> Self {
         Self {
-            enigo: Enigo::new(&Settings::default()).unwrap()
+            enigo: Enigo::new(&Settings::default()).unwrap(),
+        }
+    }
+}
+
+impl Default for EnigoMouse {
+    fn default() -> Self {
+        Self {
+            enigo: Enigo::new(&Settings::default()).unwrap(),
         }
     }
 }
 
 impl super::Mouse for EnigoMouse {
-    fn click_mouse(&mut self, button: crate::p2p::protocol::mouse_click::MouseButton, state: crate::p2p::protocol::mouse_click::MouseState) {
+    fn click_mouse(
+        &mut self,
+        button: crate::p2p::protocol::mouse_click::MouseButton,
+        state: crate::p2p::protocol::mouse_click::MouseState,
+    ) {
         let _ = self.enigo.button(
             match button {
                 MouseButton::Left => Button::Left,
@@ -22,10 +35,11 @@ impl super::Mouse for EnigoMouse {
             },
             match state {
                 MouseState::Pressed => enigo::Direction::Press,
-                MouseState::Released => enigo::Direction::Release
-            });
+                MouseState::Released => enigo::Direction::Release,
+            },
+        );
     }
-    
+
     fn move_mouse(&mut self, x: i32, y: i32) {
         self.enigo.move_mouse(x, y, Abs).unwrap();
     }

@@ -1,20 +1,20 @@
-pub mod server_hello;
 pub mod client_hello;
-pub mod mouse_move;
-pub mod mouse_click;
-pub mod window_resized;
-pub mod screenshot;
-pub mod heartbeat;
 pub mod goodbye;
+pub mod heartbeat;
+pub mod mouse_click;
+pub mod mouse_move;
+pub mod screenshot;
+pub mod server_hello;
+pub mod window_resized;
 
-pub use server_hello::ServerHello;
 pub use client_hello::ClientHello;
-pub use mouse_move::MouseMove;
-pub use mouse_click::MouseClick;
-pub use window_resized::WindowResized;
-pub use screenshot::Screenshot;
-pub use heartbeat::Heartbeat;
 pub use goodbye::Goodbye;
+pub use heartbeat::Heartbeat;
+pub use mouse_click::MouseClick;
+pub use mouse_move::MouseMove;
+pub use screenshot::Screenshot;
+pub use server_hello::ServerHello;
+pub use window_resized::WindowResized;
 
 #[derive(Debug, Clone)]
 pub enum FromBytes {
@@ -49,7 +49,7 @@ impl FromBytes {
             0x10 => Self::MouseMove(MouseMove::from_bytes(&bytes[1..])),
             0x11 => Self::MouseClick(MouseClick::from_bytes(&bytes[1..])),
             0x20 => Self::Screenshot(Screenshot::from_bytes(&bytes[1..])),
-            _ => Self::UnknownInstruction(bytes.into())
+            _ => Self::UnknownInstruction(bytes.into()),
         }
     }
 }

@@ -4,21 +4,20 @@ use serde::{Deserialize, Serialize};
 #[opcode(0x11)]
 pub struct MouseClick {
     pub button: MouseButton,
-    pub state: MouseState
+    pub state: MouseState,
 }
-
 
 #[derive(Debug, Copy, Clone, Serialize, Deserialize)]
 pub enum MouseButton {
     Left,
-    Right
+    Right,
 }
 
 impl From<MouseButton> for u8 {
     fn from(value: MouseButton) -> Self {
         match value {
             MouseButton::Left => 0,
-            MouseButton::Right => 1
+            MouseButton::Right => 1,
         }
     }
 }
@@ -29,7 +28,7 @@ impl TryFrom<u8> for MouseButton {
         match value {
             0 => Ok(MouseButton::Left),
             1 => Ok(MouseButton::Right),
-            _ => Err("Invalid u8".into())
+            _ => Err("Invalid u8".into()),
         }
     }
 }
@@ -37,14 +36,14 @@ impl TryFrom<u8> for MouseButton {
 #[derive(Debug, Copy, Clone, Serialize, Deserialize)]
 pub enum MouseState {
     Released,
-    Pressed
+    Pressed,
 }
 
 impl From<MouseState> for u8 {
     fn from(value: MouseState) -> Self {
         match value {
             MouseState::Released => 0,
-            MouseState::Pressed => 1
+            MouseState::Pressed => 1,
         }
     }
 }
@@ -55,7 +54,7 @@ impl TryFrom<u8> for MouseState {
         match value {
             0 => Ok(MouseState::Released),
             1 => Ok(MouseState::Pressed),
-            _ => Err("Invalid u8".into())
+            _ => Err("Invalid u8".into()),
         }
     }
 }

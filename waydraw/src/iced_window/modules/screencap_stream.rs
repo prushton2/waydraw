@@ -5,9 +5,9 @@ use std::sync::Mutex;
 use tokio::sync::RwLock;
 
 use crate::encoding::Codec;
-use crate::screen_capture::ScreenCapture;
-use crate::window::Message;
+use crate::iced_window::Message;
 use crate::p2p::protocol::IntoBytes;
+use crate::screen_capture::ScreenCapture;
 
 // struct ScreencapStreamParameters(Arc<InnerScreencapStreamParameters>);
 #[derive(Clone)]
@@ -29,17 +29,19 @@ impl Hash for ScreencapStreamParameters {
     }
 }
 
-pub fn screencap_stream(params: &ScreencapStreamParameters) -> impl iced::futures::Stream<Item = Message> + use<> {
+pub fn screencap_stream(
+    params: &ScreencapStreamParameters,
+) -> impl iced::futures::Stream<Item = Message> + use<> {
     let params_clone = params.clone();
-   
+
     iced::futures::stream::unfold(params_clone, |parameters| async move {
         #[cfg(not(debug_assertions))]
-        tokio::time::sleep(std::time::Duration::from_millis(1000/30)).await;
-        
+        tokio::time::sleep(std::time::Duration::from_millis(1000 / 30)).await;
+
         // slower image sending on debug mode to keep it from being slow
         #[cfg(debug_assertions)]
         tokio::time::sleep(std::time::Duration::from_secs(10)).await;
-        
+
         let image_result = {
             let recording_lock = parameters.recording.read().unwrap();
             recording_lock.as_ref().unwrap().latest()
@@ -50,7 +52,7 @@ pub fn screencap_stream(params: &ScreencapStreamParameters) -> impl iced::future
             None => {
                 drop(image_result);
                 // println!("No image found");
-                return Some((Message::Empty(()), parameters))
+                return Some((Message::None, parameters));
             }
         };
 
@@ -68,13 +70,13 @@ pub fn screencap_stream(params: &ScreencapStreamParameters) -> impl iced::future
         let frame = crate::p2p::protocol::Screenshot {
             bytes: encoded_bytes,
             width: image.width as usize,
-            height: image.height as usize
+            height: image.height as usize,
         };
 
         let _ = p2p_ref.send(&frame.into_bytes()).await;
 
         drop(p2p_lock);
 
-        Some((Message::Empty(()), parameters))
+        Some((Message::None, parameters))
     })
 }

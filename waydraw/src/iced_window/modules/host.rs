@@ -4,35 +4,56 @@ use iced::Task;
 use sysinfo::System;
 use tokio::sync::RwLock;
 
+use crate::iced_window::Window;
+use crate::iced_window::modules::ui_state::{self, UIState};
+use crate::iced_window::window::get_version;
 use crate::p2p::protocol;
-use crate::window::window::get_version;
+use crate::p2p::{
+    self,
+    protocol::{ClientHello, FromBytes, IntoBytes, ServerHello},
+};
 use crate::{encoding, screen_capture};
-use crate::window::Window;
-use crate::p2p::{self, protocol::{ClientHello, FromBytes, IntoBytes, ServerHello}};
-use crate::window::modules::ui_state::{self, UIState};
 
 #[derive(Clone)]
+#[allow(clippy::type_complexity)]
 pub enum ConnectFlow {
     Register,
     AwaitClient(Result<(Arc<RwLock<Option<p2p::P2P>>>, String, String), String>),
     SendHello(Result<(), String>),
     Connect((ClientHello, String)),
     Disconnect,
-    Null(())
+    None(()),
 }
 
 pub fn update(this: &mut Window, message: ConnectFlow) -> Task<ConnectFlow> {
     match message {
         ConnectFlow::Register => {
-            if let UIState::Host { pin: _, key: _, wait: _, error: _ } = &mut this.ui_state {
+            if let UIState::Host {
+                pin: _,
+                key: _,
+                wait: _,
+                error: _,
+            } = &mut this.ui_state
+            {
                 ui_state::update(this, ui_state::UIUpdate::UpdateError("".to_owned()));
-                ui_state::update(this, ui_state::UIUpdate::UpdateWait("Registering...".to_owned()));
+                ui_state::update(
+                    this,
+                    ui_state::UIUpdate::UpdateWait("Registering...".to_owned()),
+                );
             } else {
-                return Task::none()
+                return Task::none();
             }
 
-            if this.monitors.iter().filter(|e| e.id == this.selected_monitor).nth(0).is_none() {
-                ui_state::update(this, ui_state::UIUpdate::UpdateError("Select a monitor".to_owned()));
+            if this
+                .monitors
+                .iter()
+                .find(|e| e.id == this.selected_monitor)
+                .is_none()
+            {
+                ui_state::update(
+                    this,
+                    ui_state::UIUpdate::UpdateError("Select a monitor".to_owned()),
+                );
                 ui_state::update(this, ui_state::UIUpdate::UpdateWait("".to_owned()));
                 return Task::none();
             }
@@ -44,17 +65,17 @@ pub fn update(this: &mut Window, message: ConnectFlow) -> Task<ConnectFlow> {
                     let (server, key) = p2p::P2P::init(key).await.map_err(|e| e.to_string())?;
 
                     let key = key.to_string();
-                    
+
                     let pin = match p2p::remote_key_store::set(&key.to_string()).await {
                         Ok(t) => t,
-                        Err(e) => return Err(e)
+                        Err(e) => return Err(e),
                     };
 
                     Ok((Arc::new(RwLock::new(Some(server))), key, pin))
                 },
-                ConnectFlow::AwaitClient
+                ConnectFlow::AwaitClient,
             )
-        },
+        }
 
         ConnectFlow::AwaitClient(result) => {
             let (p2p, key, pin) = match result {
@@ -62,7 +83,7 @@ pub fn update(this: &mut Window, message: ConnectFlow) -> Task<ConnectFlow> {
                 Err(t) => {
                     ui_state::update(this, ui_state::UIUpdate::UpdateError(t));
                     ui_state::update(this, ui_state::UIUpdate::UpdateWait(String::from("")));
-                    return Task::none()
+                    return Task::none();
                 }
             };
 
@@ -71,46 +92,60 @@ pub fn update(this: &mut Window, message: ConnectFlow) -> Task<ConnectFlow> {
             ui_state::update(this, ui_state::UIUpdate::UpdatePinTextbox(pin));
 
             let arc = this.p2p.clone();
-            
-            ui_state::update(this, ui_state::UIUpdate::UpdateWait("Waiting for connection".to_owned()));
-            Task::perform(
-            async move {
-                let mut lock = arc.write().await;
-                let p2p = lock.as_mut().unwrap();
-                match p2p.await_connection().await {
-                    Ok(_) => {},
-                    Err(e) => return Err(e.to_string())
-                };
 
-                Ok(())
-            },
+            ui_state::update(
+                this,
+                ui_state::UIUpdate::UpdateWait("Waiting for connection".to_owned()),
+            );
+            Task::perform(
+                async move {
+                    let mut lock = arc.write().await;
+                    let p2p = lock.as_mut().unwrap();
+                    match p2p.await_connection().await {
+                        Ok(_) => {}
+                        Err(e) => return Err(e.to_string()),
+                    };
+
+                    Ok(())
+                },
                 ConnectFlow::SendHello,
             )
-        },
+        }
 
         ConnectFlow::SendHello(result) => {
             if let Err(e) = result {
-                ui_state::update(this, ui_state::UIUpdate::UpdateError(format!("Error awaiting connection: {}", e)));
+                ui_state::update(
+                    this,
+                    ui_state::UIUpdate::UpdateError(format!("Error awaiting connection: {}", e)),
+                );
                 ui_state::update(this, ui_state::UIUpdate::UpdateWait(String::from("")));
                 return Task::none();
             }
 
-            ui_state::update(this, ui_state::UIUpdate::UpdateWait(String::from("Sending Hello")));
+            ui_state::update(
+                this,
+                ui_state::UIUpdate::UpdateWait(String::from("Sending Hello")),
+            );
 
             // construct server info to send to client
             let p2p_arc = this.p2p.clone();
 
             let mut server_info = ServerHello {
                 selected_codec: String::from(""),
-                name: System::host_name().unwrap_or(String::from("Unnamed Device")).into(),
+                name: System::host_name().unwrap_or(String::from("Unnamed Device")),
                 version: get_version(),
-                screen_width:  0,
-                screen_height: 0
+                screen_width: 0,
+                screen_height: 0,
             };
 
-
             let mut pin_copy: String = String::from("");
-            if let ui_state::UIState::Host { pin, key: _, wait: _, error: _ } = &this.ui_state {
+            if let ui_state::UIState::Host {
+                pin,
+                key: _,
+                wait: _,
+                error: _,
+            } = &this.ui_state
+            {
                 pin_copy = pin.clone();
             }
 
@@ -120,34 +155,49 @@ pub fn update(this: &mut Window, message: ConnectFlow) -> Task<ConnectFlow> {
 
                     let p2p_lock = p2p_arc.read().await;
                     let p2p_ref = p2p_lock.as_ref().unwrap();
-                    
+
                     let client_hello_bytes = p2p_ref.read().await.unwrap();
                     let client_hello = match FromBytes::parse(&client_hello_bytes[..]) {
                         FromBytes::ClientHello(m) => m,
-                        t => panic!("Expected client hello, received other bytes: {:?}", t)
+                        t => panic!("Expected client hello, received other bytes: {:?}", t),
                     };
 
                     let compatible_codecs = encoding::get_compatible_codecs();
-                    let matched_codecs = client_hello.supported_codecs.iter().filter(|e| compatible_codecs.contains(&(**e).as_str())).collect::<Vec<&String>>();
-                    
+                    let matched_codecs = client_hello
+                        .supported_codecs
+                        .iter()
+                        .filter(|e| compatible_codecs.contains(&(**e).as_str()))
+                        .collect::<Vec<&String>>();
+
                     let selected_codec = matched_codecs[0].clone();
 
                     server_info.selected_codec = selected_codec.clone();
                     let server_info_bytes = server_info.into_bytes();
                     let _ = p2p_ref.send(&server_info_bytes).await;
-                    
+
                     (client_hello, selected_codec)
                 },
-                ConnectFlow::Connect
+                ConnectFlow::Connect,
             )
-        },
+        }
 
         ConnectFlow::Connect((client_hello, selected_codec)) => {
             let version = get_version();
 
             if client_hello.version.0 != version.0 {
                 this.p2p = Arc::new(RwLock::new(None));
-                ui_state::update(this, ui_state::UIUpdate::UpdateError(format!("Incompatible versions: Client {}.{}.{} and Server {}.{}.{}. Please update each app to the same major version.", client_hello.version.0, client_hello.version.1, client_hello.version.2, version.0, version.1, version.2)));
+                ui_state::update(
+                    this,
+                    ui_state::UIUpdate::UpdateError(format!(
+                        "Incompatible versions: Client {}.{}.{} and Server {}.{}.{}. Please update each app to the same major version.",
+                        client_hello.version.0,
+                        client_hello.version.1,
+                        client_hello.version.2,
+                        version.0,
+                        version.1,
+                        version.2
+                    )),
+                );
                 ui_state::update(this, ui_state::UIUpdate::UpdateKeyTextbox(String::from("")));
                 ui_state::update(this, ui_state::UIUpdate::UpdatePinTextbox(String::from("")));
                 return Task::none();
@@ -167,7 +217,7 @@ pub fn update(this: &mut Window, message: ConnectFlow) -> Task<ConnectFlow> {
                 .unwrap_or(true);
 
             if !confirmed {
-                return Task::done(ConnectFlow::Disconnect)
+                return Task::done(ConnectFlow::Disconnect);
             }
 
             this.client_info = Some(client_hello);
@@ -177,12 +227,12 @@ pub fn update(this: &mut Window, message: ConnectFlow) -> Task<ConnectFlow> {
             let monitor_name = this.selected_monitor.clone();
             let mut encoder_lock = this.encoder.lock().unwrap();
             *encoder_lock = Some(encoding::get_codec(&selected_codec).unwrap());
-            
+
             let mut lock = recorder_arc.write().unwrap();
             *lock = Some(screen_capture::ScreenCapture::new(&monitor_name).unwrap());
-            
+
             Task::none()
-        },
+        }
 
         ConnectFlow::Disconnect => {
             ui_state::update(this, ui_state::UIUpdate::Disconnect);
@@ -190,7 +240,7 @@ pub fn update(this: &mut Window, message: ConnectFlow) -> Task<ConnectFlow> {
             let recorder_arc = this.video_recorder.clone();
             let p2p_arc = this.p2p.clone();
             this.p2p = Arc::new(RwLock::new(None));
-            
+
             let mut lock = recorder_arc.write().unwrap();
             if let Some(recorder) = lock.as_ref() {
                 recorder.kill()
@@ -211,14 +261,10 @@ pub fn update(this: &mut Window, message: ConnectFlow) -> Task<ConnectFlow> {
                     } else {
                         println!("Could not close connection");
                     }
-                    
-                    ()
                 },
-                ConnectFlow::Null,
+                ConnectFlow::None,
             )
-        },
-        ConnectFlow::Null(_) => {
-            Task::none()
         }
+        ConnectFlow::None(_) => Task::none(),
     }
 }

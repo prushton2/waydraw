@@ -7,10 +7,9 @@ pub struct ClientHello {
     pub window_width: u32,
     pub window_height: u32,
     pub supported_codecs: Vec<String>,
-    
+
     pub name: Option<String>,
     pub kernel_version: Option<String>,
     pub os_version: Option<String>,
     pub host_name: Option<String>,
-    
 }

@@ -1,10 +1,10 @@
 pub mod config;
-pub mod p2p;
 pub mod encoding;
 pub mod mouse;
+pub mod p2p;
 pub mod screen_capture;
 
-mod window;
+mod iced_window;
 
 pub use config::Config;
 const TITLE: &str = constcat::concat!("Waydraw ", env!("CARGO_PKG_VERSION"));
@@ -13,12 +13,12 @@ fn main() {
     let theme = crate::config::Theme;
 
     let _ = iced::application(
-        window::Window::boot,
-        window::Window::update,
-        window::Window::view
+        iced_window::Window::boot,
+        iced_window::Window::update,
+        iced_window::Window::view,
     )
-        .theme(theme)
-        .subscription(window::window::subscription)
-        .title(TITLE)
-        .run();
+    .theme(theme)
+    .subscription(iced_window::window::subscription)
+    .title(TITLE)
+    .run();
 }

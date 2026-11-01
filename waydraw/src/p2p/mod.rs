@@ -1,6 +1,6 @@
-pub mod p2p;
+pub mod iroh_p2p;
+mod logging;
 pub mod protocol;
 pub mod remote_key_store;
-mod logging;
 
-pub use p2p::P2P;
+pub use iroh_p2p::P2P;

@@ -4,5 +4,5 @@ use serde::{Deserialize, Serialize};
 #[opcode(0x10)]
 pub struct MouseMove {
     pub x: u32,
-    pub y: u32
+    pub y: u32,
 }
