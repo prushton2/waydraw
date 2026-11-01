@@ -29,6 +29,5 @@ MacOS           | ✅ | ✅
 
 ## Known Issues
 * Fractional scaling on Wayland
-  * pinray and display_info report fractional scaling by rounding down to the nearest integer
-  * This is an issue in the display_info and pinray library, which I use for getting display info. This issue will persist until either library resolves the issue
+  * pinray and display_info incorrectly report fractional display scaling. Pinray has a merged fix, once the release is made I will update the crate.
   
