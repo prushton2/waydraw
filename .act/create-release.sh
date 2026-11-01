@@ -1,1 +1,1 @@
-act pull_request -e .act/pr-merged.json -W .github/workflows/create-release.yaml --artifact-server-path /tmp/act-artifacts
+act push -e .act/pr-merged.json -W .github/workflows/create-release.yaml --artifact-server-path /tmp/act-artifacts
