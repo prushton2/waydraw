@@ -5,5 +5,5 @@ use serde::{Deserialize, Serialize};
 pub struct Screenshot {
     pub bytes: Vec<u8>,
     pub width: usize,
-    pub height: usize
+    pub height: usize,
 }

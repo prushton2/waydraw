@@ -4,16 +4,16 @@ use tokio::sync::RwLock;
 
 use iced_core::image::{Allocation, Error};
 
+use crate::iced_window::modules::heartbeat;
+use crate::iced_window::window::Monitor;
 use crate::p2p::protocol::{ClientHello, ServerHello};
 use crate::screen_capture::ScreenCapture;
-use crate::window::modules::heartbeat;
-use crate::window::window::Monitor;
-use crate::{encoding::Codec, window::modules::receive_stream};
+use crate::{encoding::Codec, iced_window::modules::receive_stream};
 
 use crate::p2p::protocol::mouse_click::{MouseButton, MouseState};
 
-pub mod window;
 mod modules;
+pub mod window;
 
 pub struct Window {
     pub config: crate::Config,
@@ -28,14 +28,14 @@ pub struct Window {
     // Client side stuff
     allocation: Option<iced_core::image::Allocation>,
     server_info: Option<ServerHello>,
-    
+
     // Host side stuff
     client_info: Option<ClientHello>,
     mouse: Box<dyn crate::mouse::Mouse>,
     video_recorder: Arc<std::sync::RwLock<Option<ScreenCapture>>>,
 
     // Misc
-    window_size: (usize, usize)
+    window_size: (usize, usize),
 }
 
 #[derive(Clone)]
@@ -51,7 +51,7 @@ pub enum Message {
     MouseMove(i32, i32),
     MouseClick(MouseButton, MouseState),
     // ImageAllocated(Result<Allocation, Error>),
-    
+
     // Host side stuff
     HostConnectFlow(modules::host::ConnectFlow),
     SelectMonitor(String),
@@ -59,7 +59,7 @@ pub enum Message {
     // Settings
     ChangeTheme(iced::Theme),
     /// Key, New hostname
-    UpdateKnownHostName(String, String), 
+    UpdateKnownHostName(String, String),
     /// Key, New key
     UpdateKnownHostKey(String, String),
     ResetSecretKey,
@@ -68,7 +68,6 @@ pub enum Message {
     WindowResize(usize, usize),
     Disconnect,
     PostDisconnectCleanup,
-    
+
     None,
-    Empty(())
 }

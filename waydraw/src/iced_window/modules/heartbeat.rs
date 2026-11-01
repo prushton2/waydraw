@@ -1,7 +1,13 @@
-use std::{ops::Add, sync::{Arc, Mutex}};
+use std::{
+    ops::Add,
+    sync::{Arc, Mutex},
+};
 
+use crate::{
+    iced_window::{self, Message},
+    p2p::protocol::{self, IntoBytes},
+};
 use iced::Task;
-use crate::{p2p::protocol::{self, IntoBytes}, window::{self, Message}};
 
 pub struct Heartbeat {
     /// Time to live without receiving a heartbeat
@@ -17,7 +23,7 @@ impl Heartbeat {
         Self {
             ttl,
             delay,
-            last_message: None
+            last_message: None,
         }
     }
 }
@@ -41,49 +47,52 @@ pub fn stream(params: &HeartbeatParameters) -> impl iced::futures::Stream<Item =
         let lock = parameters.lock().unwrap();
         let now = std::time::Instant::now();
 
-        if let Some(last_message) = &lock.last_message {
-            if now > last_message.add(lock.ttl) {
-                drop(lock);
-                return Some((Message::HeartbeatMessage(HeartbeatMessage::Disconnect), (parameters, delay)))
-            }
+        if let Some(last_message) = &lock.last_message
+            && now > last_message.add(lock.ttl)
+        {
+            drop(lock);
+            return Some((
+                Message::HeartbeatMessage(HeartbeatMessage::Disconnect),
+                (parameters, delay),
+            ));
         }
 
-        
         drop(lock);
-        Some((Message::HeartbeatMessage(HeartbeatMessage::Send), (parameters, delay)))
+        Some((
+            Message::HeartbeatMessage(HeartbeatMessage::Send),
+            (parameters, delay),
+        ))
     })
 }
 
 #[derive(Copy, Clone)]
 pub enum HeartbeatMessage {
     Send,
-    Disconnect
+    Disconnect,
 }
 
-pub fn update(this: &mut window::Window, message: HeartbeatMessage) -> Task<Message> {
+pub fn update(this: &mut iced_window::Window, message: HeartbeatMessage) -> Task<Message> {
     match message {
         HeartbeatMessage::Send => {
             let p2p_clone = this.p2p.clone();
-            Task::perform(async move {
+            Task::perform(
+                async move {
                     let lock = p2p_clone.read().await;
                     let p2p = match lock.as_ref() {
                         Some(t) => t,
-                        None => return ()
+                        None => return Message::None,
                     };
 
                     let hb = protocol::Heartbeat {};
                     let bytes = hb.into_bytes();
 
                     let _ = p2p.send(&bytes[..]).await;
-                    
-                    ()
 
+                    Message::None
                 },
-                Message::Empty
+                |_| Message::None,
             )
-        },
-        HeartbeatMessage::Disconnect => {
-            Task::done(Message::Disconnect)
         }
+        HeartbeatMessage::Disconnect => Task::done(Message::Disconnect),
     }
 }
