@@ -72,3 +72,32 @@ jobs:
     - run: cargo check
     - run: cargo fmt
     - run: cargo clippy
+
+  check-macros:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: waydraw-macros
+    env:
+      CARGO_TERM_COLOR: always
+      CARGO_PROFILE_TEST_DEBUG: 0
+      CARGO_PROFILE_DEV_DEBUG: 0
+    steps:
+
+    - name: "Checkout"
+      uses: actions/checkout@v5
+
+    - name: Install Rust (act only)
+      if: ${{ env.ACT }}
+      run: |
+        curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal
+        echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
+
+    - name: Cache Rust dependencies and build artifacts
+      uses: Swatinem/rust-cache@v2
+      with:
+        workspaces: waydraw-macros
+
+    - run: cargo check
+    - run: cargo fmt
+    - run: cargo clippy
