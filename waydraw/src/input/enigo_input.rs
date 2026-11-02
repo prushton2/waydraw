@@ -1,4 +1,4 @@
-use enigo::{Button, Coordinate::Abs, Enigo, Mouse, Settings};
+use enigo::{Button, Coordinate::Abs, Enigo, Keyboard, Mouse, Settings};
 
 pub struct EnigoInput {
     enigo: Enigo,
@@ -40,5 +40,12 @@ impl super::Input for EnigoInput {
 
     fn move_mouse(&mut self, x: i32, y: i32) {
         self.enigo.move_mouse(x, y, Abs).unwrap();
+    }
+
+    fn key_event(&mut self, key: enigo::Key, state: super::KeyState) {
+        self.enigo.key(key, match state {
+            super::KeyState::Pressed => enigo::Direction::Press,
+            super::KeyState::Released => enigo::Direction::Release,
+        });
     }
 }

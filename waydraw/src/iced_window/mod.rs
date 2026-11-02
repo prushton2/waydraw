@@ -53,7 +53,6 @@ pub enum Message {
     ClientConnectFlow(modules::client::ConnectFlow),
     MouseMove(i32, i32),
     MouseClick(MouseButton, MouseState),
-    // ImageAllocated(Result<Allocation, Error>),
 
     // Host side stuff
     HostConnectFlow(modules::host::ConnectFlow),
@@ -66,7 +65,7 @@ pub enum Message {
     /// Key, New key
     UpdateKnownHostKey(String, String),
     ResetSecretKey,
-    // ResetSecretKey(bool),
+
     // Misc
     WindowResize(usize, usize),
     Disconnect,

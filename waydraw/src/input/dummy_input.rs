@@ -30,4 +30,8 @@ impl super::Input for DummyInput {
     fn move_mouse(&mut self, x: i32, y: i32) {
         println!("Move to {}, {}", x, y);
     }
+
+    fn key_event(&mut self, key: enigo::Key, state: super::KeyState) {
+        println!("Key {:?} {:?}", key, state)
+    }
 }

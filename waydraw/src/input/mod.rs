@@ -1,13 +1,14 @@
-pub mod dummy;
-pub mod enigo;
+pub mod dummy_input;
+pub mod enigo_input;
 
-pub use dummy::DummyInput;
-pub use enigo::EnigoInput;
+pub use dummy_input::DummyInput;
+pub use enigo_input::EnigoInput;
 use serde::{Deserialize, Serialize};
 
 pub trait Input: Send {
     fn move_mouse(&mut self, x: i32, y: i32);
     fn click_mouse(&mut self, button: MouseButton, state: MouseState);
+    fn key_event(&mut self, key: enigo::Key, state: KeyState);
 }
 
 
@@ -58,6 +59,32 @@ impl TryFrom<u8> for MouseState {
         match value {
             0 => Ok(MouseState::Released),
             1 => Ok(MouseState::Pressed),
+            _ => Err("Invalid u8".into()),
+        }
+    }
+}
+
+#[derive(Debug, Copy, Clone, Serialize, Deserialize)]
+pub enum KeyState {
+    Released,
+    Pressed,
+}
+
+impl From<KeyState> for u8 {
+    fn from(value: KeyState) -> Self {
+        match value {
+            KeyState::Released => 0,
+            KeyState::Pressed => 1,
+        }
+    }
+}
+
+impl TryFrom<u8> for KeyState {
+    type Error = String;
+    fn try_from(value: u8) -> Result<Self, Self::Error> {
+        match value {
+            0 => Ok(KeyState::Released),
+            1 => Ok(KeyState::Pressed),
             _ => Err("Invalid u8".into()),
         }
     }
