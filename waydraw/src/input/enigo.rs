@@ -2,11 +2,11 @@ use crate::p2p::protocol::mouse_click::{MouseButton, MouseState};
 use enigo::Mouse;
 use enigo::{Button, Coordinate::Abs, Enigo, Settings};
 
-pub struct EnigoMouse {
+pub struct EnigoInput {
     enigo: Enigo,
 }
 
-impl EnigoMouse {
+impl EnigoInput {
     pub fn new() -> Self {
         Self {
             enigo: Enigo::new(&Settings::default()).unwrap(),
@@ -14,7 +14,7 @@ impl EnigoMouse {
     }
 }
 
-impl Default for EnigoMouse {
+impl Default for EnigoInput {
     fn default() -> Self {
         Self {
             enigo: Enigo::new(&Settings::default()).unwrap(),
@@ -22,7 +22,7 @@ impl Default for EnigoMouse {
     }
 }
 
-impl super::Mouse for EnigoMouse {
+impl super::Mouse for EnigoInput {
     fn click_mouse(
         &mut self,
         button: crate::p2p::protocol::mouse_click::MouseButton,

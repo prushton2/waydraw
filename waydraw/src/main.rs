@@ -1,6 +1,6 @@
 pub mod config;
 pub mod encoding;
-pub mod mouse;
+pub mod input;
 pub mod p2p;
 pub mod screen_capture;
 

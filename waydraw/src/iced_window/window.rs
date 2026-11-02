@@ -16,9 +16,9 @@ use super::Window;
 
 impl Window {
     pub fn boot() -> Self {
-        let mut mouse: Box<dyn crate::mouse::Mouse> = Box::new(crate::mouse::DummyMouse::new());
+        let mut mouse: Box<dyn crate::input::Mouse> = Box::new(crate::input::DummyInput::new());
         if !cfg!(debug_assertions) {
-            mouse = Box::new(crate::mouse::EnigoMouse::new());
+            mouse = Box::new(crate::input::EnigoInput::new());
         }
 
         let monitors = read_monitors().unwrap_or_default();

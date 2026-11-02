@@ -34,7 +34,7 @@ pub struct Window {
 
     // Host side stuff
     client_info: Option<ClientHello>,
-    mouse: Box<dyn crate::mouse::Mouse>,
+    mouse: Box<dyn crate::input::Mouse>,
     video_recorder: Arc<std::sync::RwLock<Option<ScreenCapture>>>,
 
     // Misc

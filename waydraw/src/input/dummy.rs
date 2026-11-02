@@ -1,14 +1,14 @@
 #[derive(Default)]
-pub struct DummyMouse;
+pub struct DummyInput;
 
 #[allow(dead_code)]
-impl DummyMouse {
+impl DummyInput {
     pub fn new() -> Self {
         Self
     }
 }
 
-impl super::Mouse for DummyMouse {
+impl super::Mouse for DummyInput {
     fn click_mouse(
         &mut self,
         button: crate::p2p::protocol::mouse_click::MouseButton,

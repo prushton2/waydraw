@@ -3,10 +3,8 @@ use crate::p2p::protocol::mouse_click::{MouseButton, MouseState};
 pub mod dummy;
 pub mod enigo;
 
-#[allow(unused)]
-pub use dummy::DummyMouse;
-#[allow(unused)]
-pub use enigo::EnigoMouse;
+pub use dummy::DummyInput;
+pub use enigo::EnigoInput;
 
 pub trait Mouse: Send {
     fn move_mouse(&mut self, x: i32, y: i32);
