@@ -26,8 +26,3 @@ MacOS           | ✅ | ✅
   * Macos will not remember the accessibility settings between versions, since I dont have an Apple developer ID.
 * Windows
   * The app is flagged as a virus by default. Microsoft defender remains a mystery to me, so I just ended up disabling it for waydraw to work.
-
-## Known Issues
-* Fractional scaling on Wayland
-  * pinray and display_info incorrectly report fractional display scaling. Pinray has a merged fix, once the release is made I will update the crate.
-  
