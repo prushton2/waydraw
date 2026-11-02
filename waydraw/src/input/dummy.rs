@@ -8,21 +8,21 @@ impl DummyInput {
     }
 }
 
-impl super::Mouse for DummyInput {
+impl super::Input for DummyInput {
     fn click_mouse(
         &mut self,
-        button: crate::p2p::protocol::mouse_click::MouseButton,
-        state: crate::p2p::protocol::mouse_click::MouseState,
+        button: crate::input::MouseButton,
+        state:  crate::input::MouseState,
     ) {
         println!(
             "{} click {}",
             match button {
-                crate::p2p::protocol::mouse_click::MouseButton::Left => "Left",
-                crate::p2p::protocol::mouse_click::MouseButton::Right => "Right",
+                crate::input::MouseButton::Left => "Left",
+                crate::input::MouseButton::Right => "Right",
             },
             match state {
-                crate::p2p::protocol::mouse_click::MouseState::Pressed => "Pressed",
-                crate::p2p::protocol::mouse_click::MouseState::Released => "Released",
+                crate::input::MouseState::Pressed => "Pressed",
+                crate::input::MouseState::Released => "Released",
             }
         );
     }

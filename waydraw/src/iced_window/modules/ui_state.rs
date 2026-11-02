@@ -9,7 +9,7 @@ use iced::{Border, Element, Padding, Theme};
 use crate::iced_window::window::Monitor;
 use crate::iced_window::{Message, Window, modules};
 
-use crate::p2p::protocol::mouse_click::{MouseButton, MouseState};
+use crate::input::{MouseButton, MouseState};
 
 pub enum UIState {
     Host {

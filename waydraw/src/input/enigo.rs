@@ -1,6 +1,4 @@
-use crate::p2p::protocol::mouse_click::{MouseButton, MouseState};
-use enigo::Mouse;
-use enigo::{Button, Coordinate::Abs, Enigo, Settings};
+use enigo::{Button, Coordinate::Abs, Enigo, Mouse, Settings};
 
 pub struct EnigoInput {
     enigo: Enigo,
@@ -22,20 +20,20 @@ impl Default for EnigoInput {
     }
 }
 
-impl super::Mouse for EnigoInput {
+impl super::Input for EnigoInput {
     fn click_mouse(
         &mut self,
-        button: crate::p2p::protocol::mouse_click::MouseButton,
-        state: crate::p2p::protocol::mouse_click::MouseState,
+        button: super::MouseButton,
+        state:  super::MouseState,
     ) {
         let _ = self.enigo.button(
             match button {
-                MouseButton::Left => Button::Left,
-                MouseButton::Right => Button::Right,
+                super::MouseButton::Left => Button::Left,
+                super::MouseButton::Right => Button::Right,
             },
             match state {
-                MouseState::Pressed => enigo::Direction::Press,
-                MouseState::Released => enigo::Direction::Release,
+                super::MouseState::Pressed => enigo::Direction::Press,
+                super::MouseState::Released => enigo::Direction::Release,
             },
         );
     }

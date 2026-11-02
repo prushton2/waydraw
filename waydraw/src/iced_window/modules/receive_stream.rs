@@ -6,9 +6,9 @@ use crate::p2p;
 use crate::{
     iced_window::modules::ui_state::UIState,
     p2p::protocol::{
-        self, FromBytes,
-        mouse_click::{MouseButton, MouseState},
+        self, FromBytes
     },
+    input::{MouseButton, MouseState}
 };
 use fast_image_resize::{
     ResizeOptions, Resizer,

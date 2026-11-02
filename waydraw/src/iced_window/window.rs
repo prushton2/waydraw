@@ -16,7 +16,7 @@ use super::Window;
 
 impl Window {
     pub fn boot() -> Self {
-        let mut mouse: Box<dyn crate::input::Mouse> = Box::new(crate::input::DummyInput::new());
+        let mut mouse: Box<dyn crate::input::Input> = Box::new(crate::input::DummyInput::new());
         if !cfg!(debug_assertions) {
             mouse = Box::new(crate::input::EnigoInput::new());
         }

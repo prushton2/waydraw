@@ -10,7 +10,7 @@ use crate::p2p::protocol::{ClientHello, ServerHello};
 use crate::screen_capture::ScreenCapture;
 use crate::{encoding::Codec, iced_window::modules::receive_stream};
 
-use crate::p2p::protocol::mouse_click::{MouseButton, MouseState};
+use crate::input::{MouseButton, MouseState};
 
 mod modules;
 pub mod window;
@@ -34,7 +34,7 @@ pub struct Window {
 
     // Host side stuff
     client_info: Option<ClientHello>,
-    mouse: Box<dyn crate::input::Mouse>,
+    mouse: Box<dyn crate::input::Input>,
     video_recorder: Arc<std::sync::RwLock<Option<ScreenCapture>>>,
 
     // Misc
