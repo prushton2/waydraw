@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
 use tokio::sync::RwLock;
 
@@ -15,12 +15,15 @@ use crate::p2p::protocol::mouse_click::{MouseButton, MouseState};
 mod modules;
 pub mod window;
 
+pub type TokioOpt<T> = Arc<RwLock<Option<T>>>;
+pub type SyncOpt<T> = Arc<Mutex<Option<T>>>;
+
 pub struct Window {
     pub config: crate::Config,
     heartbeat: Arc<std::sync::Mutex<heartbeat::Heartbeat>>,
 
-    p2p: Arc<RwLock<Option<crate::p2p::P2P>>>,
-    encoder: Arc<std::sync::Mutex<Option<Box<dyn Codec>>>>,
+    p2p: TokioOpt<crate::p2p::P2P>,
+    encoder: SyncOpt<Box<dyn Codec>>,
     ui_state: modules::ui_state::UIState,
     monitors: Vec<Monitor>,
     selected_monitor: String,
