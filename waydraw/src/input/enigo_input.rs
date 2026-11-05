@@ -21,11 +21,7 @@ impl Default for EnigoInput {
 }
 
 impl super::Input for EnigoInput {
-    fn click_mouse(
-        &mut self,
-        button: super::MouseButton,
-        state:  super::MouseState,
-    ) {
+    fn click_mouse(&mut self, button: super::MouseButton, state: super::MouseState) {
         let _ = self.enigo.button(
             match button {
                 super::MouseButton::Left => Button::Left,
@@ -43,9 +39,12 @@ impl super::Input for EnigoInput {
     }
 
     fn key_event(&mut self, key: enigo::Key, state: super::KeyState) {
-        self.enigo.key(key, match state {
-            super::KeyState::Pressed => enigo::Direction::Press,
-            super::KeyState::Released => enigo::Direction::Release,
-        });
+        let _ = self.enigo.key(
+            key,
+            match state {
+                super::KeyState::Pressed => enigo::Direction::Press,
+                super::KeyState::Released => enigo::Direction::Release,
+            },
+        );
     }
 }

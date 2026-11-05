@@ -9,11 +9,7 @@ impl DummyInput {
 }
 
 impl super::Input for DummyInput {
-    fn click_mouse(
-        &mut self,
-        button: crate::input::MouseButton,
-        state:  crate::input::MouseState,
-    ) {
+    fn click_mouse(&mut self, button: crate::input::MouseButton, state: crate::input::MouseState) {
         println!(
             "{} click {}",
             match button {

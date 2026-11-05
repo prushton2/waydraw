@@ -11,7 +11,6 @@ pub trait Input: Send {
     fn key_event(&mut self, key: enigo::Key, state: KeyState);
 }
 
-
 #[derive(Debug, Copy, Clone, Serialize, Deserialize)]
 pub enum MouseButton {
     Left,

@@ -53,6 +53,7 @@ pub enum Message {
     ClientConnectFlow(modules::client::ConnectFlow),
     MouseMove(i32, i32),
     MouseClick(MouseButton, MouseState),
+    KeyEvent(iced::keyboard::Event),
 
     // Host side stuff
     HostConnectFlow(modules::host::ConnectFlow),

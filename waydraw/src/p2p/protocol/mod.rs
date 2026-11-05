@@ -1,22 +1,22 @@
 pub mod client_hello;
 pub mod goodbye;
 pub mod heartbeat;
+pub mod key_event;
 pub mod mouse_click;
 pub mod mouse_move;
 pub mod screenshot;
 pub mod server_hello;
 pub mod window_resized;
-pub mod key_event;
 
 pub use client_hello::ClientHello;
 pub use goodbye::Goodbye;
 pub use heartbeat::Heartbeat;
+pub use key_event::KeyEvent;
 pub use mouse_click::MouseClick;
 pub use mouse_move::MouseMove;
 pub use screenshot::Screenshot;
 pub use server_hello::ServerHello;
 pub use window_resized::WindowResized;
-pub use key_event::KeyEvent;
 
 #[derive(Debug, Clone)]
 pub enum FromBytes {

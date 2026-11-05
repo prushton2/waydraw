@@ -28,6 +28,6 @@ iroh = "1.2"
 reqwest = "0.13"
 # Other
 anyhow = "1.0"
-enigo = "0.6"
+enigo = { version = "0.6", features = ["serde"] }
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 constcat = "0.6.1"

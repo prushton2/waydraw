@@ -5,10 +5,8 @@ use crate::iced_window::modules;
 use crate::p2p;
 use crate::{
     iced_window::modules::ui_state::UIState,
-    p2p::protocol::{
-        self, FromBytes
-    },
-    input::{MouseButton, MouseState}
+    input::{KeyState, MouseButton, MouseState},
+    p2p::protocol::{self, FromBytes},
 };
 use fast_image_resize::{
     ResizeOptions, Resizer,
@@ -18,11 +16,15 @@ use iced::{Task, widget::image};
 
 use crate::iced_window::{Message, Window};
 
+// The receive flow is p2p_stream catches the message -> p2p_stream checks the message, casts it to a struct, and returns it in a message
+// -> super::update forwards message to update -> update processes and executes the message
+// This flow exists to allow messages to modify state, which is unreasonable inside of a stream
 #[derive(Clone)]
 pub enum P2PMessage {
     MouseClick(MouseButton, MouseState),
-    Heartbeat,
     MouseMove(u32, u32),
+    KeyEvent(enigo::Key, KeyState),
+    Heartbeat,
     WindowResize(u32, u32),
     ScreenshotReceived(protocol::Screenshot),
     Goodbye,
@@ -70,6 +72,12 @@ pub fn p2p_stream(feed: &P2PObject) -> impl iced::futures::Stream<Item = Message
             }
             FromBytes::MouseMove(t) => {
                 return Some((Message::P2PMessage(P2PMessage::MouseMove(t.x, t.y)), p2p));
+            }
+            FromBytes::KeyEvent(t) => {
+                return Some((
+                    Message::P2PMessage(P2PMessage::KeyEvent(t.key, t.state)),
+                    p2p,
+                ));
             }
             FromBytes::WindowResized(t) => {
                 return Some((
@@ -130,6 +138,10 @@ pub fn update(this: &mut Window, message: P2PMessage) -> Task<Message> {
 
             this.mouse
                 .move_mouse(mouse_position.0 as i32, mouse_position.1 as i32);
+            Task::none()
+        }
+        P2PMessage::KeyEvent(key, state) => {
+            this.mouse.key_event(key, state);
             Task::none()
         }
         P2PMessage::WindowResize(x, y) => {
