@@ -357,6 +357,7 @@ fn map_iced_key_to_enigo_key(key: iced::keyboard::Key) -> enigo::Key {
         iced::keyboard::Key::Named(iced::keyboard::key::Named::Shift) => enigo::Key::Shift,
         iced::keyboard::Key::Named(iced::keyboard::key::Named::Alt) => enigo::Key::Alt,
         iced::keyboard::Key::Named(iced::keyboard::key::Named::Control) => enigo::Key::Control,
+        iced::keyboard::Key::Named(iced::keyboard::key::Named::Super) => enigo::Key::Meta,
         iced::keyboard::Key::Named(iced::keyboard::key::Named::F1) =>  enigo::Key::F1,
         iced::keyboard::Key::Named(iced::keyboard::key::Named::F2) =>  enigo::Key::F2,
         iced::keyboard::Key::Named(iced::keyboard::key::Named::F3) =>  enigo::Key::F3,
