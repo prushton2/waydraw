@@ -121,24 +121,18 @@ impl Window {
                         modifiers: _,
                         text: _,
                         repeat: false, // Ignore held keys that get repeated
-                    } => (
-                        key,
-                        crate::input::KeyState::Pressed,
-                    ),
+                    } => (key, crate::input::KeyState::Pressed),
                     iced::keyboard::Event::KeyReleased {
                         key,
                         modified_key: _,
                         physical_key: _,
                         location: _,
                         modifiers: _,
-                    } => (
-                        key,
-                        crate::input::KeyState::Released,
-                    ),
+                    } => (key, crate::input::KeyState::Released),
                     _ => return Task::none(),
                 };
 
-                let mut lock = self.key_queue.lock().unwrap(); 
+                let mut lock = self.key_queue.lock().unwrap();
                 lock.push((key.into(), state));
                 Task::none()
             }
@@ -282,10 +276,13 @@ pub fn subscription(window: &Window) -> Subscription<Message> {
 
         let key_send_stream_params = key_send_stream::KeySendStream {
             p2p: window.p2p.clone(),
-            queue: window.key_queue.clone()
+            queue: window.key_queue.clone(),
         };
 
-        subscriptions.push(iced::Subscription::run_with(key_send_stream_params, key_send_stream::key_send_stream));
+        subscriptions.push(iced::Subscription::run_with(
+            key_send_stream_params,
+            key_send_stream::key_send_stream,
+        ));
     }
 
     iced::Subscription::batch(subscriptions)

@@ -5,7 +5,7 @@ use crate::iced_window::modules;
 use crate::p2p;
 use crate::{
     iced_window::modules::ui_state::UIState,
-    input::{KeyState, MouseButton, MouseState, Key},
+    input::{Key, KeyState, MouseButton, MouseState},
     p2p::protocol::{self, FromBytes},
 };
 use fast_image_resize::{
@@ -103,18 +103,20 @@ pub fn p2p_stream(feed: &P2PObject) -> impl iced::futures::Stream<Item = Message
 pub fn update(this: &mut Window, message: P2PMessage) -> Task<Message> {
     match message {
         P2PMessage::MouseClick(button, state) => {
-            if let UIState::ConnectedHost = this.ui_state {} else {
+            if let UIState::ConnectedHost = this.ui_state {
+            } else {
                 return Task::none();
             }
-            
+
             this.mouse.click_mouse(button, state);
             Task::none()
         }
         P2PMessage::MouseMove(x, y) => {
-            if let UIState::ConnectedHost = this.ui_state {} else {
+            if let UIState::ConnectedHost = this.ui_state {
+            } else {
                 return Task::none();
             }
-            
+
             let selected_monitor = this
                 .monitors
                 .iter()
@@ -149,7 +151,8 @@ pub fn update(this: &mut Window, message: P2PMessage) -> Task<Message> {
             Task::none()
         }
         P2PMessage::KeyEvent(key, state) => {
-            if let UIState::ConnectedHost = this.ui_state {} else {
+            if let UIState::ConnectedHost = this.ui_state {
+            } else {
                 return Task::none();
             }
 
