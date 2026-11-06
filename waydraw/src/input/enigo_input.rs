@@ -38,9 +38,9 @@ impl super::Input for EnigoInput {
         self.enigo.move_mouse(x, y, Abs).unwrap();
     }
 
-    fn key_event(&mut self, key: enigo::Key, state: super::KeyState) {
+    fn key_event(&mut self, key: super::Key, state: super::KeyState) {
         let _ = self.enigo.key(
-            key,
+            key.into(),
             match state {
                 super::KeyState::Pressed => enigo::Direction::Press,
                 super::KeyState::Released => enigo::Direction::Release,

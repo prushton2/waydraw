@@ -5,7 +5,7 @@ use crate::iced_window::modules;
 use crate::p2p;
 use crate::{
     iced_window::modules::ui_state::UIState,
-    input::{KeyState, MouseButton, MouseState},
+    input::{KeyState, MouseButton, MouseState, Key},
     p2p::protocol::{self, FromBytes},
 };
 use fast_image_resize::{
@@ -23,7 +23,7 @@ use crate::iced_window::{Message, Window};
 pub enum P2PMessage {
     MouseClick(MouseButton, MouseState),
     MouseMove(u32, u32),
-    KeyEvent(enigo::Key, KeyState),
+    KeyEvent(Key, KeyState),
     Heartbeat,
     WindowResize(u32, u32),
     ScreenshotReceived(protocol::Screenshot),

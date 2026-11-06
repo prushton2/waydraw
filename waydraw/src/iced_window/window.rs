@@ -121,7 +121,7 @@ impl Window {
                         text: _,
                         repeat: _,
                     } => (
-                        map_iced_key_to_enigo_key(key),
+                        key,
                         crate::input::KeyState::Pressed,
                     ),
                     iced::keyboard::Event::KeyReleased {
@@ -131,7 +131,7 @@ impl Window {
                         location: _,
                         modifiers: _,
                     } => (
-                        map_iced_key_to_enigo_key(key),
+                        key,
                         crate::input::KeyState::Released,
                     ),
                     _ => return Task::none(),
@@ -142,7 +142,7 @@ impl Window {
                 Task::perform(
                     async move {
                         if let Some(lock) = p2p_arc.read().await.as_ref() {
-                            let message = protocol::KeyEvent { key, state };
+                            let message = protocol::KeyEvent { key: key.into(), state };
                             let _ = lock.send(&message.into_bytes()).await;
                         }
                     },
@@ -347,29 +347,4 @@ pub fn get_version() -> (u8, u8, u8) {
         .collect::<Vec<u8>>();
 
     (version[0], version[1], version[2])
-}
-
-fn map_iced_key_to_enigo_key(key: iced::keyboard::Key) -> enigo::Key {
-    match key {
-        iced::keyboard::Key::Character(c) => {
-            enigo::Key::Unicode(c.chars().next().unwrap_or_default())
-        }
-        iced::keyboard::Key::Named(iced::keyboard::key::Named::Shift) => enigo::Key::Shift,
-        iced::keyboard::Key::Named(iced::keyboard::key::Named::Alt) => enigo::Key::Alt,
-        iced::keyboard::Key::Named(iced::keyboard::key::Named::Control) => enigo::Key::Control,
-        iced::keyboard::Key::Named(iced::keyboard::key::Named::Super) => enigo::Key::Meta,
-        iced::keyboard::Key::Named(iced::keyboard::key::Named::F1) =>  enigo::Key::F1,
-        iced::keyboard::Key::Named(iced::keyboard::key::Named::F2) =>  enigo::Key::F2,
-        iced::keyboard::Key::Named(iced::keyboard::key::Named::F3) =>  enigo::Key::F3,
-        iced::keyboard::Key::Named(iced::keyboard::key::Named::F4) =>  enigo::Key::F4,
-        iced::keyboard::Key::Named(iced::keyboard::key::Named::F5) =>  enigo::Key::F5,
-        iced::keyboard::Key::Named(iced::keyboard::key::Named::F6) =>  enigo::Key::F6,
-        iced::keyboard::Key::Named(iced::keyboard::key::Named::F7) =>  enigo::Key::F7,
-        iced::keyboard::Key::Named(iced::keyboard::key::Named::F8) =>  enigo::Key::F8,
-        iced::keyboard::Key::Named(iced::keyboard::key::Named::F9) =>  enigo::Key::F9,
-        iced::keyboard::Key::Named(iced::keyboard::key::Named::F10) => enigo::Key::F10,
-        iced::keyboard::Key::Named(iced::keyboard::key::Named::F11) => enigo::Key::F11,
-        iced::keyboard::Key::Named(iced::keyboard::key::Named::F12) => enigo::Key::F12,
-        _ => enigo::Key::Other(0),
-    }
 }

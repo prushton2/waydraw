@@ -27,7 +27,7 @@ impl super::Input for DummyInput {
         println!("Move to {}, {}", x, y);
     }
 
-    fn key_event(&mut self, key: enigo::Key, state: super::KeyState) {
+    fn key_event(&mut self, key: super::Key, state: super::KeyState) {
         println!("Key {:?} {:?}", key, state)
     }
 }
