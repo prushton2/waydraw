@@ -119,7 +119,7 @@ impl Window {
                         location: _,
                         modifiers: _,
                         text: _,
-                        repeat: _,
+                        repeat: false, // Ignore held keys that get repeated
                     } => (
                         key,
                         crate::input::KeyState::Pressed,
