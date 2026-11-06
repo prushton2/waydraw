@@ -43,6 +43,7 @@ impl Window {
 
             allocation: None,
             server_info: None,
+            key_queue: Arc::new(Mutex::new(vec![])),
 
             client_info: None,
             mouse,
@@ -137,17 +138,9 @@ impl Window {
                     _ => return Task::none(),
                 };
 
-                let p2p_arc = self.p2p.clone();
-
-                Task::perform(
-                    async move {
-                        if let Some(lock) = p2p_arc.read().await.as_ref() {
-                            let message = protocol::KeyEvent { key: key.into(), state };
-                            let _ = lock.send(&message.into_bytes()).await;
-                        }
-                    },
-                    |_| Message::None,
-                )
+                let mut lock = self.key_queue.lock().unwrap(); 
+                lock.push((key.into(), state));
+                Task::none()
             }
 
             // Host stuff
@@ -286,6 +279,13 @@ pub fn subscription(window: &Window) -> Subscription<Message> {
 
     if let UIState::ConnectedClient = window.ui_state {
         subscriptions.push(iced::keyboard::listen().map(Message::KeyEvent));
+
+        let key_send_stream_params = key_send_stream::KeySendStream {
+            p2p: window.p2p.clone(),
+            queue: window.key_queue.clone()
+        };
+
+        subscriptions.push(iced::Subscription::run_with(key_send_stream_params, key_send_stream::key_send_stream));
     }
 
     iced::Subscription::batch(subscriptions)

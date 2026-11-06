@@ -31,6 +31,8 @@ pub struct Window {
     // Client side stuff
     allocation: Option<iced_core::image::Allocation>,
     server_info: Option<ServerHello>,
+    // Since keys can be sent out of order due to when locks are acquired, this queue sends them one at a time in order
+    key_queue: Arc<Mutex<Vec<(crate::input::Key, crate::input::KeyState)>>>,
 
     // Host side stuff
     client_info: Option<ClientHello>,
