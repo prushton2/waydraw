@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
 use tokio::sync::RwLock;
 
@@ -10,17 +10,20 @@ use crate::p2p::protocol::{ClientHello, ServerHello};
 use crate::screen_capture::ScreenCapture;
 use crate::{encoding::Codec, iced_window::modules::receive_stream};
 
-use crate::p2p::protocol::mouse_click::{MouseButton, MouseState};
+use crate::input::{MouseButton, MouseState};
 
 mod modules;
 pub mod window;
+
+pub type TokioOpt<T> = Arc<RwLock<Option<T>>>;
+pub type SyncOpt<T> = Arc<Mutex<Option<T>>>;
 
 pub struct Window {
     pub config: crate::Config,
     heartbeat: Arc<std::sync::Mutex<heartbeat::Heartbeat>>,
 
-    p2p: Arc<RwLock<Option<crate::p2p::P2P>>>,
-    encoder: Arc<std::sync::Mutex<Option<Box<dyn Codec>>>>,
+    p2p: TokioOpt<crate::p2p::P2P>,
+    encoder: SyncOpt<Box<dyn Codec>>,
     ui_state: modules::ui_state::UIState,
     monitors: Vec<Monitor>,
     selected_monitor: String,
@@ -28,10 +31,12 @@ pub struct Window {
     // Client side stuff
     allocation: Option<iced_core::image::Allocation>,
     server_info: Option<ServerHello>,
+    // Since keys can be sent out of order due to when locks are acquired, this queue sends them one at a time in order
+    key_queue: Arc<Mutex<Vec<(crate::input::Key, crate::input::KeyState)>>>,
 
     // Host side stuff
     client_info: Option<ClientHello>,
-    mouse: Box<dyn crate::mouse::Mouse>,
+    mouse: Box<dyn crate::input::Input>,
     video_recorder: Arc<std::sync::RwLock<Option<ScreenCapture>>>,
 
     // Misc
@@ -50,7 +55,7 @@ pub enum Message {
     ClientConnectFlow(modules::client::ConnectFlow),
     MouseMove(i32, i32),
     MouseClick(MouseButton, MouseState),
-    // ImageAllocated(Result<Allocation, Error>),
+    KeyEvent(iced::keyboard::Event),
 
     // Host side stuff
     HostConnectFlow(modules::host::ConnectFlow),
@@ -63,7 +68,7 @@ pub enum Message {
     /// Key, New key
     UpdateKnownHostKey(String, String),
     ResetSecretKey,
-    // ResetSecretKey(bool),
+
     // Misc
     WindowResize(usize, usize),
     Disconnect,

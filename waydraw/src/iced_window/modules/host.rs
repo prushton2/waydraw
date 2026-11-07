@@ -4,9 +4,9 @@ use iced::Task;
 use sysinfo::System;
 use tokio::sync::RwLock;
 
-use crate::iced_window::Window;
 use crate::iced_window::modules::ui_state::{self, UIState};
 use crate::iced_window::window::get_version;
+use crate::iced_window::{TokioOpt, Window};
 use crate::p2p::protocol;
 use crate::p2p::{
     self,
@@ -15,10 +15,9 @@ use crate::p2p::{
 use crate::{encoding, screen_capture};
 
 #[derive(Clone)]
-#[allow(clippy::type_complexity)]
 pub enum ConnectFlow {
     Register,
-    AwaitClient(Result<(Arc<RwLock<Option<p2p::P2P>>>, String, String), String>),
+    AwaitClient(Result<(TokioOpt<p2p::P2P>, String, String), String>),
     SendHello(Result<(), String>),
     Connect((ClientHello, String)),
     Disconnect,

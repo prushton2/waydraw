@@ -16,9 +16,9 @@ use super::Window;
 
 impl Window {
     pub fn boot() -> Self {
-        let mut mouse: Box<dyn crate::mouse::Mouse> = Box::new(crate::mouse::DummyMouse::new());
+        let mut mouse: Box<dyn crate::input::Input> = Box::new(crate::input::DummyInput::new());
         if !cfg!(debug_assertions) {
-            mouse = Box::new(crate::mouse::EnigoMouse::new());
+            mouse = Box::new(crate::input::EnigoInput::new());
         }
 
         let monitors = read_monitors().unwrap_or_default();
@@ -43,6 +43,7 @@ impl Window {
 
             allocation: None,
             server_info: None,
+            key_queue: Arc::new(Mutex::new(vec![])),
 
             client_info: None,
             mouse,
@@ -109,6 +110,31 @@ impl Window {
                     },
                     |_| Message::None,
                 )
+            }
+            Message::KeyEvent(e) => {
+                let (key, state) = match e {
+                    iced::keyboard::Event::KeyPressed {
+                        key,
+                        modified_key: _,
+                        physical_key: _,
+                        location: _,
+                        modifiers: _,
+                        text: _,
+                        repeat: false, // Ignore held keys that get repeated
+                    } => (key, crate::input::KeyState::Pressed),
+                    iced::keyboard::Event::KeyReleased {
+                        key,
+                        modified_key: _,
+                        physical_key: _,
+                        location: _,
+                        modifiers: _,
+                    } => (key, crate::input::KeyState::Released),
+                    _ => return Task::none(),
+                };
+
+                let mut lock = self.key_queue.lock().unwrap();
+                lock.push((key.into(), state));
+                Task::none()
             }
 
             // Host stuff
@@ -242,6 +268,20 @@ pub fn subscription(window: &Window) -> Subscription<Message> {
         subscriptions.push(iced::Subscription::run_with(
             screencap_stream,
             screencap_stream::screencap_stream,
+        ));
+    }
+
+    if let UIState::ConnectedClient = window.ui_state {
+        subscriptions.push(iced::keyboard::listen().map(Message::KeyEvent));
+
+        let key_send_stream_params = key_send_stream::KeySendStream {
+            p2p: window.p2p.clone(),
+            queue: window.key_queue.clone(),
+        };
+
+        subscriptions.push(iced::Subscription::run_with(
+            key_send_stream_params,
+            key_send_stream::key_send_stream,
         ));
     }
 

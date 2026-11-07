@@ -4,7 +4,7 @@ use iced::Task;
 use iroh::EndpointId;
 use tokio::sync::RwLock;
 
-use crate::iced_window::modules::*;
+use crate::iced_window::{TokioOpt, modules::*};
 use crate::{
     encoding,
     iced_window::{Window, window::get_version},
@@ -16,20 +16,10 @@ use crate::{
 };
 
 #[derive(Clone)]
-#[allow(clippy::type_complexity)]
 pub enum ConnectFlow {
     PinSubmitted(String),
     KeySubmitted(String),
-    Connected(
-        Result<
-            (
-                Arc<RwLock<Option<crate::p2p::P2P>>>,
-                protocol::ServerHello,
-                String,
-            ),
-            P2PError,
-        >,
-    ),
+    Connected(Result<(TokioOpt<crate::p2p::P2P>, protocol::ServerHello, String), P2PError>),
     Disconnect,
     Null(()),
 }
