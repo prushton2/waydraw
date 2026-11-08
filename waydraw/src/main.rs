@@ -18,7 +18,7 @@ fn main() {
         iced_window::Window::view,
     )
     .theme(theme)
-    .subscription(iced_window::window::subscription)
+    // .subscription(iced_window::window::subscription)
     .title(TITLE)
     .run();
 }

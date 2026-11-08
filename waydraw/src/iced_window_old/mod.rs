@@ -1,0 +1,78 @@
+use std::sync::{Arc, Mutex};
+
+use tokio::sync::RwLock;
+
+use iced_core::image::{Allocation, Error};
+
+use crate::iced_window::modules::heartbeat;
+use crate::iced_window::window::Monitor;
+use crate::p2p::protocol::{ClientHello, ServerHello};
+use crate::screen_capture::ScreenCapture;
+use crate::{encoding::Codec, iced_window::modules::receive_stream};
+
+use crate::input::{MouseButton, MouseState};
+
+mod modules;
+pub mod window;
+
+pub type TokioOpt<T> = Arc<RwLock<Option<T>>>;
+pub type SyncOpt<T> = Arc<Mutex<Option<T>>>;
+
+pub struct Window {
+    pub config: crate::Config,
+    heartbeat: Arc<std::sync::Mutex<heartbeat::Heartbeat>>,
+
+    p2p: TokioOpt<crate::p2p::P2P>,
+    encoder: SyncOpt<Box<dyn Codec>>,
+    ui_state: modules::ui_state::UIState,
+    monitors: Vec<Monitor>,
+    selected_monitor: String,
+
+    // Client side stuff
+    allocation: Option<iced_core::image::Allocation>,
+    server_info: Option<ServerHello>,
+    // Since keys can be sent out of order due to when locks are acquired, this queue sends them one at a time in order
+    key_queue: Arc<Mutex<Vec<(crate::input::Key, crate::input::KeyState)>>>,
+
+    // Host side stuff
+    client_info: Option<ClientHello>,
+    mouse: Box<dyn crate::input::Input>,
+    video_recorder: Arc<std::sync::RwLock<Option<ScreenCapture>>>,
+
+    // Misc
+    window_size: (usize, usize),
+}
+
+#[derive(Clone)]
+pub enum Message {
+    UIUpdate(modules::ui_state::UIUpdate),
+    P2PMessage(receive_stream::P2PMessage),
+    RemoveKnownHost(String),
+    HeartbeatMessage(heartbeat::HeartbeatMessage),
+
+    // Client side stuff
+    ImageAllocated(Result<Allocation, Error>),
+    ClientConnectFlow(modules::client::ConnectFlow),
+    MouseMove(i32, i32),
+    MouseClick(MouseButton, MouseState),
+    KeyEvent(iced::keyboard::Event),
+
+    // Host side stuff
+    HostConnectFlow(modules::host::ConnectFlow),
+    SelectMonitor(String),
+
+    // Settings
+    ChangeTheme(iced::Theme),
+    /// Key, New hostname
+    UpdateKnownHostName(String, String),
+    /// Key, New key
+    UpdateKnownHostKey(String, String),
+    ResetSecretKey,
+
+    // Misc
+    WindowResize(usize, usize),
+    Disconnect,
+    PostDisconnectCleanup,
+
+    None,
+}
