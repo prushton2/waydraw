@@ -1,12 +1,15 @@
+use std::sync::Arc;
+
 use iced::{Alignment, Length, Task, widget::{button, column, container, row, space}};
 
 use super::{Message, Window, Screen, screens, styles};
 
 impl Window {
     pub fn boot() -> Self {
+        let config = crate::Config::load_or_generate();
         Self {
             screen: Screen::Host(screens::Host::new()),
-            config: crate::Config::load_or_generate()
+            config: config,
         }
     }
 

@@ -2,6 +2,8 @@ use std::sync::{Arc, Mutex};
 
 use tokio::sync::RwLock;
 
+use crate::p2p;
+
 mod screens;
 pub mod window;
 pub mod styles;
