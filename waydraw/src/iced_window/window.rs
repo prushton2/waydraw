@@ -5,7 +5,8 @@ use super::{Message, Window, Screen, screens, styles};
 impl Window {
     pub fn boot() -> Self {
         Self {
-            screen: Screen::Host(screens::Host::new())
+            screen: Screen::Host(screens::Host::new()),
+            config: crate::Config::load_or_generate()
         }
     }
 
@@ -27,7 +28,7 @@ impl Window {
             },
             Message::SettingsMessage(m) => {
                 if let Screen::Settings(settings) = &mut self.screen {
-                    settings.update(m)
+                    settings.update(&mut self.config, m)
                 } else {
                     Task::none()
                 }
@@ -57,7 +58,7 @@ impl Window {
             }
             Screen::Settings(s) => {
                 ribbon_wrapper(self, 
-                    s.view()
+                    s.view(&self.config)
                 )
             }
             _ => {

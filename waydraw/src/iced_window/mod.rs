@@ -5,6 +5,7 @@ use tokio::sync::RwLock;
 mod screens;
 pub mod window;
 pub mod styles;
+pub mod widgets;
 
 pub type TokioOpt<T> = Arc<RwLock<Option<T>>>;
 pub type SyncOpt<T> = Arc<Mutex<Option<T>>>;
@@ -19,7 +20,8 @@ pub enum Screen {
 }
 
 pub struct Window {
-    screen: Screen
+    pub config: crate::Config,
+    pub screen: Screen
 }
 
 #[derive(Clone)]

@@ -1,5 +1,5 @@
 use iced::{Task, Length, Alignment, widget::{column, space, container, text, row, text_input, button}};
-use crate::iced_window::Message;
+use crate::iced_window::{Message, styles};
 
 #[derive(Clone)]
 pub struct Host {
@@ -43,7 +43,11 @@ impl Host {
             .map(|e| {
                 button(e.1.as_str())
                     .on_press(Message::HostMessage(HostMessage::SetMonitor(e.0.clone())))
-                    // .style(|t, _| {})
+                    .style(|t, _| if self.monitor == e.0 {
+                        styles::selected_monitor(t)
+                    } else {
+                        styles::unselected_monitor(t)
+                    })
                     .into()
             })
             .collect();

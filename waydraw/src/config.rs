@@ -176,7 +176,6 @@ pub struct Theme;
 
 impl ThemeFn<iced_window::Window, iced::Theme> for Theme {
     fn theme(&self, state: &iced_window::Window) -> Option<iced::Theme> {
-        // Some(state.config.theme.clone())
-        Some(iced::Theme::CatppuccinMocha)
+        Some(state.config.theme.clone())
     }
 }

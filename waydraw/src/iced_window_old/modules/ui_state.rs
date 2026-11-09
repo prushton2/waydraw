@@ -442,34 +442,7 @@ pub fn update(this: &mut Window, message: UIUpdate) {
 struct Widgets;
 
 impl Widgets {
-    pub fn theme_dropdown(theme: &iced::Theme) -> iced::Element<'static, Message> {
-        let options = [
-            iced::Theme::Light,
-            iced::Theme::Dark,
-            iced::Theme::Dracula,
-            iced::Theme::Nord,
-            iced::Theme::SolarizedLight,
-            iced::Theme::SolarizedDark,
-            iced::Theme::GruvboxLight,
-            iced::Theme::GruvboxDark,
-            iced::Theme::CatppuccinLatte,
-            iced::Theme::CatppuccinFrappe,
-            iced::Theme::CatppuccinMacchiato,
-            iced::Theme::CatppuccinMocha,
-            iced::Theme::TokyoNight,
-            iced::Theme::TokyoNightStorm,
-            iced::Theme::TokyoNightLight,
-            iced::Theme::KanagawaWave,
-            iced::Theme::KanagawaDragon,
-            iced::Theme::KanagawaLotus,
-            iced::Theme::Moonfly,
-            iced::Theme::Nightfly,
-            iced::Theme::Oxocarbon,
-            iced::Theme::Ferra,
-        ];
-
-        pick_list(options, Some(theme.clone()), Message::ChangeTheme).into()
-    }
+   
 
     pub fn ribbon_wrapper<'a>(
         this: &'a Window,
