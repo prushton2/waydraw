@@ -95,17 +95,7 @@ pub fn worker(params: &Params) -> impl Stream<Item = WorkerEvent> + use<> {
             Err(e) => { let _ = out.send(WorkerEvent::Failed(e)).await; return; }
         };
 
-        loop {
-            let response = tokio::select! {
-                cmd = cmd_rx.next() => match cmd {
-                    Some(t) => IncomingEvent::WorkerEvent(t),
-                    None => break, // UI dropped the sender, stop the worker
-                },
-                _ = tokio::time::sleep(std::time::Duration::from_secs(1)) => IncomingEvent::None,
-            };
-
-            println!("{:?}", response);
-        }
+        // let disconnect_reason = session()
 
         // let reason = session(&p2p, &params.monitor, &codec, &mut out, &mut cmd_rx).await;
 
@@ -166,6 +156,23 @@ async fn handshake(params: &Params, out: &mut Sender<WorkerEvent>, cmd_rx: &mut 
 
     out.try_send(WorkerEvent::SetServerInfo(server_info)).map_err(|e| format!("TrySendError: Full: {}, Disconnected: {}", e.is_full(), e.is_disconnected()))?;
 
-
     return Ok((p2p, codec_box))
+}
+
+async fn session(p2p: &mut p2p::P2P, codec: &mut dyn Codec, out: &mut Sender<WorkerEvent>, cmd_rx: &mut Receiver<WorkerEvent>) -> String {
+    loop {
+        let event = tokio::select! {
+            cmd = cmd_rx.next() => match cmd {
+                Some(t) => IncomingEvent::WorkerEvent(t),
+                None => break, // UI dropped the sender, stop the worker
+            },
+            cmd = p2p.read() => match cmd {
+                Ok(t) => IncomingEvent::Bytes(t),
+                Err(_) => break,
+            },
+        };
+    }
+
+
+    String::from("Bruh")
 }

@@ -63,7 +63,7 @@ impl Host {
                 .align_x(Alignment::Center),
             space().height(20),
             container(
-                button("Allow Connections")
+                button("Allow Connections").on_press(Message::Tab(crate::iced_window::Screen::HostConnected(super::HostConnected::new())))
             )
             .center_x(Length::Fill),
             space().height(20),
