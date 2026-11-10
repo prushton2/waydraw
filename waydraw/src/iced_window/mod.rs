@@ -31,5 +31,6 @@ pub enum Message {
     HostMessage(screens::HostMessage),
     HostConnectedMessage(screens::host_connected::HostConnectedMessage),
     ClientMessage(screens::ClientMessage),
+    ClientConnectedMessage(screens::client_connected::ClientConnectedMessage),
     SettingsMessage(screens::SettingsMessage),
 }

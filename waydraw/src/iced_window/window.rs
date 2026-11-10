@@ -1,8 +1,6 @@
-use std::sync::Arc;
-
 use iced::{Alignment, Length, Subscription, Task, widget::{button, column, container, row, space}};
 
-use crate::iced_window::screens::host_connected;
+use crate::iced_window::screens::{client_connected, host_connected};
 
 use super::{Message, Window, Screen, screens, styles};
 
@@ -10,7 +8,7 @@ impl Window {
     pub fn boot() -> Self {
         let config = crate::Config::load_or_generate();
         Self {
-            screen: Screen::HostConnected(screens::HostConnected::new()),
+            screen: Screen::Host(screens::Host::new()),
             config: config,
         }
     }
@@ -23,7 +21,14 @@ impl Window {
                 } else {
                     Task::none()
                 }
-            }
+            },
+            Message::ClientConnectedMessage(m) => {
+                if let Screen::ClientConnected(host) = &mut self.screen {
+                    host.update(m)
+                } else {
+                    Task::none()
+                }
+            },
             Message::HostMessage(m) => {
                 if let Screen::Host(host) = &mut self.screen {
                     host.update(m)
@@ -61,6 +66,9 @@ impl Window {
             Screen::HostConnected(s) => {
                 s.view()
             }
+            Screen::ClientConnected(s) => {
+                s.view()
+            }
             Screen::Host(s) => {
                 ribbon_wrapper(self, 
                     s.view()
@@ -84,7 +92,7 @@ impl Window {
 }
 
 pub fn subscription(window: &Window) -> Subscription<Message> {
-    match window.screen {
+    match &window.screen {
         Screen::HostConnected(_) => {
             let props = host_connected::Params {
                 id: 0,
@@ -92,6 +100,14 @@ pub fn subscription(window: &Window) -> Subscription<Message> {
                 monitor: String::from("none")
             };
             iced::Subscription::run_with(props, host_connected::worker).map(|e| Message::HostConnectedMessage(host_connected::HostConnectedMessage::WorkerEvent(e)))
+        }
+        Screen::ClientConnected(t) => {
+            let props = client_connected::Params { 
+                id: 0,
+                pin: t.pin.clone(),
+                key: t.key.clone() 
+            };
+            iced::Subscription::run_with(props, client_connected::worker).map(|e| Message::ClientConnectedMessage(client_connected::ClientConnectedMessage::WorkerEvent(e)))
         }
         _ => {
             iced::Subscription::none()

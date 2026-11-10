@@ -1,21 +1,27 @@
 use std::hash::{Hash, Hasher};
 
 use iced::Task;
-use iced::futures::channel::mpsc;
+use iced::futures::channel::mpsc::{self, Receiver, Sender};
 use iced::futures::{SinkExt, Stream, StreamExt};
-use iced::widget::button;
+use iced::widget::{column, button, text};
 use iroh::SecretKey;
 
-use crate::iced_window::Message; // for out.send(..).await and cmd_rx.next().await
+use crate::encoding::Codec;
+use crate::iced_window::Message;
+use crate::p2p; // for out.send(..).await and cmd_rx.next().await
 
 #[derive(Clone)]
 pub struct HostConnected {
-    pub sender: Option<mpsc::Sender<WorkerEvent>>
+    pub key: String,
+    pub pin: String,
+    pub sender: Option<Sender<WorkerEvent>>
 }
 
 impl HostConnected {
     pub fn new() -> Self {
         Self {
+            key: String::from(""),
+            pin: String::from(""),
             sender: None
         }
     }
@@ -33,6 +39,9 @@ impl HostConnected {
             HostConnectedMessage::WorkerEvent(event) => {
                 match event {
                     WorkerEvent::Ready(t) => self.sender = Some(t),
+                    WorkerEvent::UpdateKey(key) => self.key = key,
+                    WorkerEvent::UpdatePin(pin) => self.pin = pin,
+                    WorkerEvent::Failed(e) => println!("Worker failed: {}", e),
                     _ => {}
                 }
                 Task::none()
@@ -41,7 +50,11 @@ impl HostConnected {
     }
 
     pub fn view(&self) -> iced::Element<'_, Message> {
-        button("CLICK ME YIPPEE").on_press(Message::HostConnectedMessage(HostConnectedMessage::Button)).into()
+        column![
+            text(&self.pin),
+            text(&self.key),
+            button("CLICK ME YIPPEE").on_press(Message::HostConnectedMessage(HostConnectedMessage::Button))
+        ].into()
     }
 }
 
@@ -52,11 +65,20 @@ pub enum HostConnectedMessage {
 }
 
 
-
 #[derive(Clone, Debug)]
 pub enum WorkerEvent {
     Ready(mpsc::Sender<WorkerEvent>),
+    Failed(String),
+    UpdatePin(String),
+    UpdateKey(String),
     Button
+}
+
+#[derive(Debug)]
+pub enum IncomingEvent {
+    None,
+    WorkerEvent(WorkerEvent),
+    Bytes(Vec<u8>)
 }
 
 #[derive(Clone)]
@@ -70,28 +92,49 @@ impl Hash for Params {
 
 
 pub fn worker(params: &Params) -> impl Stream<Item = WorkerEvent> + use<> {
-    // let params = params.clone();
+    let params = params.clone();
     iced::stream::channel(100, async move |mut out| {
         let (cmd_tx, mut cmd_rx) = mpsc::channel(32);
         let _ = out.send(WorkerEvent::Ready(cmd_tx)).await;
 
-        // loop {
-        //     match cmd_rx.try_recv() {
-        //         Ok(t) => println!("{:?}", t),
-        //         Err(_) => std::thread::sleep(std::time::Duration::from_millis(5)),
-        //     }
-            
-        // }
-
         // Handshake: p2p is owned here, so &mut methods (await_connection) just work
-        // let (mut p2p, codec) = match handshake(&params, &mut out, &mut cmd_rx).await {
-        //     Ok(t) => t,
-        //     Err(e) => { let _ = out.send(Event::Failed(e)).await; return; }
-        // };
+        let (mut p2p, codec) = match handshake(&params, &mut out, &mut cmd_rx).await {
+            Ok(t) => t,
+            Err(e) => { let _ = out.send(WorkerEvent::Failed(e)).await; return; }
+        };
+
+        loop {
+            let response = tokio::select! {
+                cmd = cmd_rx.next() => match cmd {
+                    Some(t) => IncomingEvent::WorkerEvent(t),
+                    None => break, // UI dropped the sender, stop the worker
+                },
+                _ = tokio::time::sleep(std::time::Duration::from_secs(1)) => IncomingEvent::None,
+            };
+
+            println!("{:?}", response);
+        }
 
         // let reason = session(&p2p, &params.monitor, &codec, &mut out, &mut cmd_rx).await;
 
         // p2p.close().await; // the borrow from session() has ended, so &mut is fine
         // let _ = out.send(Event::Disconnected(reason)).await;
     })
+}
+
+async fn handshake(params: &Params, out: &mut Sender<WorkerEvent>, cmd_rx: &mut Receiver<WorkerEvent>) -> Result<(p2p::P2P, Box<dyn Codec>), String> {
+    // Register
+    let (p2p, key) = p2p::P2P::init(params.secret_key.clone()).await.map_err(|e| e.to_string())?;
+
+    let key = key.to_string();
+
+    let pin = match p2p::remote_key_store::set(&key.to_string()).await {
+        Ok(t) => t,
+        Err(e) => return Err(e),
+    };
+
+    out.try_send(WorkerEvent::UpdateKey(key)).map_err(|e| format!("TrySendError: Full: {}, Disconnected: {}", e.is_full(), e.is_disconnected()))?;
+    out.try_send(WorkerEvent::UpdatePin(pin)).map_err(|e| format!("TrySendError: Full: {}, Disconnected: {}", e.is_full(), e.is_disconnected()))?;
+
+    return Err(String::from(""))
 }
