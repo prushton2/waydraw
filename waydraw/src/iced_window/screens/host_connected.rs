@@ -6,7 +6,7 @@ use iced::futures::{SinkExt, Stream, StreamExt};
 use iced::widget::{column, button, text};
 use iroh::SecretKey;
 
-use crate::encoding::Codec;
+use crate::encoding::{self, Codec};
 use crate::iced_window::Message;
 use crate::p2p::protocol::IntoBytes;
 use crate::p2p::{self, protocol}; // for out.send(..).await and cmd_rx.next().await
@@ -176,7 +176,9 @@ async fn handshake(params: &Params, out: &mut Sender<WorkerEvent>, cmd_rx: &mut 
 
     p2p.send(&server_hello.into_bytes()).await?;
 
-    return Err(String::from(""))
+    let codec_box = encoding::get_codec(codec)?;
+
+    return Ok((p2p, codec_box))
 }
 
 trait MapErr<T, E> {

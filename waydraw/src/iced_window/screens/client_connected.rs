@@ -23,7 +23,8 @@ impl ClientConnected {
             key,
             pin,
             sender: None,
-            window_size: (0, 0)
+            window_size: (0, 0),
+            server_info: None
         }
     }
 
@@ -127,7 +128,11 @@ async fn handshake(params: &Params, out: &mut Sender<WorkerEvent>, cmd_rx: &mut 
     
     // Connect
 
-    let p2p = p2p::P2P::connect(key.parse::<EndpointId>().unwrap()).await.map_err(|e| format!("{:?}", e))?;
+    let p2p = p2p::P2P::connect(
+        key.parse::<EndpointId>()
+        .map_err(|e| format!("{:?}", e))?
+    ).await
+        .map_err(|e| format!("{:?}", e))?;
 
     // Send hello
 
@@ -157,8 +162,10 @@ async fn handshake(params: &Params, out: &mut Sender<WorkerEvent>, cmd_rx: &mut 
         _ => panic!("Did not receive server info"),
     };
 
+    let codec_box = encoding::get_codec(&server_info.selected_codec)?;
+
     out.try_send(WorkerEvent::SetServerInfo(server_info)).map_err(|e| format!("TrySendError: Full: {}, Disconnected: {}", e.is_full(), e.is_disconnected()))?;
 
 
-    return Err(String::from(""))
+    return Ok((p2p, codec_box))
 }
