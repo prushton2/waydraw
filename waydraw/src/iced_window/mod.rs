@@ -21,7 +21,7 @@ pub enum Screen {
 
 pub struct Window {
     pub config: crate::Config,
-    pub screen: Screen
+    pub screen: Screen,
 }
 
 #[derive(Clone)]

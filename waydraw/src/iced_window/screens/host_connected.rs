@@ -8,13 +8,15 @@ use iroh::SecretKey;
 
 use crate::encoding::Codec;
 use crate::iced_window::Message;
-use crate::p2p; // for out.send(..).await and cmd_rx.next().await
+use crate::p2p::protocol::IntoBytes;
+use crate::p2p::{self, protocol}; // for out.send(..).await and cmd_rx.next().await
 
 #[derive(Clone)]
 pub struct HostConnected {
     pub key: String,
     pub pin: String,
-    pub sender: Option<Sender<WorkerEvent>>
+    pub sender: Option<Sender<WorkerEvent>>,
+    pub client_info: Option<protocol::ClientHello>
 }
 
 impl HostConnected {
@@ -22,7 +24,8 @@ impl HostConnected {
         Self {
             key: String::from(""),
             pin: String::from(""),
-            sender: None
+            sender: None,
+            client_info: None,
         }
     }
 
@@ -42,6 +45,7 @@ impl HostConnected {
                     WorkerEvent::UpdateKey(key) => self.key = key,
                     WorkerEvent::UpdatePin(pin) => self.pin = pin,
                     WorkerEvent::Failed(e) => println!("Worker failed: {}", e),
+                    WorkerEvent::SetClientInfo(t) => self.client_info = Some(t),
                     _ => {}
                 }
                 Task::none()
@@ -71,6 +75,7 @@ pub enum WorkerEvent {
     Failed(String),
     UpdatePin(String),
     UpdateKey(String),
+    SetClientInfo(protocol::ClientHello),
     Button
 }
 
@@ -124,7 +129,7 @@ pub fn worker(params: &Params) -> impl Stream<Item = WorkerEvent> + use<> {
 
 async fn handshake(params: &Params, out: &mut Sender<WorkerEvent>, cmd_rx: &mut Receiver<WorkerEvent>) -> Result<(p2p::P2P, Box<dyn Codec>), String> {
     // Register
-    let (p2p, key) = p2p::P2P::init(params.secret_key.clone()).await.map_err(|e| e.to_string())?;
+    let (mut p2p, key) = p2p::P2P::init(params.secret_key.clone()).await.map_err(|e| e.to_string())?;
 
     let key = key.to_string();
 
@@ -136,5 +141,53 @@ async fn handshake(params: &Params, out: &mut Sender<WorkerEvent>, cmd_rx: &mut 
     out.try_send(WorkerEvent::UpdateKey(key)).map_err(|e| format!("TrySendError: Full: {}, Disconnected: {}", e.is_full(), e.is_disconnected()))?;
     out.try_send(WorkerEvent::UpdatePin(pin)).map_err(|e| format!("TrySendError: Full: {}, Disconnected: {}", e.is_full(), e.is_disconnected()))?;
 
+    // Await connection
+
+    p2p.await_connection().await?;
+
+    // Await hello
+
+    let data = p2p.read().await?;
+
+    let client_info = match protocol::FromBytes::parse(&data) {
+        protocol::FromBytes::ClientHello(d) => d,
+        _ => panic!("Did not receive client info"),
+    };
+
+    // Find a codec match
+
+    let codec = crate::encoding::get_compatible_codecs()
+        .into_iter()
+        .filter(|c| client_info.supported_codecs.contains(&c.to_string()))
+        .next()
+        .map_err(|| "No valid codec found")?;
+
+    out.try_send(WorkerEvent::SetClientInfo(client_info)).map_err(|e| format!("TrySendError: Full: {}, Disconnected: {}", e.is_full(), e.is_disconnected()))?;
+
+    // Send Hello
+
+    let server_hello = protocol::ServerHello {
+        selected_codec: String::from(codec),
+        name: sysinfo::System::host_name().unwrap_or(String::from("Unnamed Device")),
+        version: crate::get_version(),
+        screen_width: 0,
+        screen_height: 0,
+    };
+
+    p2p.send(&server_hello.into_bytes()).await?;
+
     return Err(String::from(""))
+}
+
+trait MapErr<T, E> {
+    fn map_err(self, op: impl FnOnce() -> E) -> Result<T, E>;
+}
+
+impl<T, E> MapErr<T, E> for Option<T> {
+    fn map_err(self, op: impl FnOnce() -> E) -> Result<T, E> {
+        match self {
+            Some(t) => Ok(t),
+            None => Err(op())
+        }
+    }
 }

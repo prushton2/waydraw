@@ -105,7 +105,8 @@ pub fn subscription(window: &Window) -> Subscription<Message> {
             let props = client_connected::Params { 
                 id: 0,
                 pin: t.pin.clone(),
-                key: t.key.clone() 
+                key: t.key.clone(),
+                window_size: t.window_size.clone(),
             };
             iced::Subscription::run_with(props, client_connected::worker).map(|e| Message::ClientConnectedMessage(client_connected::ClientConnectedMessage::WorkerEvent(e)))
         }
@@ -114,20 +115,6 @@ pub fn subscription(window: &Window) -> Subscription<Message> {
         }
     }
 }
-
-pub fn get_version() -> (u8, u8, u8) {
-    // split off the -rc-n tag
-    let version = env!("CARGO_PKG_VERSION")
-        .split(".")
-        .map(|s| match s.parse::<u8>() {
-            Ok(t) => t,
-            Err(_) => s.split_once('-').unwrap().0.parse::<u8>().unwrap(),
-        })
-        .collect::<Vec<u8>>();
-
-    (version[0], version[1], version[2])
-}
-
 
 pub fn ribbon_wrapper<'a>(
     this: &'a Window,

@@ -3,6 +3,8 @@ use iced::futures::{SinkExt, StreamExt};
 use iced::{Task, futures::{Stream, channel::mpsc::{self, Receiver, Sender}}, widget::{column, text}};
 use iroh::EndpointId;
 
+use crate::encoding;
+use crate::p2p::protocol::{self, IntoBytes};
 use crate::{encoding::Codec, iced_window::Message, p2p};
 
 #[derive(Clone)]
@@ -10,7 +12,9 @@ use crate::{encoding::Codec, iced_window::Message, p2p};
 pub struct ClientConnected {
     pub key: String,
     pub pin: String,
-    pub sender: Option<Sender<WorkerEvent>>
+    pub sender: Option<Sender<WorkerEvent>>,
+    pub window_size: (usize, usize),
+    pub server_info: Option<protocol::ServerHello>
 }
 
 impl ClientConnected {
@@ -18,7 +22,8 @@ impl ClientConnected {
         Self {
             key,
             pin,
-            sender: None
+            sender: None,
+            window_size: (0, 0)
         }
     }
 
@@ -30,6 +35,7 @@ impl ClientConnected {
                     WorkerEvent::UpdateKey(key) => self.key = key,
                     WorkerEvent::UpdatePin(pin) => self.pin = pin,
                     WorkerEvent::Failed(e) => println!("Worker failed: {}", e),
+                    WorkerEvent::SetServerInfo(e) => self.server_info = Some(e),
                     _ => {}
                 }
                 Task::none()
@@ -55,6 +61,7 @@ pub enum WorkerEvent {
     Failed(String),
     UpdatePin(String),
     UpdateKey(String),
+    SetServerInfo(protocol::ServerHello),
     Button
 }
 
@@ -66,7 +73,7 @@ pub enum IncomingEvent {
 }
 
 #[derive(Clone)]
-pub struct Params { pub id: u64, pub pin: String, pub key: String }
+pub struct Params { pub id: u64, pub pin: String, pub key: String, pub window_size: (usize, usize) }
 
 // Hash ONLY the session id. Anything that changes mid-session (window size etc.)
 // must go through Command, or iced restarts the worker = new connection.
@@ -118,12 +125,40 @@ async fn handshake(params: &Params, out: &mut Sender<WorkerEvent>, cmd_rx: &mut 
         params.key.clone()
     };
     
-    let p2p = p2p::P2P::connect(key.parse::<EndpointId>().unwrap()).await;
+    // Connect
 
-    let key = key.to_string();
+    let p2p = p2p::P2P::connect(key.parse::<EndpointId>().unwrap()).await.map_err(|e| format!("{:?}", e))?;
 
-    // out.try_send(WorkerEvent::UpdateKey(key)).map_err(|e| format!("TrySendError: Full: {}, Disconnected: {}", e.is_full(), e.is_disconnected()))?;
-    // out.try_send(WorkerEvent::UpdatePin(pin)).map_err(|e| format!("TrySendError: Full: {}, Disconnected: {}", e.is_full(), e.is_disconnected()))?;
+    // Send hello
+
+    let client_hello = protocol::ClientHello {
+        supported_codecs: encoding::get_compatible_codecs()
+            .iter()
+            .map(|e| e.to_string())
+            .collect(),
+        version: crate::get_version(),
+        window_width:  params.window_size.0 as u32,
+        window_height: params.window_size.1 as u32,
+
+        name: sysinfo::System::name(),
+        kernel_version: sysinfo::System::kernel_version(),
+        os_version: sysinfo::System::os_version(),
+        host_name: sysinfo::System::host_name(),
+    };
+
+    p2p.send(&client_hello.into_bytes()).await?;
+
+    // Await Hello
+
+    let data = p2p.read().await?;
+
+    let server_info = match protocol::FromBytes::parse(&data) {
+        protocol::FromBytes::ServerHello(d) => d,
+        _ => panic!("Did not receive server info"),
+    };
+
+    out.try_send(WorkerEvent::SetServerInfo(server_info)).map_err(|e| format!("TrySendError: Full: {}, Disconnected: {}", e.is_full(), e.is_disconnected()))?;
+
 
     return Err(String::from(""))
 }
