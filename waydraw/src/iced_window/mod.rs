@@ -2,8 +2,6 @@ use std::sync::{Arc, Mutex};
 
 use tokio::sync::RwLock;
 
-use crate::p2p;
-
 mod screens;
 pub mod window;
 pub mod styles;
@@ -31,6 +29,7 @@ pub enum Message {
     None,
     Tab(Screen),
     HostMessage(screens::HostMessage),
+    HostConnectedMessage(screens::host_connected::HostConnectedMessage),
     ClientMessage(screens::ClientMessage),
     SettingsMessage(screens::SettingsMessage),
 }

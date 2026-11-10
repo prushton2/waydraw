@@ -1,6 +1,8 @@
 use std::sync::Arc;
 
-use iced::{Alignment, Length, Task, widget::{button, column, container, row, space}};
+use iced::{Alignment, Length, Subscription, Task, widget::{button, column, container, row, space}};
+
+use crate::iced_window::screens::host_connected;
 
 use super::{Message, Window, Screen, screens, styles};
 
@@ -8,13 +10,20 @@ impl Window {
     pub fn boot() -> Self {
         let config = crate::Config::load_or_generate();
         Self {
-            screen: Screen::Host(screens::Host::new()),
+            screen: Screen::HostConnected(screens::HostConnected::new()),
             config: config,
         }
     }
 
     pub fn update(&mut self, message: Message) -> Task<Message> {
         match message {
+            Message::HostConnectedMessage(m) => {
+                if let Screen::HostConnected(host) = &mut self.screen {
+                    host.update(m)
+                } else {
+                    Task::none()
+                }
+            }
             Message::HostMessage(m) => {
                 if let Screen::Host(host) = &mut self.screen {
                     host.update(m)
@@ -49,6 +58,9 @@ impl Window {
 
     pub fn view(&self) -> iced::Element<'_, Message> {
         match &self.screen {
+            Screen::HostConnected(s) => {
+                s.view()
+            }
             Screen::Host(s) => {
                 ribbon_wrapper(self, 
                     s.view()
@@ -67,6 +79,22 @@ impl Window {
             _ => {
                 iced::widget::text("null").into()
             }
+        }
+    }
+}
+
+pub fn subscription(window: &Window) -> Subscription<Message> {
+    match window.screen {
+        Screen::HostConnected(_) => {
+            let props = host_connected::Params {
+                id: 0,
+                secret_key: window.config.secret_key.clone(),
+                monitor: String::from("none")
+            };
+            iced::Subscription::run_with(props, host_connected::worker).map(|e| Message::HostConnectedMessage(host_connected::HostConnectedMessage::WorkerEvent(e)))
+        }
+        _ => {
+            iced::Subscription::none()
         }
     }
 }
