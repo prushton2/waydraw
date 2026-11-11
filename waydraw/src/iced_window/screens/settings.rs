@@ -1,6 +1,9 @@
-use iced::{Length, Padding, Task, widget::{Column, button, column, row, scrollable, space, text, text_input}};
-use native_dialog::DialogBuilder;
 use crate::iced_window::{Message, widgets};
+use iced::{
+    Length, Padding, Task,
+    widget::{Column, button, column, row, scrollable, space, text, text_input},
+};
+use native_dialog::DialogBuilder;
 
 #[derive(Clone)]
 pub struct Settings {}
@@ -10,7 +13,11 @@ impl Settings {
         Self {}
     }
 
-    pub fn update(&mut self, config: &mut crate::Config, message: SettingsMessage) -> Task<Message> {
+    pub fn update(
+        &mut self,
+        config: &mut crate::Config,
+        message: SettingsMessage,
+    ) -> Task<Message> {
         match message {
             SettingsMessage::UpdateTheme(t) => {
                 config.theme = t;
@@ -57,10 +64,12 @@ impl Settings {
         for (key, host) in &config.known_hosts {
             known_hosts.push(
                 row![
-                    text_input("Host", host)
-                        .on_input(|v| Message::SettingsMessage(SettingsMessage::UpdateKnownHostName(key.clone(), v))),
-                    text_input("Secret Key", key)
-                        .on_input(|v| Message::SettingsMessage(SettingsMessage::UpdateKnownHostKey(key.clone(), v)))
+                    text_input("Host", host).on_input(|v| Message::SettingsMessage(
+                        SettingsMessage::UpdateKnownHostName(key.clone(), v)
+                    )),
+                    text_input("Secret Key", key).on_input(|v| Message::SettingsMessage(
+                        SettingsMessage::UpdateKnownHostKey(key.clone(), v)
+                    ))
                 ]
                 .spacing(5)
                 .into(),
@@ -69,9 +78,8 @@ impl Settings {
         }
 
         if known_hosts.is_empty() {
-            known_hosts = vec![
-                text("No known hosts. Connect to a device and it will appear here.").into(),
-            ];
+            known_hosts =
+                vec![text("No known hosts. Connect to a device and it will appear here.").into()];
         }
 
         scrollable(
@@ -79,7 +87,10 @@ impl Settings {
                 widgets::center_title("Settings"),
                 widgets::center_separator(
                     text("Select Theme").into(),
-                    widgets::theme_dropdown::<Message>(&config.theme, |e| Message::SettingsMessage(SettingsMessage::UpdateTheme(e)))
+                    widgets::theme_dropdown::<Message>(
+                        &config.theme,
+                        |e| Message::SettingsMessage(SettingsMessage::UpdateTheme(e))
+                    )
                 ),
                 widgets::center_separator(
                     text("Edit known hosts").into(),
@@ -87,7 +98,9 @@ impl Settings {
                 ),
                 widgets::center_separator(
                     text("Reset Device ID").into(),
-                    button("Reset").on_press(Message::SettingsMessage(SettingsMessage::ResetSecretKey)).into()
+                    button("Reset")
+                        .on_press(Message::SettingsMessage(SettingsMessage::ResetSecretKey))
+                        .into()
                 ),
                 widgets::center_title("Device Info"),
                 widgets::center_separator(
@@ -121,5 +134,5 @@ pub enum SettingsMessage {
     UpdateKnownHostName(String, String),
     /// Union types for this enum are (Name, new key)
     UpdateKnownHostKey(String, String),
-    ResetSecretKey
+    ResetSecretKey,
 }

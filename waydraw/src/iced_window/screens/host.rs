@@ -1,5 +1,8 @@
-use iced::{Task, Length, Alignment, widget::{column, space, container, text, row, text_input, button}};
 use crate::iced_window::{Message, styles};
+use iced::{
+    Alignment, Length, Task,
+    widget::{button, column, container, row, space, text, text_input},
+};
 
 #[derive(Clone)]
 pub struct Host {
@@ -16,7 +19,12 @@ impl Host {
         let monitors: Vec<(Monitor, String)> = read_monitors()
             .unwrap()
             .into_iter()
-            .map(|e| (e.clone(), format!("{} {}x{}", e.id, e.resolution.0, e.resolution.1)))
+            .map(|e| {
+                (
+                    e.clone(),
+                    format!("{} {}x{}", e.id, e.resolution.0, e.resolution.1),
+                )
+            })
             .collect();
 
         Self {
@@ -39,20 +47,22 @@ impl Host {
     }
 
     pub fn view(&self) -> iced::Element<'_, Message> {
-        let buttons = self.monitors.iter()
+        let buttons = self
+            .monitors
+            .iter()
             .map(|e| {
                 button(e.1.as_str())
                     .on_press(Message::HostMessage(HostMessage::SetMonitor(e.0.clone())))
-                    .style(|t, _| if self.monitor == e.0 {
-                        styles::selected_monitor(t)
-                    } else {
-                        styles::unselected_monitor(t)
+                    .style(|t, _| {
+                        if self.monitor == e.0 {
+                            styles::selected_monitor(t)
+                        } else {
+                            styles::unselected_monitor(t)
+                        }
                     })
                     .into()
             })
             .collect();
-            
-
 
         column![
             text("Select a monitor")
@@ -62,22 +72,14 @@ impl Host {
                 .width(Length::Fill)
                 .align_x(Alignment::Center),
             space().height(20),
-            container(
-                button("Allow Connections").on_press(Message::Tab(crate::iced_window::Screen::HostConnected(super::HostConnected::new())))
-            )
-            .center_x(Length::Fill),
-            space().height(20),
-            row![
-                text("Pin"),
-                space().width(24),
-                text_input(&self.pin, &self.pin).on_input(|_| Message::None)
-            ],
-            row![
-                text("Key"),
-                space().width(20),
-                text_input(&self.key, &self.key).on_input(|_| Message::None)
-            ],
-            text(&self.wait).width(Length::Fill).align_x(Alignment::Center),
+            container(button("Allow Connections").on_press(Message::Tab(
+                crate::iced_window::Screen::HostConnected(super::HostConnected::new(
+                    self.monitor.clone()
+                ))
+            ))),
+            text(&self.wait)
+                .width(Length::Fill)
+                .align_x(Alignment::Center),
             text(&self.err)
                 .width(Length::Fill)
                 .align_x(Alignment::Center)
@@ -89,7 +91,7 @@ impl Host {
 
 #[derive(Clone)]
 pub enum HostMessage {
-    SetMonitor(Monitor)
+    SetMonitor(Monitor),
 }
 
 #[derive(Clone, PartialEq)]

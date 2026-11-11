@@ -1,6 +1,12 @@
-use iced::{Alignment, Length, widget::{column, pick_list, row, space, text, text_input}};
+use iced::{
+    Alignment, Length,
+    widget::{column, pick_list, row, space, text, text_input},
+};
 
-pub fn theme_dropdown<T: Clone + 'static>(theme: &iced::Theme, message: fn(iced::Theme) -> T) -> iced::Element<'static, T> {
+pub fn theme_dropdown<T: Clone + 'static>(
+    theme: &iced::Theme,
+    message: fn(iced::Theme) -> T,
+) -> iced::Element<'static, T> {
     let options = [
         iced::Theme::Light,
         iced::Theme::Dark,
@@ -28,7 +34,6 @@ pub fn theme_dropdown<T: Clone + 'static>(theme: &iced::Theme, message: fn(iced:
 
     pick_list(options, Some(theme.clone()), message).into()
 }
-
 
 pub fn center_separator<'a, T: Clone + 'a>(
     left: iced::Element<'a, T>,

@@ -81,7 +81,7 @@ pub struct P2P {
     recv: Mutex<Option<RecvStream>>,
     // This exists to make read() cancel safe. Since theres no peek functionality in RecvStream, its instead write bytes to this buffer.
     // Once this buffer has the proper amount of bytes for a full struct, it will be returned
-    recv_buff: Mutex<Vec<u8>>, 
+    recv_buff: Mutex<Vec<u8>>,
 }
 
 impl P2P {
@@ -127,7 +127,7 @@ impl P2P {
                 router,
                 send: Mutex::new(None),
                 recv: Mutex::new(None),
-                recv_buff: Mutex::new(vec![])
+                recv_buff: Mutex::new(vec![]),
             },
             id,
         ))
@@ -210,7 +210,7 @@ impl P2P {
             router,
             send: Mutex::new(Some(send)),
             recv: Mutex::new(Some(recv)),
-            recv_buff: Mutex::new(vec![])
+            recv_buff: Mutex::new(vec![]),
         };
 
         this.send(HELLO).await?;
@@ -251,21 +251,26 @@ impl P2P {
                 let bytes: [u8; 4] = [buf_lock[0], buf_lock[1], buf_lock[2], buf_lock[3]];
                 length = Some(u32::from_be_bytes(bytes) as usize);
             }
-            
-            if let Some(len) = length  && buf_lock.len() >= len + 4 {
+
+            if let Some(len) = length
+                && buf_lock.len() >= len + 4
+            {
                 let bytes = buf_lock.drain(0..(len + 4)).skip(4).collect::<Vec<u8>>();
-                return Ok(bytes)
+                return Ok(bytes);
             }
 
             match recv.read_chunk(usize::MAX).await {
                 Ok(Some(chunk)) => buf_lock.extend_from_slice(&chunk),
-                Ok(None) => {},
-                Err(e) => return Err(P2PError::during("Reading entire buffer", P2PError::ReadError(e.to_string())))
+                Ok(None) => {}
+                Err(e) => {
+                    return Err(P2PError::during(
+                        "Reading entire buffer",
+                        P2PError::ReadError(e.to_string()),
+                    ));
+                }
             };
-
         }
     }
-
 
     pub async fn close(&mut self) {
         let _ = self.router.shutdown().await;

@@ -1,15 +1,14 @@
 use std::hash::{Hash, Hasher};
-use std::rc::Rc;
-use std::sync::Arc;
 
-use iced::{Alignment, Length, Task};
 use iced::futures::channel::mpsc::{self, Receiver, Sender};
 use iced::futures::{SinkExt, Stream, StreamExt};
 use iced::widget::{button, column, container, row, text};
+use iced::{Alignment, Length, Task};
 use iroh::SecretKey;
 
 use crate::encoding::{self, Codec};
 use crate::iced_window::Message;
+use crate::iced_window::screens::host::Monitor;
 use crate::input::{self, Input};
 use crate::p2p::protocol::{FromBytes, IntoBytes};
 use crate::p2p::{self, protocol}; // for out.send(..).await and cmd_rx.next().await
@@ -19,29 +18,23 @@ pub struct HostConnected {
     pub key: String,
     pub pin: String,
     pub sender: Option<Sender<WorkerEvent>>,
-    pub client_info: Option<protocol::ClientHello>
+    pub client_info: Option<protocol::ClientHello>,
+    pub monitor: Monitor,
 }
 
 impl HostConnected {
-    pub fn new() -> Self {
+    pub fn new(monitor: Monitor) -> Self {
         Self {
             key: String::from(""),
             pin: String::from(""),
             sender: None,
-            client_info: None
+            client_info: None,
+            monitor,
         }
     }
 
     pub fn update(&mut self, message: HostConnectedMessage) -> Task<Message> {
         match message {
-            HostConnectedMessage::Button => {
-                if let Some(sender) = &mut self.sender {
-                    println!("Send: {:?}", sender.try_send(WorkerEvent::Button));
-                } else {
-                    println!("No sender")
-                }
-                Task::none()
-            },
             HostConnectedMessage::WorkerEvent(event) => {
                 match event {
                     WorkerEvent::Ready(t) => self.sender = Some(t),
@@ -86,8 +79,11 @@ impl HostConnected {
 
         card = card.push(
             container(
-                button(text("Disconnect").align_x(Alignment::Center))
-                    // .on_press(Message::Disconnect),
+                button(text("Disconnect").align_x(Alignment::Center)).on_press(
+                    Message::HostConnectedMessage(HostConnectedMessage::WorkerEvent(
+                        WorkerEvent::Disconnect("Host initiated disconnect".to_string()),
+                    )),
+                ),
             )
             .center_x(Length::Fill)
             .padding(iced::Padding::ZERO.top(12)),
@@ -107,37 +103,41 @@ impl HostConnected {
 #[derive(Clone)]
 pub enum HostConnectedMessage {
     WorkerEvent(WorkerEvent),
-    Button,
 }
-
 
 #[derive(Clone, Debug)]
 pub enum WorkerEvent {
+    // From Worker
     Ready(mpsc::Sender<WorkerEvent>),
     Failed(String),
     UpdatePin(String),
     UpdateKey(String),
     SetClientInfo(protocol::ClientHello),
     Disconnect(String),
-    Button
+    // To Worker
+    Frame(Vec<u8>),
 }
 
 #[derive(Debug)]
 pub enum IncomingEvent {
-    None,
     WorkerEvent(WorkerEvent),
-    Bytes(Vec<u8>)
+    P2p(FromBytes),
 }
 
 #[derive(Clone)]
-pub struct Params { pub id: u64, pub secret_key: SecretKey, pub monitor: String }
+pub struct Params {
+    pub id: u64,
+    pub secret_key: SecretKey,
+    pub monitor: Monitor,
+}
 
 // Hash ONLY the session id. Anything that changes mid-session (window size etc.)
 // must go through Command, or iced restarts the worker = new connection.
 impl Hash for Params {
-    fn hash<H: Hasher>(&self, h: &mut H) { self.id.hash(h) }
+    fn hash<H: Hasher>(&self, h: &mut H) {
+        self.id.hash(h)
+    }
 }
-
 
 pub fn worker(params: &Params) -> impl Stream<Item = WorkerEvent> + use<> {
     let params = params.clone();
@@ -146,21 +146,29 @@ pub fn worker(params: &Params) -> impl Stream<Item = WorkerEvent> + use<> {
         let _ = out.send(WorkerEvent::Ready(cmd_tx)).await;
 
         // Handshake: p2p is owned here, so &mut methods (await_connection) just work
-        let (mut p2p, mut codec) = match handshake(&params, &mut out, &mut cmd_rx).await {
+        let (mut p2p, mut codec) = match handshake(&params, &mut out).await {
             Ok(t) => t,
-            Err(e) => { let _ = out.send(WorkerEvent::Failed(e)).await; return; }
+            Err(e) => {
+                let _ = out.send(WorkerEvent::Failed(e)).await;
+                return;
+            }
         };
 
-        let reason = session(&mut p2p, codec.as_mut(), &mut out, &mut cmd_rx).await;
+        let reason = session(&params, &mut p2p, codec.as_mut(), &mut out, &mut cmd_rx).await;
 
         p2p.close().await; // the borrow from session() has ended, so &mut is fine
         let _ = out.send(WorkerEvent::Disconnect(reason)).await;
     })
 }
 
-async fn handshake(params: &Params, out: &mut Sender<WorkerEvent>, cmd_rx: &mut Receiver<WorkerEvent>) -> Result<(p2p::P2P, Box<dyn Codec>), String> {
+async fn handshake(
+    params: &Params,
+    out: &mut Sender<WorkerEvent>,
+) -> Result<(p2p::P2P, Box<dyn Codec>), String> {
     // Register
-    let (mut p2p, key) = p2p::P2P::init(params.secret_key.clone()).await.map_err(|e| e.to_string())?;
+    let (mut p2p, key) = p2p::P2P::init(params.secret_key.clone())
+        .await
+        .map_err(|e| e.to_string())?;
 
     let key = key.to_string();
 
@@ -169,8 +177,20 @@ async fn handshake(params: &Params, out: &mut Sender<WorkerEvent>, cmd_rx: &mut 
         Err(e) => return Err(e),
     };
 
-    out.try_send(WorkerEvent::UpdateKey(key)).map_err(|e| format!("TrySendError: Full: {}, Disconnected: {}", e.is_full(), e.is_disconnected()))?;
-    out.try_send(WorkerEvent::UpdatePin(pin)).map_err(|e| format!("TrySendError: Full: {}, Disconnected: {}", e.is_full(), e.is_disconnected()))?;
+    out.try_send(WorkerEvent::UpdateKey(key)).map_err(|e| {
+        format!(
+            "TrySendError: Full: {}, Disconnected: {}",
+            e.is_full(),
+            e.is_disconnected()
+        )
+    })?;
+    out.try_send(WorkerEvent::UpdatePin(pin)).map_err(|e| {
+        format!(
+            "TrySendError: Full: {}, Disconnected: {}",
+            e.is_full(),
+            e.is_disconnected()
+        )
+    })?;
 
     // Await connection
 
@@ -193,7 +213,14 @@ async fn handshake(params: &Params, out: &mut Sender<WorkerEvent>, cmd_rx: &mut 
         .next()
         .map_err(|| "No valid codec found")?;
 
-    out.try_send(WorkerEvent::SetClientInfo(client_info)).map_err(|e| format!("TrySendError: Full: {}, Disconnected: {}", e.is_full(), e.is_disconnected()))?;
+    out.try_send(WorkerEvent::SetClientInfo(client_info))
+        .map_err(|e| {
+            format!(
+                "TrySendError: Full: {}, Disconnected: {}",
+                e.is_full(),
+                e.is_disconnected()
+            )
+        })?;
 
     // Send Hello
 
@@ -209,14 +236,20 @@ async fn handshake(params: &Params, out: &mut Sender<WorkerEvent>, cmd_rx: &mut 
 
     let codec_box = encoding::get_codec(codec)?;
 
-    return Ok((p2p, codec_box))
+    return Ok((p2p, codec_box));
 }
 
-async fn session(p2p: &mut p2p::P2P, codec: &mut dyn Codec, out: &mut Sender<WorkerEvent>, cmd_rx: &mut Receiver<WorkerEvent>) -> String {
+async fn session(
+    params: &Params,
+    p2p: &mut p2p::P2P,
+    codec: &mut dyn Codec,
+    out: &mut Sender<WorkerEvent>,
+    cmd_rx: &mut Receiver<WorkerEvent>,
+) -> String {
     let mut input: Box<dyn Input> = Box::new(input::DummyInput::new());
     #[cfg(not(debug_assertions))]
     let mut input: Box<dyn Input> = Box::new(input::EnigoInput::new());
-    
+
     loop {
         let event = tokio::select! {
             cmd = cmd_rx.next() => match cmd {
@@ -224,23 +257,24 @@ async fn session(p2p: &mut p2p::P2P, codec: &mut dyn Codec, out: &mut Sender<Wor
                 None => break, // UI dropped the sender, stop the worker
             },
             cmd = p2p.read() => match cmd {
-                Ok(t) => IncomingEvent::Bytes(t),
+                Ok(t) => IncomingEvent::P2p(FromBytes::parse(&t)),
                 Err(e) => return e.to_string(),
             },
         };
 
         match event {
-        //     IncomingEvent::WorkerEvent(worker_event) => {
-        //         let _ = out.send(worker_event).await;
-        //     },
-            IncomingEvent::Bytes(b) => {
-                match FromBytes::parse(&b) {
-                    FromBytes::MouseClick(e) => input.click_mouse(e.button, e.state),
-                    FromBytes::MouseMove(e) => input.move_mouse(e.x as i32, e.y as i32),
-                    _ => {}
-                }
-            },
-        //     IncomingEvent::None => {}
+            IncomingEvent::WorkerEvent(WorkerEvent::Frame(bytes)) => {
+                let encoded = codec.encode(&bytes, params.monitor.resolution);
+                let frame = protocol::Screenshot {
+                    bytes: encoded,
+                    width: params.monitor.resolution.0 as usize,
+                    height: params.monitor.resolution.1 as usize,
+                };
+
+                let _ = p2p.send(&frame.into_bytes()).await;
+            }
+            IncomingEvent::P2p(FromBytes::MouseClick(e)) => input.click_mouse(e.button, e.state),
+            IncomingEvent::P2p(FromBytes::MouseMove(e)) => input.move_mouse(e.x as i32, e.y as i32),
             _ => {}
         }
     }
@@ -255,7 +289,7 @@ impl<T, E> MapErr<T, E> for Option<T> {
     fn map_err(self, op: impl FnOnce() -> E) -> Result<T, E> {
         match self {
             Some(t) => Ok(t),
-            None => Err(op())
+            None => Err(op()),
         }
     }
 }

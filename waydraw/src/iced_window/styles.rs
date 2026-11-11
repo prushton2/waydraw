@@ -1,4 +1,8 @@
-use iced::{Border, Theme, border::Radius, widget::{button, text_input}};
+use iced::{
+    Border, Theme,
+    border::Radius,
+    widget::{button, text_input},
+};
 
 pub fn invisible_text_input(theme: &Theme) -> text_input::Style {
     text_input::Style {

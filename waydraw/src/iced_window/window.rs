@@ -1,13 +1,20 @@
-use iced::{Alignment, Length, Subscription, Task, widget::{button, column, container, row, space}};
+use iced::{
+    Alignment, Length, Subscription, Task,
+    widget::{button, column, container, row, space},
+};
 
-use crate::iced_window::screens::{client_connected, host_connected};
+use crate::iced_window::{
+    screen_capture,
+    screens::{client_connected, host_connected},
+};
 
-use super::{Message, Window, Screen, screens, styles};
+use super::{Message, Screen, Window, screens, styles};
 
 impl Window {
     pub fn boot() -> Self {
         let config = crate::Config::load_or_generate();
         Self {
+            window_size: (100, 100),
             screen: Screen::Host(screens::Host::new()),
             config: config,
         }
@@ -21,99 +28,111 @@ impl Window {
                 } else {
                     Task::none()
                 }
-            },
+            }
             Message::ClientConnectedMessage(m) => {
                 if let Screen::ClientConnected(host) = &mut self.screen {
-                    host.update(m)
+                    host.update(m, self.window_size)
                 } else {
                     Task::none()
                 }
-            },
+            }
             Message::HostMessage(m) => {
                 if let Screen::Host(host) = &mut self.screen {
                     host.update(m)
                 } else {
                     Task::none()
                 }
-            },
+            }
             Message::ClientMessage(m) => {
                 if let Screen::Client(client) = &mut self.screen {
                     client.update(m)
                 } else {
                     Task::none()
                 }
-            },
+            }
             Message::SettingsMessage(m) => {
                 if let Screen::Settings(settings) = &mut self.screen {
                     settings.update(&mut self.config, m)
                 } else {
                     Task::none()
                 }
-            },
+            }
 
+            Message::WindowResize(w, h) => {
+                self.window_size = (w, h);
+                Task::none()
+            }
             Message::Tab(tab) => {
                 self.screen = tab;
                 Task::none()
-            },
-            Message::None => {
-                Task::none()
             }
+            Message::None => Task::none(),
         }
     }
 
     pub fn view(&self) -> iced::Element<'_, Message> {
         match &self.screen {
-            Screen::HostConnected(s) => {
-                s.view()
-            }
-            Screen::ClientConnected(s) => {
-                s.view()
-            }
-            Screen::Host(s) => {
-                ribbon_wrapper(self, 
-                    s.view()
-                )
-            }
-            Screen::Client(s) => {
-                ribbon_wrapper(self, 
-                    s.view()
-                )
-            }
-            Screen::Settings(s) => {
-                ribbon_wrapper(self, 
-                    s.view(&self.config)
-                )
-            }
-            // _ => {
-            //     iced::widget::text("null").into()
-            // }
+            Screen::HostConnected(s) => s.view(),
+            Screen::ClientConnected(s) => s.view(),
+            Screen::Host(s) => ribbon_wrapper(self, s.view()),
+            Screen::Client(s) => ribbon_wrapper(self, s.view()),
+            Screen::Settings(s) => ribbon_wrapper(self, s.view(&self.config)),
         }
     }
 }
 
 pub fn subscription(window: &Window) -> Subscription<Message> {
-    match &window.screen {
-        Screen::HostConnected(_) => {
+    let mut subscriptions: Vec<Subscription<Message>> = match &window.screen {
+        Screen::HostConnected(host) => {
             let props = host_connected::Params {
                 id: 0,
                 secret_key: window.config.secret_key.clone(),
-                monitor: String::from("none")
+                monitor: host.monitor.clone(),
             };
-            iced::Subscription::run_with(props, host_connected::worker).map(|e| Message::HostConnectedMessage(host_connected::HostConnectedMessage::WorkerEvent(e)))
+            let mut s = vec![
+                iced::Subscription::run_with(props, host_connected::worker).map(|e| {
+                    Message::HostConnectedMessage(
+                        host_connected::HostConnectedMessage::WorkerEvent(e),
+                    )
+                }),
+            ];
+
+            if let Some(sender) = &host.sender {
+                let params = screen_capture::Params {
+                    monitor: host.monitor.clone(),
+                    sender: sender.clone(),
+                };
+
+                s.push(iced::Subscription::run_with(params, screen_capture::worker));
+            };
+
+            s
         }
         Screen::ClientConnected(t) => {
-            let props = client_connected::Params { 
+            let props = client_connected::Params {
                 id: 0,
                 pin: t.pin.clone(),
                 key: t.key.clone(),
-                window_size: t.window_size.clone(),
+                window_size: window.window_size.clone(),
             };
-            iced::Subscription::run_with(props, client_connected::worker).map(|e| Message::ClientConnectedMessage(client_connected::ClientConnectedMessage::WorkerEvent(e)))
+
+            vec![
+                iced::Subscription::run_with(props, client_connected::worker).map(|e| {
+                    Message::ClientConnectedMessage(
+                        client_connected::ClientConnectedMessage::WorkerEvent(e),
+                    )
+                }),
+            ]
         }
-        _ => {
-            iced::Subscription::none()
-        }
-    }
+        _ => vec![],
+    };
+
+    subscriptions.push(
+        iced::window::resize_events()
+            .map(|e| Message::WindowResize(e.1.width as usize, e.1.height as usize)),
+    );
+
+    iced::Subscription::batch(subscriptions)
 }
 
 pub fn ribbon_wrapper<'a>(
