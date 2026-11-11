@@ -84,9 +84,9 @@ impl Window {
                     s.view(&self.config)
                 )
             }
-            _ => {
-                iced::widget::text("null").into()
-            }
+            // _ => {
+            //     iced::widget::text("null").into()
+            // }
         }
     }
 }

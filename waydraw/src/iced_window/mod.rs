@@ -1,14 +1,7 @@
-use std::sync::{Arc, Mutex};
-
-use tokio::sync::RwLock;
-
-mod screens;
+pub mod screens;
 pub mod window;
 pub mod styles;
 pub mod widgets;
-
-pub type TokioOpt<T> = Arc<RwLock<Option<T>>>;
-pub type SyncOpt<T> = Arc<Mutex<Option<T>>>;
 
 #[derive(Clone)]
 pub enum Screen {

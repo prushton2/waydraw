@@ -79,6 +79,9 @@ pub struct P2P {
     router: Router,
     send: Mutex<Option<SendStream>>,
     recv: Mutex<Option<RecvStream>>,
+    // This exists to make read() cancel safe. Since theres no peek functionality in RecvStream, its instead write bytes to this buffer.
+    // Once this buffer has the proper amount of bytes for a full struct, it will be returned
+    recv_buff: Mutex<Vec<u8>>, 
 }
 
 impl P2P {
@@ -124,6 +127,7 @@ impl P2P {
                 router,
                 send: Mutex::new(None),
                 recv: Mutex::new(None),
+                recv_buff: Mutex::new(vec![])
             },
             id,
         ))
@@ -206,6 +210,7 @@ impl P2P {
             router,
             send: Mutex::new(Some(send)),
             recv: Mutex::new(Some(recv)),
+            recv_buff: Mutex::new(vec![])
         };
 
         this.send(HELLO).await?;
@@ -238,36 +243,29 @@ impl P2P {
             P2PError::ConnectionNotFound,
         ))?;
 
-        let mut bytes = [0u8; 4];
+        let mut buf_lock = self.recv_buff.lock().await;
+        let mut length = None;
 
-        recv.read_exact(&mut bytes).await.map_err(|e| {
-            P2PError::during("Reading message length", P2PError::ReadError(e.to_string()))
-        })?;
+        loop {
+            if buf_lock.len() >= 4 && length.is_none() {
+                let bytes: [u8; 4] = [buf_lock[0], buf_lock[1], buf_lock[2], buf_lock[3]];
+                length = Some(u32::from_be_bytes(bytes) as usize);
+            }
+            
+            if let Some(len) = length  && buf_lock.len() >= len + 4 {
+                let bytes = buf_lock.drain(0..(len + 4)).skip(4).collect::<Vec<u8>>();
+                return Ok(bytes)
+            }
 
-        let length = u32::from_be_bytes(bytes);
+            match recv.read_chunk(usize::MAX).await {
+                Ok(Some(chunk)) => buf_lock.extend_from_slice(&chunk),
+                Ok(None) => {},
+                Err(e) => return Err(P2PError::during("Reading entire buffer", P2PError::ReadError(e.to_string())))
+            };
 
-        let mut bytes: Vec<u8> = vec![0; length as usize];
-
-        tokio::time::timeout(
-            std::time::Duration::from_secs(5),
-            recv.read_exact(&mut bytes[..]),
-        )
-        .await
-        .map_err(|_| {
-            P2PError::ErrorDuring(
-                format!("Reading exactly {} bytes", length),
-                Box::new(P2PError::Timeout),
-            )
-        })?
-        .map_err(|e| {
-            P2PError::during(
-                format!("Reading exactly {} bytes", length).as_str(),
-                P2PError::ReadError(e.to_string()),
-            )
-        })?;
-
-        Ok(bytes)
+        }
     }
+
 
     pub async fn close(&mut self) {
         let _ = self.router.shutdown().await;
