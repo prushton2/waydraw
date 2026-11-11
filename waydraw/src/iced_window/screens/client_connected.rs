@@ -1,10 +1,13 @@
 use std::hash::{Hash, Hasher};
+use iced::Length;
 use iced::futures::{SinkExt, StreamExt};
-use iced::{Task, futures::{Stream, channel::mpsc::{self, Receiver, Sender}}, widget::{column, text}};
+use iced::widget::{MouseArea, button, container, stack};
+use iced::{Task, futures::{Stream, channel::mpsc::{self, Receiver, Sender}}, widget::{column, text, space, row}};
 use iroh::EndpointId;
 
 use crate::encoding;
-use crate::p2p::protocol::{self, IntoBytes};
+use crate::input::{MouseButton, MouseState};
+use crate::p2p::protocol::{self, FromBytes, IntoBytes};
 use crate::{encoding::Codec, iced_window::Message, p2p};
 
 #[derive(Clone)]
@@ -37,33 +40,77 @@ impl ClientConnected {
                     WorkerEvent::UpdatePin(pin) => self.pin = pin,
                     WorkerEvent::Failed(e) => println!("Worker failed: {}", e),
                     WorkerEvent::SetServerInfo(e) => self.server_info = Some(e),
+                    WorkerEvent::Disconnect(e) => println!("{:?}", e),
                     _ => {}
                 }
                 Task::none()
+            },
+            ClientConnectedMessage::MouseClick(button, state) => {
+                if let Some(sender) = &mut self.sender {
+                    let mut sender_clone = sender.clone();
+                    return Task::perform(async move {
+                        let _ = sender_clone.send(WorkerEvent::MouseClick(button, state)).await;
+                    }, |_| Message::None)
+                }
+                Task::none()
+            },
+            ClientConnectedMessage::MouseMove(x, y) => {
+                if let Some(sender) = &mut self.sender {
+                    let mut sender_clone = sender.clone();
+                    return Task::perform(async move {
+                        let _ = sender_clone.send(WorkerEvent::MouseMove(x, y)).await;
+                    }, |_| Message::None)
+                }
+                Task::none()
             }
+
         }
     }
 
     pub fn view(&self) -> iced::Element<'_, Message> {
-        column![
-            text("Client connected")
-        ].into()
+        container(stack![
+            MouseArea::new(row![].width(Length::Fill).height(Length::Fill))
+                .on_move(|point|  Message::ClientConnectedMessage(ClientConnectedMessage::MouseMove(point.x as i32, point.y as i32)))
+                .on_press(        Message::ClientConnectedMessage(ClientConnectedMessage::MouseClick(MouseButton::Left,  MouseState::Pressed)))
+                .on_release(      Message::ClientConnectedMessage(ClientConnectedMessage::MouseClick(MouseButton::Left,  MouseState::Released)))
+                .on_right_press(  Message::ClientConnectedMessage(ClientConnectedMessage::MouseClick(MouseButton::Right, MouseState::Pressed)))
+                .on_right_release(Message::ClientConnectedMessage(ClientConnectedMessage::MouseClick(MouseButton::Right, MouseState::Released))),
+            // match this.allocation.as_ref() {
+            //     Some(allocation) => iced::Element::from(
+            //         image(allocation.handle())
+            //             .width(Length::Fill)
+            //             .height(Length::Fill)
+            //     ),
+            //     None => space().width(Length::Fill).height(Length::Fill).into(),
+            // }
+            space().width(Length::Fill).height(Length::Fill)
+        ])
+        .width(Length::Fill)
+        .height(Length::Fill)
+        .into()
     }
 }
 
 #[derive(Clone)]
 pub enum ClientConnectedMessage {
     WorkerEvent(WorkerEvent),
+    MouseClick(MouseButton, MouseState),
+    MouseMove(i32, i32)
 }
 
 #[derive(Clone, Debug)]
 pub enum WorkerEvent {
+    // Sent from worker
     Ready(Sender<WorkerEvent>),
     Failed(String),
     UpdatePin(String),
     UpdateKey(String),
     SetServerInfo(protocol::ServerHello),
-    Button
+    Disconnect(String),
+    
+    // Sent to worker
+    MouseMove(i32, i32),
+    MouseClick(MouseButton, MouseState),
 }
 
 #[derive(Debug)]
@@ -90,17 +137,15 @@ pub fn worker(params: &Params) -> impl Stream<Item = WorkerEvent> + use<> {
         let _ = out.send(WorkerEvent::Ready(cmd_tx)).await;
 
         // Handshake: p2p is owned here, so &mut methods (await_connection) just work
-        let (mut p2p, codec) = match handshake(&params, &mut out, &mut cmd_rx).await {
+        let (mut p2p, mut codec) = match handshake(&params, &mut out, &mut cmd_rx).await {
             Ok(t) => t,
             Err(e) => { let _ = out.send(WorkerEvent::Failed(e)).await; return; }
         };
 
-        // let disconnect_reason = session()
+        let reason = session(&mut p2p, codec.as_mut(), &mut out, &mut cmd_rx).await;
 
-        // let reason = session(&p2p, &params.monitor, &codec, &mut out, &mut cmd_rx).await;
-
-        // p2p.close().await; // the borrow from session() has ended, so &mut is fine
-        // let _ = out.send(Event::Disconnected(reason)).await;
+        p2p.close().await; // the borrow from session() has ended, so &mut is fine
+        let _ = out.send(WorkerEvent::Disconnect(reason)).await;
     })
 }
 
@@ -168,11 +213,29 @@ async fn session(p2p: &mut p2p::P2P, codec: &mut dyn Codec, out: &mut Sender<Wor
             },
             cmd = p2p.read() => match cmd {
                 Ok(t) => IncomingEvent::Bytes(t),
-                Err(_) => break,
+                Err(e) => return e.to_string(),
             },
         };
+
+        match event {
+            IncomingEvent::WorkerEvent(WorkerEvent::MouseClick(button, state)) => {
+                let message = protocol::MouseClick {
+                    button,
+                    state
+                };
+                let _ = p2p.send(&message.into_bytes()).await;
+            },
+            IncomingEvent::WorkerEvent(WorkerEvent::MouseMove(x, y)) => {
+                let message = protocol::MouseMove {
+                    x: x as u32,
+                    y: y as u32
+                };
+                let _ = p2p.send(&message.into_bytes()).await;
+            },
+            IncomingEvent::Bytes(_) => {
+            },
+            _ => {}
+        }
     }
-
-
-    String::from("Bruh")
+    String::from("Failsafe return")
 }

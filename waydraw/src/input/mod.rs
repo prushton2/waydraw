@@ -5,7 +5,7 @@ pub use dummy_input::DummyInput;
 pub use enigo_input::EnigoInput;
 use serde::{Deserialize, Serialize};
 
-pub trait Input: Send {
+pub trait Input: Send + Sync {
     fn move_mouse(&mut self, x: i32, y: i32);
     fn click_mouse(&mut self, button: MouseButton, state: MouseState);
     fn key_event(&mut self, key: Key, state: KeyState);

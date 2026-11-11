@@ -1,14 +1,17 @@
 use std::hash::{Hash, Hasher};
+use std::rc::Rc;
+use std::sync::Arc;
 
-use iced::Task;
+use iced::{Alignment, Length, Task};
 use iced::futures::channel::mpsc::{self, Receiver, Sender};
 use iced::futures::{SinkExt, Stream, StreamExt};
-use iced::widget::{column, button, text};
+use iced::widget::{button, column, container, row, text};
 use iroh::SecretKey;
 
 use crate::encoding::{self, Codec};
 use crate::iced_window::Message;
-use crate::p2p::protocol::IntoBytes;
+use crate::input::{self, Input};
+use crate::p2p::protocol::{FromBytes, IntoBytes};
 use crate::p2p::{self, protocol}; // for out.send(..).await and cmd_rx.next().await
 
 #[derive(Clone)]
@@ -25,7 +28,7 @@ impl HostConnected {
             key: String::from(""),
             pin: String::from(""),
             sender: None,
-            client_info: None,
+            client_info: None
         }
     }
 
@@ -46,6 +49,7 @@ impl HostConnected {
                     WorkerEvent::UpdatePin(pin) => self.pin = pin,
                     WorkerEvent::Failed(e) => println!("Worker failed: {}", e),
                     WorkerEvent::SetClientInfo(t) => self.client_info = Some(t),
+                    WorkerEvent::Disconnect(r) => println!("{:?}", r),
                     _ => {}
                 }
                 Task::none()
@@ -54,11 +58,49 @@ impl HostConnected {
     }
 
     pub fn view(&self) -> iced::Element<'_, Message> {
-        column![
-            text(&self.pin),
-            text(&self.key),
-            button("CLICK ME YIPPEE").on_press(Message::HostConnectedMessage(HostConnectedMessage::Button))
-        ].into()
+        fn info_row<'a>(label: &'a str, value: &'a str) -> iced::Element<'a, Message> {
+            row![
+                text(label)
+                    .width(Length::Fixed(80.0))
+                    .style(text::secondary),
+                text(value),
+            ]
+            .spacing(12)
+            .into()
+        }
+
+        let mut card = column![text("Connected").size(22)]
+            .spacing(8)
+            .align_x(Alignment::Start);
+
+        card = card.push(info_row("Pin", &self.pin));
+        card = card.push(info_row("Key", &self.key));
+
+        if let Some(client_info) = self.client_info.as_ref() {
+            card = card
+                .push(info_row("Device", deref(&client_info.host_name)))
+                .push(info_row("OS", deref(&client_info.name)))
+                .push(info_row("Version", deref(&client_info.os_version)))
+                .push(info_row("Kernel", deref(&client_info.kernel_version)));
+        }
+
+        card = card.push(
+            container(
+                button(text("Disconnect").align_x(Alignment::Center))
+                    // .on_press(Message::Disconnect),
+            )
+            .center_x(Length::Fill)
+            .padding(iced::Padding::ZERO.top(12)),
+        );
+
+        container(
+            container(card)
+                .padding(20)
+                .max_width(420)
+                .style(container::rounded_box),
+        )
+        .center(Length::Fill)
+        .into()
     }
 }
 
@@ -76,6 +118,7 @@ pub enum WorkerEvent {
     UpdatePin(String),
     UpdateKey(String),
     SetClientInfo(protocol::ClientHello),
+    Disconnect(String),
     Button
 }
 
@@ -103,27 +146,15 @@ pub fn worker(params: &Params) -> impl Stream<Item = WorkerEvent> + use<> {
         let _ = out.send(WorkerEvent::Ready(cmd_tx)).await;
 
         // Handshake: p2p is owned here, so &mut methods (await_connection) just work
-        let (mut p2p, codec) = match handshake(&params, &mut out, &mut cmd_rx).await {
+        let (mut p2p, mut codec) = match handshake(&params, &mut out, &mut cmd_rx).await {
             Ok(t) => t,
             Err(e) => { let _ = out.send(WorkerEvent::Failed(e)).await; return; }
         };
 
-        loop {
-            let response = tokio::select! {
-                cmd = cmd_rx.next() => match cmd {
-                    Some(t) => IncomingEvent::WorkerEvent(t),
-                    None => break, // UI dropped the sender, stop the worker
-                },
-                _ = tokio::time::sleep(std::time::Duration::from_secs(1)) => IncomingEvent::None,
-            };
+        let reason = session(&mut p2p, codec.as_mut(), &mut out, &mut cmd_rx).await;
 
-            println!("{:?}", response);
-        }
-
-        // let reason = session(&p2p, &params.monitor, &codec, &mut out, &mut cmd_rx).await;
-
-        // p2p.close().await; // the borrow from session() has ended, so &mut is fine
-        // let _ = out.send(Event::Disconnected(reason)).await;
+        p2p.close().await; // the borrow from session() has ended, so &mut is fine
+        let _ = out.send(WorkerEvent::Disconnect(reason)).await;
     })
 }
 
@@ -181,6 +212,41 @@ async fn handshake(params: &Params, out: &mut Sender<WorkerEvent>, cmd_rx: &mut 
     return Ok((p2p, codec_box))
 }
 
+async fn session(p2p: &mut p2p::P2P, codec: &mut dyn Codec, out: &mut Sender<WorkerEvent>, cmd_rx: &mut Receiver<WorkerEvent>) -> String {
+    let mut input: Box<dyn Input> = Box::new(input::DummyInput::new());
+    #[cfg(not(debug_assertions))]
+    let mut input: Box<dyn Input> = Box::new(input::EnigoInput::new());
+    
+    loop {
+        let event = tokio::select! {
+            cmd = cmd_rx.next() => match cmd {
+                Some(t) => IncomingEvent::WorkerEvent(t),
+                None => break, // UI dropped the sender, stop the worker
+            },
+            cmd = p2p.read() => match cmd {
+                Ok(t) => IncomingEvent::Bytes(t),
+                Err(e) => return e.to_string(),
+            },
+        };
+
+        match event {
+        //     IncomingEvent::WorkerEvent(worker_event) => {
+        //         let _ = out.send(worker_event).await;
+        //     },
+            IncomingEvent::Bytes(b) => {
+                match FromBytes::parse(&b) {
+                    FromBytes::MouseClick(e) => input.click_mouse(e.button, e.state),
+                    FromBytes::MouseMove(e) => input.move_mouse(e.x as i32, e.y as i32),
+                    _ => {}
+                }
+            },
+        //     IncomingEvent::None => {}
+            _ => {}
+        }
+    }
+    String::from("Failsafe return")
+}
+
 trait MapErr<T, E> {
     fn map_err(self, op: impl FnOnce() -> E) -> Result<T, E>;
 }
@@ -192,4 +258,8 @@ impl<T, E> MapErr<T, E> for Option<T> {
             None => Err(op())
         }
     }
+}
+
+fn deref(option: &Option<String>) -> &str {
+    option.as_deref().unwrap_or("Unknown")
 }
