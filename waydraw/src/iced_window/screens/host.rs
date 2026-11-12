@@ -1,10 +1,11 @@
-use crate::iced_window::{Message, styles};
+use std::sync::Arc;
+
+use crate::iced_window::{Message, Screen, styles};
 use iced::{
     Alignment, Length, Task,
     widget::{button, column, container, row, space, text, text_input},
 };
 
-#[derive(Clone)]
 pub struct Host {
     monitors: Vec<(Monitor, String)>,
     monitor: Monitor,
@@ -75,9 +76,10 @@ impl Host {
             row![
                 space().width(Length::Fill),
                 button("Allow Connections").on_press(Message::Tab(
-                    crate::iced_window::Screen::HostConnected(super::HostConnected::new(
-                        self.monitor.clone()
-                    ))
+                    Arc::new({
+                        let monitor = self.monitor.clone();
+                        move || Screen::HostConnected(super::HostConnected::new(monitor.clone()))
+                    })
                 )),
                 space().width(Length::Fill),
             ]

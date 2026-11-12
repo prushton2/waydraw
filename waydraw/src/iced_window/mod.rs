@@ -1,10 +1,12 @@
+use std::sync::Arc;
+
 pub mod screen_capture;
 pub mod screens;
 pub mod styles;
 pub mod widgets;
 pub mod window;
+pub mod heartbeat;
 
-#[derive(Clone)]
 pub enum Screen {
     ClientConnected(screens::ClientConnected),
     Client(screens::Client),
@@ -12,7 +14,6 @@ pub enum Screen {
     Host(screens::Host),
     Settings(screens::Settings),
 }
-
 pub struct Window {
     pub config: crate::Config,
     pub screen: Screen,
@@ -23,7 +24,7 @@ pub struct Window {
 pub enum Message {
     None,
     WindowResize(usize, usize),
-    Tab(Screen),
+    Tab(Arc<dyn Fn() -> Screen + Sync + Send>),
     /// Arguments are (String, String). First string is the hostname, second string is the key
     UpdateKnownHosts(String, String),
     HostMessage(screens::HostMessage),

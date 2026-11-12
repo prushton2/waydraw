@@ -14,18 +14,20 @@ use iced::{
 use iced_core::image::Allocation;
 use iroh::EndpointId;
 use std::hash::{Hash, Hasher};
+use std::sync::Arc;
 
 use crate::encoding;
+use crate::iced_window::Screen;
+use crate::iced_window::heartbeat::Heartbeat;
 use crate::input::{MouseButton, MouseState};
 use crate::p2p::protocol::{self, FromBytes, IntoBytes};
 use crate::{encoding::Codec, iced_window::{Message, screens}, p2p};
-
-#[derive(Clone)]
 
 pub struct ClientConnected {
     pub key: String,
     pub pin: String,
     pub sender: Option<Sender<WorkerEvent>>,
+    pub heartbeat: Option<Heartbeat>,
     pub server_info: Option<protocol::ServerHello>,
     pub image_allocation: Option<iced_core::image::Allocation>,
 }
@@ -38,26 +40,29 @@ impl ClientConnected {
             sender: None,
             server_info: None,
             image_allocation: None,
+            heartbeat: None,
         }
     }
 
-    pub fn from_key_ref(key: &String) -> Self {
+    pub fn from_key(key: String) -> Self {
         Self {
-            key: key.clone(),
+            key: key,
             pin: String::from(""),
             sender: None,
             server_info: None,
+            heartbeat: None,
             image_allocation: None,
         }
     }
 
-    pub fn from_pin_ref(pin: &String) -> Self {
+    pub fn from_pin(pin: String) -> Self {
         Self {
             key: String::from(""),
-            pin: pin.clone(),
+            pin: pin,
             sender: None,
             server_info: None,
             image_allocation: None,
+            heartbeat: None,
         }
     }
 
@@ -77,7 +82,6 @@ impl ClientConnected {
                     WorkerEvent::Failed(e) => println!("Worker failed: {}", e),
                     WorkerEvent::SetServerInfo(e) => self.server_info = Some(e),
                     WorkerEvent::Screenshot(bytes, res) => {
-                        println!("{:?}, {:?}", res, window_size);
                         if bytes.len() != res.0 * res.1 * 4 {
                             // Decoder produced no frame (e.g. waiting for a keyframe) or size mismatch
                             return Task::none();
@@ -160,9 +164,9 @@ impl ClientConnected {
                 if let Some(sender) = &mut self.sender {
                     let _ = sender.try_send(WorkerEvent::Disconnect(reason));
                 }
-                Task::done(Message::Tab(crate::iced_window::Screen::Host(
-                    screens::Host::new(),
-                )))
+                Task::done(Message::Tab(
+                    Arc::new(move || Screen::Client(screens::Client::new()))
+                ))
             }
         }
     }

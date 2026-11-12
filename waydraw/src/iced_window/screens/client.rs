@@ -1,10 +1,11 @@
+use std::sync::Arc;
+
 use iced::{
     Alignment, Length, Task, widget::{Column, button, column, row, space, text, text_input},
 };
 
 use crate::iced_window::{Message, screens, Screen};
 
-#[derive(Clone)]
 pub struct Client {
     pin_input: String,
     key_input: String,
@@ -43,9 +44,10 @@ impl Client {
                 row![
                     button(host.as_str())
                         .on_press(Message::Tab(
-                            crate::iced_window::Screen::ClientConnected(
-                                screens::ClientConnected::from_key_ref(key)
-                            )
+                            Arc::new({
+                                let key = key.clone();
+                                move || Screen::ClientConnected(screens::ClientConnected::from_key(key.clone()))
+                            })
                         ))
                         .width(Length::Fill)
                         .style(|t, _| crate::iced_window::styles::square_button(t)),
@@ -69,11 +71,10 @@ impl Client {
                 space().width(20),
                 button("Connect").on_press(
                     Message::Tab(
-                        Screen::ClientConnected(
-                            screens::ClientConnected::from_pin_ref(
-                                &self.pin_input
-                            )
-                        )
+                        Arc::new({
+                            let pin_ref = self.pin_input.clone();
+                            move || Screen::ClientConnected(screens::ClientConnected::from_pin(pin_ref.clone()))
+                        })
                     )
                 )
             ],
@@ -86,11 +87,10 @@ impl Client {
                     .on_input(|e| Message::ClientMessage(ClientMessage::UpdateKey(e))),
                 space().width(20),
                 button("Connect").on_press(Message::Tab(
-                    Screen::ClientConnected(
-                        screens::ClientConnected::from_key_ref(
-                            &self.key_input
-                        )
-                    )
+                    Arc::new({
+                        let key_ref = self.key_input.clone();
+                        move || Screen::ClientConnected(screens::ClientConnected::from_key(key_ref.clone()))
+                    })
                 ))
             ],
             text("OR").width(Length::Fill).align_x(Alignment::Center),

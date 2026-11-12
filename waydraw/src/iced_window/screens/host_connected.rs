@@ -1,4 +1,5 @@
 use std::hash::{Hash, Hasher};
+use std::sync::Arc;
 
 use iced::futures::channel::mpsc::{self, Receiver, Sender};
 use iced::futures::{SinkExt, Stream, StreamExt};
@@ -8,12 +9,11 @@ use iroh::SecretKey;
 
 use crate::encoding::{self, Codec};
 use crate::iced_window::screens::host::Monitor;
-use crate::iced_window::{Message, screens, styles};
+use crate::iced_window::{Message, Screen, screens, styles};
 use crate::input::{self, Input};
-use crate::p2p::protocol::{FromBytes, IntoBytes};
+use crate::p2p::protocol::{ClientHello, FromBytes, IntoBytes, MouseMove};
 use crate::p2p::{self, protocol}; // for out.send(..).await and cmd_rx.next().await
 
-#[derive(Clone)]
 pub struct HostConnected {
     pub key: String,
     pub pin: String,
@@ -54,9 +54,9 @@ impl HostConnected {
                 if let Some(sender) = &mut self.sender {
                     let _ = sender.try_send(WorkerEvent::Disconnect(reason));
                 }
-                Task::done(Message::Tab(crate::iced_window::Screen::Host(
-                    screens::Host::new(),
-                )))
+                Task::done(Message::Tab(
+                    Arc::new(|| Screen::Host(super::Host::new()))
+                ))
             }
         }
     }
@@ -84,21 +84,28 @@ impl HostConnected {
             .into()
         }
 
-        let mut card = column![text("Connected").size(22)]
+        let mut card = column![]
             .spacing(8)
             .align_x(Alignment::Start);
 
-        card = card.push(textbox_row("Pin", &self.pin));
-        card = card.push(textbox_row("Key", &self.key));
-
+        
         if let Some(client_info) = self.client_info.as_ref() {
             card = card
+                .push(text("Connected").size(22))
                 .push(info_row("Device", deref(&client_info.host_name)))
                 .push(info_row("OS", deref(&client_info.name)))
                 .push(info_row("Version", deref(&client_info.os_version)))
                 .push(info_row("Kernel", deref(&client_info.kernel_version)));
+        } else if self.key.is_empty() {
+            card = card.push(text("Registering...").size(22))
+                .push(textbox_row("Pin", &self.pin))
+                .push(textbox_row("Key", &self.key))
+                .push(text(&self.error).style(text::danger));
         } else {
-            card = card.push(info_row("", "No device connected"))
+            card = card.push(text("Awaiting Connection").size(22))
+                .push(textbox_row("Pin", &self.pin))
+                .push(textbox_row("Key", &self.key))
+                .push(text(&self.error).style(text::danger));
         }
 
         card = card.push(
@@ -174,7 +181,7 @@ pub fn worker(params: &Params) -> impl Stream<Item = WorkerEvent> + use<> {
         let _ = out.send(WorkerEvent::Ready(cmd_tx)).await;
 
         // Handshake: p2p is owned here, so &mut methods (await_connection) just work
-        let (mut p2p, mut codec) = match handshake(&params, &mut out).await {
+        let (mut p2p, mut codec, client_info) = match handshake(&params, &mut out).await {
             Ok(t) => t,
             Err(e) => {
                 let _ = out.send(WorkerEvent::Failed(e)).await;
@@ -182,7 +189,7 @@ pub fn worker(params: &Params) -> impl Stream<Item = WorkerEvent> + use<> {
             }
         };
 
-        let reason = session(&params, &mut p2p, codec.as_mut(), &mut out, &mut cmd_rx).await;
+        let reason = session(&params, &mut p2p, codec.as_mut(), &mut out, &mut cmd_rx, &client_info).await;
 
         p2p.close().await; // the borrow from session() has ended, so &mut is fine
         let _ = out.send(WorkerEvent::Disconnect(reason)).await;
@@ -192,7 +199,7 @@ pub fn worker(params: &Params) -> impl Stream<Item = WorkerEvent> + use<> {
 async fn handshake(
     params: &Params,
     out: &mut Sender<WorkerEvent>,
-) -> Result<(p2p::P2P, Box<dyn Codec>), String> {
+) -> Result<(p2p::P2P, Box<dyn Codec>, ClientHello), String> {
     // Register
     let (mut p2p, key) = p2p::P2P::init(params.secret_key.clone())
         .await
@@ -250,7 +257,7 @@ async fn handshake(
         .next()
         .map_err(|| "No valid codec found")?;
 
-    out.try_send(WorkerEvent::SetClientInfo(client_info))
+    out.try_send(WorkerEvent::SetClientInfo(client_info.clone()))
         .map_err(|e| {
             format!(
                 "TrySendError: Full: {}, Disconnected: {}",
@@ -273,7 +280,7 @@ async fn handshake(
 
     let codec_box = encoding::get_codec(codec)?;
 
-    return Ok((p2p, codec_box));
+    return Ok((p2p, codec_box, client_info));
 }
 
 async fn session(
@@ -282,6 +289,7 @@ async fn session(
     codec: &mut dyn Codec,
     out: &mut Sender<WorkerEvent>,
     cmd_rx: &mut Receiver<WorkerEvent>,
+    client_info: &ClientHello
 ) -> String {
     let mut input: Box<dyn Input> = Box::new(input::DummyInput::new());
     #[cfg(not(debug_assertions))]
@@ -319,7 +327,28 @@ async fn session(
                 let _ = out.send(WorkerEvent::Disconnect("Client disconnected".to_string())).await;
             }
             IncomingEvent::P2p(FromBytes::MouseClick(e)) => input.click_mouse(e.button, e.state),
-            IncomingEvent::P2p(FromBytes::MouseMove(e)) => input.move_mouse(e.x as i32, e.y as i32),
+            IncomingEvent::P2p(FromBytes::MouseMove(MouseMove{x, y})) => {
+                let (offset_x, offset_y) = params.monitor.position;
+                let client_res = (client_info.window_width, client_info.window_height);
+                let scale = params.monitor.scale;
+                
+                let mouse_pct = (
+                    x as f32 / client_res.0 as f32,
+                    y as f32 / client_res.1 as f32,
+                );
+
+                let mouse_scaled_to_target_res = (
+                    mouse_pct.0 * params.monitor.resolution.0 as f32,
+                    mouse_pct.1 * params.monitor.resolution.1 as f32,
+                );
+
+                let mouse_position = (
+                    ((mouse_scaled_to_target_res.0 as i32 + offset_x) as f32) / scale,
+                    ((mouse_scaled_to_target_res.1 as i32 + offset_y) as f32) / scale,
+                );
+
+                input.move_mouse(mouse_position.0 as i32, mouse_position.1 as i32);
+            },
             _ => {}
         }
     }

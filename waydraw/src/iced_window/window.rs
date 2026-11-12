@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use iced::{
     Alignment, Length, Subscription, Task,
     widget::{button, column, container, row, space},
@@ -63,7 +65,7 @@ impl Window {
                 Task::none()
             }
             Message::Tab(tab) => {
-                self.screen = tab;
+                self.screen = tab.as_ref()();
                 Task::none()
             }
             Message::UpdateKnownHosts(hostname, key) => {
@@ -155,36 +157,36 @@ pub fn ribbon_wrapper<'a>(
             button("Client")
                 .width(Length::Fill)
                 .style(move |t, _| { styles::client_host_unselected(t) })
-                .on_press(Message::Tab(Screen::Client(screens::Client::new()))),
+                .on_press(Message::Tab(Arc::new(|| Screen::Client(screens::Client::new())))),
             button("Settings")
                 .width(Length::Fill)
                 .style(move |t, _| { styles::client_host_unselected(t) })
-                .on_press(Message::Tab(Screen::Settings(screens::Settings::new()))),
+                .on_press(Message::Tab(Arc::new(|| Screen::Settings(screens::Settings::new())))),
         ]
         .into(),
         Screen::Client(_) => row![
             button("Host")
                 .width(Length::Fill)
                 .style(move |t, _| { styles::client_host_unselected(t) })
-                .on_press(Message::Tab(Screen::Host(screens::Host::new()))),
+                .on_press(Message::Tab(Arc::new(|| Screen::Host(screens::Host::new())))),
             button("Client")
                 .width(Length::Fill)
                 .style(move |t, _| { styles::client_host_selected(t) }),
             button("Settings")
                 .width(Length::Fill)
                 .style(move |t, _| { styles::client_host_unselected(t) })
-                .on_press(Message::Tab(Screen::Settings(screens::Settings::new()))),
+                .on_press(Message::Tab(Arc::new(|| Screen::Settings(screens::Settings::new())))),
         ]
         .into(),
         Screen::Settings(_) => row![
             button("Host")
                 .width(Length::Fill)
                 .style(move |t, _| { styles::client_host_unselected(t) })
-                .on_press(Message::Tab(Screen::Host(screens::Host::new()))),
+                .on_press(Message::Tab(Arc::new(|| Screen::Host(screens::Host::new())))),
             button("Client")
                 .width(Length::Fill)
                 .style(move |t, _| { styles::client_host_unselected(t) })
-                .on_press(Message::Tab(Screen::Client(screens::Client::new()))),
+                .on_press(Message::Tab(Arc::new(|| Screen::Client(screens::Client::new())))),
             button("Settings")
                 .width(Length::Fill)
                 .style(move |t, _| { styles::client_host_selected(t) }),
