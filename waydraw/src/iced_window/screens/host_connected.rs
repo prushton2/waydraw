@@ -7,8 +7,8 @@ use iced::{Alignment, Length, Task};
 use iroh::SecretKey;
 
 use crate::encoding::{self, Codec};
-use crate::iced_window::{Message, styles};
 use crate::iced_window::screens::host::Monitor;
+use crate::iced_window::{Message, screens, styles};
 use crate::input::{self, Input};
 use crate::p2p::protocol::{FromBytes, IntoBytes};
 use crate::p2p::{self, protocol}; // for out.send(..).await and cmd_rx.next().await
@@ -17,6 +17,7 @@ use crate::p2p::{self, protocol}; // for out.send(..).await and cmd_rx.next().aw
 pub struct HostConnected {
     pub key: String,
     pub pin: String,
+    pub error: String,
     pub sender: Option<Sender<WorkerEvent>>,
     pub client_info: Option<protocol::ClientHello>,
     pub monitor: Monitor,
@@ -27,6 +28,7 @@ impl HostConnected {
         Self {
             key: String::from(""),
             pin: String::from(""),
+            error: String::from(""),
             sender: None,
             client_info: None,
             monitor,
@@ -37,15 +39,24 @@ impl HostConnected {
         match message {
             HostConnectedMessage::WorkerEvent(event) => {
                 match event {
+                    WorkerEvent::UpdateKnownHosts(hostname, key) => return Task::done(Message::UpdateKnownHosts(hostname, key)),
+                    WorkerEvent::Disconnect(reason) => return Task::done(Message::HostConnectedMessage(HostConnectedMessage::Disconnect(reason))),
                     WorkerEvent::Ready(t) => self.sender = Some(t),
                     WorkerEvent::UpdateKey(key) => self.key = key,
                     WorkerEvent::UpdatePin(pin) => self.pin = pin,
-                    WorkerEvent::Failed(e) => println!("Worker failed: {}", e),
+                    WorkerEvent::Failed(e) => self.error = e,
                     WorkerEvent::SetClientInfo(t) => self.client_info = Some(t),
-                    WorkerEvent::Disconnect(r) => println!("{:?}", r),
                     _ => {}
                 }
                 Task::none()
+            }
+            HostConnectedMessage::Disconnect(reason) => {
+                if let Some(sender) = &mut self.sender {
+                    let _ = sender.try_send(WorkerEvent::Disconnect(reason));
+                }
+                Task::done(Message::Tab(crate::iced_window::Screen::Host(
+                    screens::Host::new(),
+                )))
             }
         }
     }
@@ -67,8 +78,7 @@ impl HostConnected {
                 text(label)
                     .width(Length::Fixed(80.0))
                     .style(text::secondary),
-                text_input("", value)
-                    .style(|t, _| styles::context_textbox(t)),
+                text_input("", value).style(|t, _| styles::context_textbox(t)),
             ]
             .spacing(12)
             .into()
@@ -88,14 +98,14 @@ impl HostConnected {
                 .push(info_row("Version", deref(&client_info.os_version)))
                 .push(info_row("Kernel", deref(&client_info.kernel_version)));
         } else {
-
+            card = card.push(info_row("", "No device connected"))
         }
 
         card = card.push(
             container(
                 button(text("Disconnect").align_x(Alignment::Center)).on_press(
-                    Message::HostConnectedMessage(HostConnectedMessage::WorkerEvent(
-                        WorkerEvent::Disconnect("Host initiated disconnect".to_string()),
+                    Message::HostConnectedMessage(HostConnectedMessage::Disconnect(
+                        "Host initiated disconnect".to_string(),
                     )),
                 ),
             )
@@ -117,11 +127,14 @@ impl HostConnected {
 #[derive(Clone)]
 pub enum HostConnectedMessage {
     WorkerEvent(WorkerEvent),
+    Disconnect(String),
 }
 
 #[derive(Clone, Debug)]
 pub enum WorkerEvent {
     // From Worker
+    /// See Message::UpdateKnownHosts
+    UpdateKnownHosts(String, String),
     Ready(mpsc::Sender<WorkerEvent>),
     Failed(String),
     UpdatePin(String),
@@ -192,7 +205,7 @@ async fn handshake(
         Err(e) => return Err(e),
     };
 
-    out.try_send(WorkerEvent::UpdateKey(key)).map_err(|e| {
+    out.try_send(WorkerEvent::UpdateKey(key.clone())).map_err(|e| {
         format!(
             "TrySendError: Full: {}, Disconnected: {}",
             e.is_full(),
@@ -219,6 +232,15 @@ async fn handshake(
         protocol::FromBytes::ClientHello(d) => d,
         _ => panic!("Did not receive client info"),
     };
+
+    out.try_send(WorkerEvent::UpdateKnownHosts(client_info.host_name.clone().unwrap_or(String::from("Unnamed Device")), key))
+        .map_err(|e| {
+            format!(
+                "TrySendError: Full: {}, Disconnected: {}",
+                e.is_full(),
+                e.is_disconnected()
+            )
+        })?;
 
     // Find a codec match
 
@@ -287,6 +309,14 @@ async fn session(
                 };
 
                 let _ = p2p.send(&frame.into_bytes()).await;
+            }
+            IncomingEvent::WorkerEvent(WorkerEvent::Disconnect(reason)) => {
+                let goodbye = protocol::Goodbye {};
+                let _ = p2p.send(&goodbye.into_bytes()).await;
+                return reason;
+            }
+            IncomingEvent::P2p(FromBytes::Goodbye(_)) => {
+                let _ = out.send(WorkerEvent::Disconnect("Client disconnected".to_string())).await;
             }
             IncomingEvent::P2p(FromBytes::MouseClick(e)) => input.click_mouse(e.button, e.state),
             IncomingEvent::P2p(FromBytes::MouseMove(e)) => input.move_mouse(e.x as i32, e.y as i32),

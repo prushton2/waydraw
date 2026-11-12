@@ -66,6 +66,14 @@ impl Window {
                 self.screen = tab;
                 Task::none()
             }
+            Message::UpdateKnownHosts(hostname, key) => {
+                // Only insert if it doesnt exist to preserve the edited hostname if the client decides to edit it
+                if !self.config.known_hosts.contains_key(&key) {
+                    self.config.known_hosts.insert(key, hostname);
+                    self.config.write();
+                }
+                Task::none()
+            }
             Message::None => Task::none(),
         }
     }
@@ -75,7 +83,7 @@ impl Window {
             Screen::HostConnected(s) => s.view(),
             Screen::ClientConnected(s) => s.view(),
             Screen::Host(s) => ribbon_wrapper(self, s.view()),
-            Screen::Client(s) => ribbon_wrapper(self, s.view()),
+            Screen::Client(s) => ribbon_wrapper(self, s.view(&self.config)),
             Screen::Settings(s) => ribbon_wrapper(self, s.view(&self.config)),
         }
     }

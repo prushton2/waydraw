@@ -1,9 +1,8 @@
 use iced::{
-    Alignment, Length, Task,
-    widget::{button, column, row, space, text, text_input},
+    Alignment, Length, Task, widget::{Column, button, column, row, space, text, text_input},
 };
 
-use crate::iced_window::Message;
+use crate::iced_window::{Message, screens, Screen};
 
 #[derive(Clone)]
 pub struct Client {
@@ -36,27 +35,29 @@ impl Client {
         }
     }
 
-    pub fn view(&self) -> iced::Element<'_, Message> {
-        // let mut buttons = vec![];
+    pub fn view<'a>(&'a self, config: &'a crate::Config) -> iced::Element<'a, Message> {
+        let mut buttons: Vec<iced::Element<'a, Message>> = vec![];
 
-        // for (key, host) in &self.config.known_hosts {
-        //     buttons.push(
-        //         row![
-        //             button(host.as_str())
-        //                 .on_press(Message::ClientConnectFlow(
-        //                     modules::client::ConnectFlow::KeySubmitted(key.clone())
-        //                 ))
-        //                 .width(Length::Fill)
-        //                 .style(|t, _| Styles::square_button(t)),
-        //             button("X")
-        //                 .on_press(Message::RemoveKnownHost(key.clone()))
-        //                 .style(|t, _| Styles::square_button(t)),
-        //         ]
-        //         .spacing(0)
-        //         .into(),
-        //     );
-        //     buttons.push(space().height(5).into())
-        // }
+        for (key, host) in &config.known_hosts {
+            buttons.push(
+                row![
+                    button(host.as_str())
+                        .on_press(Message::Tab(
+                            crate::iced_window::Screen::ClientConnected(
+                                screens::ClientConnected::from_key_ref(key)
+                            )
+                        ))
+                        .width(Length::Fill)
+                        .style(|t, _| crate::iced_window::styles::square_button(t)),
+                    // button("X")
+                    //     .on_press(Message::RemoveKnownHost(key.clone()))
+                    //     .style(|t, _| styles::square_button(t)),
+                ]
+                .spacing(0)
+                .into(),
+            );
+            buttons.push(space().height(5).into())
+        }
 
         column![
             text("Input device pin")
@@ -66,12 +67,15 @@ impl Client {
                 text_input("000000", &self.pin_input)
                     .on_input(|e| Message::ClientMessage(ClientMessage::UpdatePin(e))),
                 space().width(20),
-                button("Connect").on_press(Message::Tab(
-                    crate::iced_window::Screen::ClientConnected(super::ClientConnected::new(
-                        self.pin_input.clone(),
-                        String::from("")
-                    ))
-                ))
+                button("Connect").on_press(
+                    Message::Tab(
+                        Screen::ClientConnected(
+                            screens::ClientConnected::from_pin_ref(
+                                &self.pin_input
+                            )
+                        )
+                    )
+                )
             ],
             text("OR").width(Length::Fill).align_x(Alignment::Center),
             text("Input device key")
@@ -82,19 +86,20 @@ impl Client {
                     .on_input(|e| Message::ClientMessage(ClientMessage::UpdateKey(e))),
                 space().width(20),
                 button("Connect").on_press(Message::Tab(
-                    crate::iced_window::Screen::ClientConnected(super::ClientConnected::new(
-                        String::from(""),
-                        self.key_input.clone()
-                    ))
+                    Screen::ClientConnected(
+                        screens::ClientConnected::from_key_ref(
+                            &self.key_input
+                        )
+                    )
                 ))
             ],
             text("OR").width(Length::Fill).align_x(Alignment::Center),
             text("Select previous device")
                 .width(Length::Fill)
                 .align_x(Alignment::Center),
-            // Column::from_vec(buttons)
-            //     .width(Length::Fill)
-            //     .align_x(Alignment::Center),
+            Column::from_vec(buttons)
+                .width(Length::Fill)
+                .align_x(Alignment::Center),
             space().height(20),
             text(&self.wait)
                 .width(Length::Fill)

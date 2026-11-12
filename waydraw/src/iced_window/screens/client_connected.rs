@@ -18,7 +18,7 @@ use std::hash::{Hash, Hasher};
 use crate::encoding;
 use crate::input::{MouseButton, MouseState};
 use crate::p2p::protocol::{self, FromBytes, IntoBytes};
-use crate::{encoding::Codec, iced_window::Message, p2p};
+use crate::{encoding::Codec, iced_window::{Message, screens}, p2p};
 
 #[derive(Clone)]
 
@@ -41,6 +41,26 @@ impl ClientConnected {
         }
     }
 
+    pub fn from_key_ref(key: &String) -> Self {
+        Self {
+            key: key.clone(),
+            pin: String::from(""),
+            sender: None,
+            server_info: None,
+            image_allocation: None,
+        }
+    }
+
+    pub fn from_pin_ref(pin: &String) -> Self {
+        Self {
+            key: String::from(""),
+            pin: pin.clone(),
+            sender: None,
+            server_info: None,
+            image_allocation: None,
+        }
+    }
+
     pub fn update(
         &mut self,
         message: ClientConnectedMessage,
@@ -49,12 +69,13 @@ impl ClientConnected {
         match message {
             ClientConnectedMessage::WorkerEvent(event) => {
                 match event {
+                    WorkerEvent::UpdateKnownHosts(hostname, key) => return Task::done(Message::UpdateKnownHosts(hostname, key)),
+                    WorkerEvent::Disconnect(reason) => return Task::done(Message::ClientConnectedMessage(ClientConnectedMessage::Disconnect(reason))),
                     WorkerEvent::Ready(t) => self.sender = Some(t),
                     WorkerEvent::UpdateKey(key) => self.key = key,
                     WorkerEvent::UpdatePin(pin) => self.pin = pin,
                     WorkerEvent::Failed(e) => println!("Worker failed: {}", e),
                     WorkerEvent::SetServerInfo(e) => self.server_info = Some(e),
-                    WorkerEvent::Disconnect(e) => println!("{:?}", e),
                     WorkerEvent::Screenshot(bytes, res) => {
                         println!("{:?}, {:?}", res, window_size);
                         if bytes.len() != res.0 * res.1 * 4 {
@@ -135,6 +156,14 @@ impl ClientConnected {
                 }
                 Task::none()
             }
+            ClientConnectedMessage::Disconnect(reason) => {
+                if let Some(sender) = &mut self.sender {
+                    let _ = sender.try_send(WorkerEvent::Disconnect(reason));
+                }
+                Task::done(Message::Tab(crate::iced_window::Screen::Host(
+                    screens::Host::new(),
+                )))
+            }
         }
     }
 
@@ -178,11 +207,14 @@ pub enum ClientConnectedMessage {
     MouseClick(MouseButton, MouseState),
     MouseMove(i32, i32),
     ImageAllocated(Result<Allocation, image::Error>),
+    Disconnect(String),
 }
 
 #[derive(Clone, Debug)]
 pub enum WorkerEvent {
     // Sent from worker
+    /// See Message::UpdateKnownHosts
+    UpdateKnownHosts(String, String),
     Ready(Sender<WorkerEvent>),
     Failed(String),
     UpdatePin(String),
@@ -292,6 +324,15 @@ async fn handshake(
         _ => panic!("Did not receive server info"),
     };
 
+    out.try_send(WorkerEvent::UpdateKnownHosts(server_info.name.clone(), key))
+        .map_err(|e| {
+            format!(
+                "TrySendError: Full: {}, Disconnected: {}",
+                e.is_full(),
+                e.is_disconnected()
+            )
+        })?;
+
     let codec_box = encoding::get_codec(&server_info.selected_codec)?;
 
     out.try_send(WorkerEvent::SetServerInfo(server_info))
@@ -330,6 +371,14 @@ async fn session(
                 let _ = out
                     .send(WorkerEvent::Screenshot(decoded, (ss.width, ss.height)))
                     .await;
+            }
+            IncomingEvent::P2p(FromBytes::Goodbye(_)) => {
+                let _ = out.send(WorkerEvent::Disconnect("Host disconnected".to_string())).await;
+            }
+            IncomingEvent::WorkerEvent(WorkerEvent::Disconnect(reason)) => {
+                let goodbye = protocol::Goodbye {};
+                let _ = p2p.send(&goodbye.into_bytes()).await;
+                return reason;
             }
             IncomingEvent::WorkerEvent(WorkerEvent::MouseClick(button, state)) => {
                 let message = protocol::MouseClick { button, state };

@@ -1,5 +1,5 @@
+use iced::futures::Stream;
 use iced::futures::channel::mpsc::Sender;
-use iced::futures::{Stream};
 use pinray::{CaptureEvent, CaptureSession, SourceId, VideoCaptureTarget, VideoFrame};
 use std::hash::{Hash, Hasher};
 use std::ops::Deref;
@@ -102,7 +102,6 @@ impl Hash for Params {
 }
 
 pub fn worker(params: &Params) -> impl Stream<Item = Message> + use<> {
-    println!("Worker initialized");
     let mut params = params.clone();
     iced::stream::channel(100, async move |_| {
         let screencap = ScreenCapture::new(&params.monitor.label).unwrap();
@@ -112,25 +111,21 @@ pub fn worker(params: &Params) -> impl Stream<Item = Message> + use<> {
             tokio::time::sleep(std::time::Duration::from_millis(1000 / 30)).await;
             #[cfg(debug_assertions)]
             tokio::time::sleep(std::time::Duration::from_secs(5)).await;
-            println!("Reading frame");
 
             let frame = match screencap.latest() {
                 Some(t) => t,
                 None => continue,
             };
-            println!("  Frame exists");
 
             let bytes = match frame.to_tight_bytes() {
                 Some(t) => t,
                 None => continue,
             };
-            println!("  Tight bytes exists");
 
             match params.sender.try_send(WorkerEvent::Frame(bytes)) {
                 Ok(_) => {}
-                Err(e) => println!("Send error: {}", e.to_string()),
+                Err(e) => continue,
             };
-            println!("  Sent");
         }
     })
 }

@@ -72,11 +72,16 @@ impl Host {
                 .width(Length::Fill)
                 .align_x(Alignment::Center),
             space().height(20),
-            container(button("Allow Connections").on_press(Message::Tab(
-                crate::iced_window::Screen::HostConnected(super::HostConnected::new(
-                    self.monitor.clone()
-                ))
-            ))),
+            row![
+                space().width(Length::Fill),
+                button("Allow Connections").on_press(Message::Tab(
+                    crate::iced_window::Screen::HostConnected(super::HostConnected::new(
+                        self.monitor.clone()
+                    ))
+                )),
+                space().width(Length::Fill),
+            ]
+            .width(Length::Fill),
             text(&self.wait)
                 .width(Length::Fill)
                 .align_x(Alignment::Center),

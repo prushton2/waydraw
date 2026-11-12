@@ -24,6 +24,8 @@ pub enum Message {
     None,
     WindowResize(usize, usize),
     Tab(Screen),
+    /// Arguments are (String, String). First string is the hostname, second string is the key
+    UpdateKnownHosts(String, String),
     HostMessage(screens::HostMessage),
     HostConnectedMessage(screens::host_connected::HostConnectedMessage),
     ClientMessage(screens::ClientMessage),
