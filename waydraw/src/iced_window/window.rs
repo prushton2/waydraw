@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{collections::hash_map, sync::Arc};
 
 use iced::{
     Alignment, Length, Subscription, Task,
@@ -18,7 +18,7 @@ impl Window {
         Self {
             window_size: (100, 100),
             screen: Screen::Host(screens::Host::new()),
-            config: config,
+            config,
         }
     }
 
@@ -70,8 +70,8 @@ impl Window {
             }
             Message::UpdateKnownHosts(hostname, key) => {
                 // Only insert if it doesnt exist to preserve the edited hostname if the client decides to edit it
-                if !self.config.known_hosts.contains_key(&key) {
-                    self.config.known_hosts.insert(key, hostname);
+                if let hash_map::Entry::Vacant(e) = self.config.known_hosts.entry(key) {
+                    e.insert(hostname);
                     self.config.write();
                 }
                 Task::none()
@@ -123,7 +123,7 @@ pub fn subscription(window: &Window) -> Subscription<Message> {
                 id: 0,
                 pin: t.pin.clone(),
                 key: t.key.clone(),
-                window_size: window.window_size.clone(),
+                window_size: window.window_size,
             };
 
             vec![
@@ -157,36 +157,48 @@ pub fn ribbon_wrapper<'a>(
             button("Client")
                 .width(Length::Fill)
                 .style(move |t, _| { styles::client_host_unselected(t) })
-                .on_press(Message::Tab(Arc::new(|| Screen::Client(screens::Client::new())))),
+                .on_press(Message::Tab(Arc::new(|| Screen::Client(
+                    screens::Client::new()
+                )))),
             button("Settings")
                 .width(Length::Fill)
                 .style(move |t, _| { styles::client_host_unselected(t) })
-                .on_press(Message::Tab(Arc::new(|| Screen::Settings(screens::Settings::new())))),
+                .on_press(Message::Tab(Arc::new(|| Screen::Settings(
+                    screens::Settings::new()
+                )))),
         ]
         .into(),
         Screen::Client(_) => row![
             button("Host")
                 .width(Length::Fill)
                 .style(move |t, _| { styles::client_host_unselected(t) })
-                .on_press(Message::Tab(Arc::new(|| Screen::Host(screens::Host::new())))),
+                .on_press(Message::Tab(Arc::new(
+                    || Screen::Host(screens::Host::new())
+                ))),
             button("Client")
                 .width(Length::Fill)
                 .style(move |t, _| { styles::client_host_selected(t) }),
             button("Settings")
                 .width(Length::Fill)
                 .style(move |t, _| { styles::client_host_unselected(t) })
-                .on_press(Message::Tab(Arc::new(|| Screen::Settings(screens::Settings::new())))),
+                .on_press(Message::Tab(Arc::new(|| Screen::Settings(
+                    screens::Settings::new()
+                )))),
         ]
         .into(),
         Screen::Settings(_) => row![
             button("Host")
                 .width(Length::Fill)
                 .style(move |t, _| { styles::client_host_unselected(t) })
-                .on_press(Message::Tab(Arc::new(|| Screen::Host(screens::Host::new())))),
+                .on_press(Message::Tab(Arc::new(
+                    || Screen::Host(screens::Host::new())
+                ))),
             button("Client")
                 .width(Length::Fill)
                 .style(move |t, _| { styles::client_host_unselected(t) })
-                .on_press(Message::Tab(Arc::new(|| Screen::Client(screens::Client::new())))),
+                .on_press(Message::Tab(Arc::new(|| Screen::Client(
+                    screens::Client::new()
+                )))),
             button("Settings")
                 .width(Length::Fill)
                 .style(move |t, _| { styles::client_host_selected(t) }),

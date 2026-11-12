@@ -21,7 +21,11 @@ use crate::iced_window::Screen;
 use crate::iced_window::heartbeat::Heartbeat;
 use crate::input::{MouseButton, MouseState};
 use crate::p2p::protocol::{self, FromBytes, IntoBytes};
-use crate::{encoding::Codec, iced_window::{Message, screens}, p2p};
+use crate::{
+    encoding::Codec,
+    iced_window::{Message, screens},
+    p2p,
+};
 
 pub struct ClientConnected {
     pub key: String,
@@ -44,7 +48,7 @@ impl ClientConnected {
 
     pub fn from_key(key: String) -> Self {
         Self {
-            key: key,
+            key,
             pin: String::from(""),
             sender: None,
             server_info: None,
@@ -55,7 +59,7 @@ impl ClientConnected {
     pub fn from_pin(pin: String) -> Self {
         Self {
             key: String::from(""),
-            pin: pin,
+            pin,
             sender: None,
             server_info: None,
             image_allocation: None,
@@ -70,8 +74,14 @@ impl ClientConnected {
         match message {
             ClientConnectedMessage::WorkerEvent(event) => {
                 match event {
-                    WorkerEvent::UpdateKnownHosts(hostname, key) => return Task::done(Message::UpdateKnownHosts(hostname, key)),
-                    WorkerEvent::Disconnect(reason) => return Task::done(Message::ClientConnectedMessage(ClientConnectedMessage::Disconnect(reason))),
+                    WorkerEvent::UpdateKnownHosts(hostname, key) => {
+                        return Task::done(Message::UpdateKnownHosts(hostname, key));
+                    }
+                    WorkerEvent::Disconnect(reason) => {
+                        return Task::done(Message::ClientConnectedMessage(
+                            ClientConnectedMessage::Disconnect(reason),
+                        ));
+                    }
                     WorkerEvent::Ready(t) => self.sender = Some(t),
                     WorkerEvent::UpdateKey(key) => self.key = key,
                     WorkerEvent::UpdatePin(pin) => self.pin = pin,
@@ -150,9 +160,8 @@ impl ClientConnected {
                 Task::none()
             }
             ClientConnectedMessage::ImageAllocated(allocation) => {
-                match allocation {
-                    Ok(t) => self.image_allocation = Some(t),
-                    Err(_) => {}
+                if let Ok(t) = allocation {
+                    self.image_allocation = Some(t);
                 }
                 Task::none()
             }
@@ -160,9 +169,9 @@ impl ClientConnected {
                 if let Some(sender) = &mut self.sender {
                     let _ = sender.try_send(WorkerEvent::Disconnect(reason));
                 }
-                Task::done(Message::Tab(
-                    Arc::new(move || Screen::Client(screens::Client::new()))
-                ))
+                Task::done(Message::Tab(Arc::new(move || {
+                    Screen::Client(screens::Client::new())
+                })))
             }
         }
     }
@@ -226,7 +235,7 @@ pub enum WorkerEvent {
     MouseMove(i32, i32),
     MouseClick(MouseButton, MouseState),
     Screenshot(Vec<u8>, (usize, usize)),
-    Heartbeat
+    Heartbeat,
 }
 
 #[derive(Debug)]
@@ -279,7 +288,7 @@ async fn handshake(
 ) -> Result<(p2p::P2P, Box<dyn Codec>), String> {
     // Register
 
-    let key = if params.pin.len() != 0 {
+    let key = if !params.pin.is_empty() {
         match p2p::remote_key_store::get(&params.pin.to_string()).await {
             Ok(t) => t,
             Err(e) => return Err(e),
@@ -345,7 +354,7 @@ async fn handshake(
             )
         })?;
 
-    return Ok((p2p, codec_box));
+    Ok((p2p, codec_box))
 }
 
 async fn session(
@@ -356,11 +365,11 @@ async fn session(
     cmd_rx: &mut Receiver<WorkerEvent>,
 ) -> String {
     let heartbeat = Heartbeat::new(
-        std::time::Duration::from_secs(5), 
-        std::time::Duration::from_secs(1), 
-        cmd_tx.clone(), 
-        WorkerEvent::Disconnect(String::from("Lost connection to client")), 
-        WorkerEvent::Heartbeat
+        std::time::Duration::from_secs(5),
+        std::time::Duration::from_secs(1),
+        cmd_tx.clone(),
+        WorkerEvent::Disconnect(String::from("Lost connection to host")),
+        WorkerEvent::Heartbeat,
     );
 
     loop {
@@ -403,7 +412,9 @@ async fn session(
                     .await;
             }
             IncomingEvent::P2p(FromBytes::Goodbye(_)) => {
-                let _ = out.send(WorkerEvent::Disconnect("Host disconnected".to_string())).await;
+                let _ = out
+                    .send(WorkerEvent::Disconnect("Host disconnected".to_string()))
+                    .await;
             }
             IncomingEvent::P2p(FromBytes::Heartbeat(_)) => {
                 heartbeat.refresh();

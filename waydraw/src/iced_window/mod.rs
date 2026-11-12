@@ -1,11 +1,11 @@
 use std::sync::Arc;
 
+pub mod heartbeat;
 pub mod screen_capture;
 pub mod screens;
 pub mod styles;
 pub mod widgets;
 pub mod window;
-pub mod heartbeat;
 
 pub enum Screen {
     ClientConnected(screens::ClientConnected),

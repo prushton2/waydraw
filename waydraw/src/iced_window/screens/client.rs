@@ -1,10 +1,11 @@
 use std::sync::Arc;
 
 use iced::{
-    Alignment, Length, Task, widget::{Column, button, column, row, space, text, text_input},
+    Alignment, Length, Task,
+    widget::{Column, button, column, row, space, text, text_input},
 };
 
-use crate::iced_window::{Message, screens, Screen};
+use crate::iced_window::{Message, Screen, screens};
 
 pub struct Client {
     pin_input: String,
@@ -43,12 +44,14 @@ impl Client {
             buttons.push(
                 row![
                     button(host.as_str())
-                        .on_press(Message::Tab(
-                            Arc::new({
-                                let key = key.clone();
-                                move || Screen::ClientConnected(screens::ClientConnected::from_key(key.clone()))
-                            })
-                        ))
+                        .on_press(Message::Tab(Arc::new({
+                            let key = key.clone();
+                            move || {
+                                Screen::ClientConnected(screens::ClientConnected::from_key(
+                                    key.clone(),
+                                ))
+                            }
+                        })))
                         .width(Length::Fill)
                         .style(|t, _| crate::iced_window::styles::square_button(t)),
                     // button("X")
@@ -69,14 +72,12 @@ impl Client {
                 text_input("000000", &self.pin_input)
                     .on_input(|e| Message::ClientMessage(ClientMessage::UpdatePin(e))),
                 space().width(20),
-                button("Connect").on_press(
-                    Message::Tab(
-                        Arc::new({
-                            let pin_ref = self.pin_input.clone();
-                            move || Screen::ClientConnected(screens::ClientConnected::from_pin(pin_ref.clone()))
-                        })
-                    )
-                )
+                button("Connect").on_press(Message::Tab(Arc::new({
+                    let pin_ref = self.pin_input.clone();
+                    move || {
+                        Screen::ClientConnected(screens::ClientConnected::from_pin(pin_ref.clone()))
+                    }
+                })))
             ],
             text("OR").width(Length::Fill).align_x(Alignment::Center),
             text("Input device key")
@@ -86,12 +87,12 @@ impl Client {
                 text_input("", &self.key_input)
                     .on_input(|e| Message::ClientMessage(ClientMessage::UpdateKey(e))),
                 space().width(20),
-                button("Connect").on_press(Message::Tab(
-                    Arc::new({
-                        let key_ref = self.key_input.clone();
-                        move || Screen::ClientConnected(screens::ClientConnected::from_key(key_ref.clone()))
-                    })
-                ))
+                button("Connect").on_press(Message::Tab(Arc::new({
+                    let key_ref = self.key_input.clone();
+                    move || {
+                        Screen::ClientConnected(screens::ClientConnected::from_key(key_ref.clone()))
+                    }
+                })))
             ],
             text("OR").width(Length::Fill).align_x(Alignment::Center),
             text("Select previous device")

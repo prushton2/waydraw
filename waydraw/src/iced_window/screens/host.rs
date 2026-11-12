@@ -71,12 +71,10 @@ impl Host {
             space().height(20),
             row![
                 space().width(Length::Fill),
-                button("Allow Connections").on_press(Message::Tab(
-                    Arc::new({
-                        let monitor = self.monitor.clone();
-                        move || Screen::HostConnected(super::HostConnected::new(monitor.clone()))
-                    })
-                )),
+                button("Allow Connections").on_press(Message::Tab(Arc::new({
+                    let monitor = self.monitor.clone();
+                    move || Screen::HostConnected(super::HostConnected::new(monitor.clone()))
+                }))),
                 space().width(Length::Fill),
             ]
             .width(Length::Fill),

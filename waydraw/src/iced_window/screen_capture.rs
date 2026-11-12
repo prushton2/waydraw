@@ -46,7 +46,7 @@ impl ScreenCapture {
                 let frame = match session.next_event(Some(std::time::Duration::from_secs(1))) {
                     Ok(CaptureEvent::Video(frame)) => frame,
                     Err(t) => {
-                        println!("Error: {:?}", t);
+                        println!("Pinray Screencap Error: {:?}", t);
                         continue;
                     }
                     _ => continue,
@@ -124,7 +124,7 @@ pub fn worker(params: &Params) -> impl Stream<Item = Message> + use<> {
 
             match params.sender.try_send(WorkerEvent::Frame(bytes)) {
                 Ok(_) => {}
-                Err(e) => continue,
+                Err(_) => continue,
             };
         }
     })

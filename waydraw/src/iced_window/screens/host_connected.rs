@@ -40,8 +40,14 @@ impl HostConnected {
         match message {
             HostConnectedMessage::WorkerEvent(event) => {
                 match event {
-                    WorkerEvent::UpdateKnownHosts(hostname, key) => return Task::done(Message::UpdateKnownHosts(hostname, key)),
-                    WorkerEvent::Disconnect(reason) => return Task::done(Message::HostConnectedMessage(HostConnectedMessage::Disconnect(reason))),
+                    WorkerEvent::UpdateKnownHosts(hostname, key) => {
+                        return Task::done(Message::UpdateKnownHosts(hostname, key));
+                    }
+                    WorkerEvent::Disconnect(reason) => {
+                        return Task::done(Message::HostConnectedMessage(
+                            HostConnectedMessage::Disconnect(reason),
+                        ));
+                    }
                     WorkerEvent::UpdateKey(key) => self.key = key,
                     WorkerEvent::UpdatePin(pin) => self.pin = pin,
                     WorkerEvent::Failed(e) => self.error = e,
@@ -55,9 +61,7 @@ impl HostConnected {
                 if let Some(sender) = &mut self.sender {
                     let _ = sender.try_send(WorkerEvent::Disconnect(reason));
                 }
-                Task::done(Message::Tab(
-                    Arc::new(|| Screen::Host(super::Host::new()))
-                ))
+                Task::done(Message::Tab(Arc::new(|| Screen::Host(super::Host::new()))))
             }
         }
     }
@@ -85,11 +89,8 @@ impl HostConnected {
             .into()
         }
 
-        let mut card = column![]
-            .spacing(8)
-            .align_x(Alignment::Start);
+        let mut card = column![].spacing(8).align_x(Alignment::Start);
 
-        
         if let Some(client_info) = self.client_info.as_ref() {
             card = card
                 .push(text("Connected").size(22))
@@ -98,12 +99,14 @@ impl HostConnected {
                 .push(info_row("Version", deref(&client_info.os_version)))
                 .push(info_row("Kernel", deref(&client_info.kernel_version)));
         } else if self.key.is_empty() {
-            card = card.push(text("Registering...").size(22))
+            card = card
+                .push(text("Registering...").size(22))
                 .push(textbox_row("Pin", &self.pin))
                 .push(textbox_row("Key", &self.key))
                 .push(text(&self.error).style(text::danger));
         } else {
-            card = card.push(text("Awaiting Connection").size(22))
+            card = card
+                .push(text("Awaiting Connection").size(22))
                 .push(textbox_row("Pin", &self.pin))
                 .push(textbox_row("Key", &self.key))
                 .push(text(&self.error).style(text::danger));
@@ -152,7 +155,7 @@ pub enum WorkerEvent {
 
     // To Worker
     Frame(Vec<u8>),
-    Heartbeat
+    Heartbeat,
 }
 
 #[derive(Debug)]
@@ -191,7 +194,16 @@ pub fn worker(params: &Params) -> impl Stream<Item = WorkerEvent> + use<> {
             }
         };
 
-        let reason = session(&params, &mut p2p, codec.as_mut(), &mut out, &mut cmd_tx, &mut cmd_rx, &client_info).await;
+        let reason = session(
+            &params,
+            &mut p2p,
+            codec.as_mut(),
+            &mut out,
+            &mut cmd_tx,
+            &mut cmd_rx,
+            &client_info,
+        )
+        .await;
 
         p2p.close().await; // the borrow from session() has ended, so &mut is fine
         let _ = out.send(WorkerEvent::Disconnect(reason)).await;
@@ -214,13 +226,14 @@ async fn handshake(
         Err(e) => return Err(e),
     };
 
-    out.try_send(WorkerEvent::UpdateKey(key.clone())).map_err(|e| {
-        format!(
-            "TrySendError: Full: {}, Disconnected: {}",
-            e.is_full(),
-            e.is_disconnected()
-        )
-    })?;
+    out.try_send(WorkerEvent::UpdateKey(key.clone()))
+        .map_err(|e| {
+            format!(
+                "TrySendError: Full: {}, Disconnected: {}",
+                e.is_full(),
+                e.is_disconnected()
+            )
+        })?;
     out.try_send(WorkerEvent::UpdatePin(pin)).map_err(|e| {
         format!(
             "TrySendError: Full: {}, Disconnected: {}",
@@ -242,21 +255,26 @@ async fn handshake(
         _ => panic!("Did not receive client info"),
     };
 
-    out.try_send(WorkerEvent::UpdateKnownHosts(client_info.host_name.clone().unwrap_or(String::from("Unnamed Device")), key))
-        .map_err(|e| {
-            format!(
-                "TrySendError: Full: {}, Disconnected: {}",
-                e.is_full(),
-                e.is_disconnected()
-            )
-        })?;
+    out.try_send(WorkerEvent::UpdateKnownHosts(
+        client_info
+            .host_name
+            .clone()
+            .unwrap_or(String::from("Unnamed Device")),
+        key,
+    ))
+    .map_err(|e| {
+        format!(
+            "TrySendError: Full: {}, Disconnected: {}",
+            e.is_full(),
+            e.is_disconnected()
+        )
+    })?;
 
     // Find a codec match
 
     let codec = crate::encoding::get_compatible_codecs()
         .into_iter()
-        .filter(|c| client_info.supported_codecs.contains(&c.to_string()))
-        .next()
+        .find(|c| client_info.supported_codecs.contains(&c.to_string()))
         .map_err(|| "No valid codec found")?;
 
     out.try_send(WorkerEvent::SetClientInfo(client_info.clone()))
@@ -282,7 +300,7 @@ async fn handshake(
 
     let codec_box = encoding::get_codec(codec)?;
 
-    return Ok((p2p, codec_box, client_info));
+    Ok((p2p, codec_box, client_info))
 }
 
 async fn session(
@@ -292,18 +310,18 @@ async fn session(
     out: &mut Sender<WorkerEvent>,
     cmd_tx: &mut Sender<WorkerEvent>,
     cmd_rx: &mut Receiver<WorkerEvent>,
-    client_info: &ClientHello
+    client_info: &ClientHello,
 ) -> String {
     let mut input: Box<dyn Input> = Box::new(input::DummyInput::new());
     #[cfg(not(debug_assertions))]
     let mut input: Box<dyn Input> = Box::new(input::EnigoInput::new());
 
     let heartbeat = Heartbeat::new(
-        std::time::Duration::from_secs(5), 
-        std::time::Duration::from_secs(1), 
-        cmd_tx.clone(), 
-        WorkerEvent::Disconnect(String::from("Lost connection to client")), 
-        WorkerEvent::Heartbeat
+        std::time::Duration::from_secs(5),
+        std::time::Duration::from_secs(1),
+        cmd_tx.clone(),
+        WorkerEvent::Disconnect(String::from("Lost connection to client")),
+        WorkerEvent::Heartbeat,
     );
 
     loop {
@@ -339,14 +357,16 @@ async fn session(
                 let _ = p2p.send(&message.into_bytes()).await;
             }
             IncomingEvent::P2p(FromBytes::Goodbye(_)) => {
-                let _ = out.send(WorkerEvent::Disconnect("Client disconnected".to_string())).await;
+                let _ = out
+                    .send(WorkerEvent::Disconnect("Client disconnected".to_string()))
+                    .await;
             }
             IncomingEvent::P2p(FromBytes::MouseClick(e)) => input.click_mouse(e.button, e.state),
-            IncomingEvent::P2p(FromBytes::MouseMove(MouseMove{x, y})) => {
+            IncomingEvent::P2p(FromBytes::MouseMove(MouseMove { x, y })) => {
                 let (offset_x, offset_y) = params.monitor.position;
                 let client_res = (client_info.window_width, client_info.window_height);
                 let scale = params.monitor.scale;
-                
+
                 let mouse_pct = (
                     x as f32 / client_res.0 as f32,
                     y as f32 / client_res.1 as f32,
@@ -363,7 +383,7 @@ async fn session(
                 );
 
                 input.move_mouse(mouse_position.0 as i32, mouse_position.1 as i32);
-            },
+            }
             IncomingEvent::P2p(FromBytes::Heartbeat(_)) => {
                 heartbeat.refresh();
             }
