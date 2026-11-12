@@ -8,8 +8,9 @@ use iced::{Alignment, Length, Task};
 use iroh::SecretKey;
 
 use crate::encoding::{self, Codec};
+use crate::iced_window::heartbeat::Heartbeat;
 use crate::iced_window::screens::host::Monitor;
-use crate::iced_window::{Message, Screen, screens, styles};
+use crate::iced_window::{Message, Screen, styles};
 use crate::input::{self, Input};
 use crate::p2p::protocol::{ClientHello, FromBytes, IntoBytes, MouseMove};
 use crate::p2p::{self, protocol}; // for out.send(..).await and cmd_rx.next().await
@@ -41,11 +42,11 @@ impl HostConnected {
                 match event {
                     WorkerEvent::UpdateKnownHosts(hostname, key) => return Task::done(Message::UpdateKnownHosts(hostname, key)),
                     WorkerEvent::Disconnect(reason) => return Task::done(Message::HostConnectedMessage(HostConnectedMessage::Disconnect(reason))),
-                    WorkerEvent::Ready(t) => self.sender = Some(t),
                     WorkerEvent::UpdateKey(key) => self.key = key,
                     WorkerEvent::UpdatePin(pin) => self.pin = pin,
                     WorkerEvent::Failed(e) => self.error = e,
                     WorkerEvent::SetClientInfo(t) => self.client_info = Some(t),
+                    WorkerEvent::Ready(t) => self.sender = Some(t),
                     _ => {}
                 }
                 Task::none()
@@ -151,6 +152,7 @@ pub enum WorkerEvent {
 
     // To Worker
     Frame(Vec<u8>),
+    Heartbeat
 }
 
 #[derive(Debug)]
@@ -177,8 +179,8 @@ impl Hash for Params {
 pub fn worker(params: &Params) -> impl Stream<Item = WorkerEvent> + use<> {
     let params = params.clone();
     iced::stream::channel(100, async move |mut out| {
-        let (cmd_tx, mut cmd_rx) = mpsc::channel(32);
-        let _ = out.send(WorkerEvent::Ready(cmd_tx)).await;
+        let (mut cmd_tx, mut cmd_rx) = mpsc::channel(32);
+        let _ = out.send(WorkerEvent::Ready(cmd_tx.clone())).await;
 
         // Handshake: p2p is owned here, so &mut methods (await_connection) just work
         let (mut p2p, mut codec, client_info) = match handshake(&params, &mut out).await {
@@ -189,7 +191,7 @@ pub fn worker(params: &Params) -> impl Stream<Item = WorkerEvent> + use<> {
             }
         };
 
-        let reason = session(&params, &mut p2p, codec.as_mut(), &mut out, &mut cmd_rx, &client_info).await;
+        let reason = session(&params, &mut p2p, codec.as_mut(), &mut out, &mut cmd_tx, &mut cmd_rx, &client_info).await;
 
         p2p.close().await; // the borrow from session() has ended, so &mut is fine
         let _ = out.send(WorkerEvent::Disconnect(reason)).await;
@@ -288,12 +290,21 @@ async fn session(
     p2p: &mut p2p::P2P,
     codec: &mut dyn Codec,
     out: &mut Sender<WorkerEvent>,
+    cmd_tx: &mut Sender<WorkerEvent>,
     cmd_rx: &mut Receiver<WorkerEvent>,
     client_info: &ClientHello
 ) -> String {
     let mut input: Box<dyn Input> = Box::new(input::DummyInput::new());
     #[cfg(not(debug_assertions))]
     let mut input: Box<dyn Input> = Box::new(input::EnigoInput::new());
+
+    let heartbeat = Heartbeat::new(
+        std::time::Duration::from_secs(5), 
+        std::time::Duration::from_secs(1), 
+        cmd_tx.clone(), 
+        WorkerEvent::Disconnect(String::from("Lost connection to client")), 
+        WorkerEvent::Heartbeat
+    );
 
     loop {
         let event = tokio::select! {
@@ -323,6 +334,10 @@ async fn session(
                 let _ = p2p.send(&goodbye.into_bytes()).await;
                 return reason;
             }
+            IncomingEvent::WorkerEvent(WorkerEvent::Heartbeat) => {
+                let message = protocol::Heartbeat {};
+                let _ = p2p.send(&message.into_bytes()).await;
+            }
             IncomingEvent::P2p(FromBytes::Goodbye(_)) => {
                 let _ = out.send(WorkerEvent::Disconnect("Client disconnected".to_string())).await;
             }
@@ -349,6 +364,9 @@ async fn session(
 
                 input.move_mouse(mouse_position.0 as i32, mouse_position.1 as i32);
             },
+            IncomingEvent::P2p(FromBytes::Heartbeat(_)) => {
+                heartbeat.refresh();
+            }
             _ => {}
         }
     }

@@ -3,14 +3,12 @@ use std::sync::Arc;
 use crate::iced_window::{Message, Screen, styles};
 use iced::{
     Alignment, Length, Task,
-    widget::{button, column, container, row, space, text, text_input},
+    widget::{button, column, row, space, text},
 };
 
 pub struct Host {
     monitors: Vec<(Monitor, String)>,
     monitor: Monitor,
-    pin: String,
-    key: String,
     wait: String,
     err: String,
 }
@@ -31,8 +29,6 @@ impl Host {
         Self {
             monitor: monitors[0].0.clone(),
             monitors,
-            pin: String::from(""),
-            key: String::from(""),
             wait: String::from(""),
             err: String::from(""),
         }

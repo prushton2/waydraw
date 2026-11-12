@@ -15,7 +15,7 @@ pub struct Heartbeat {
 }
 
 impl Heartbeat {
-    pub fn new<T: 'static + Send + Copy + Clone>(ttl: std::time::Duration, delay: std::time::Duration, sender: Sender<T>, expire_message: T, send_heartbeat_message: T) -> Self {
+    pub fn new<T: 'static + Send + Clone>(ttl: std::time::Duration, delay: std::time::Duration, sender: Sender<T>, expire_message: T, send_heartbeat_message: T) -> Self {
         let expiry = Arc::new(RwLock::new(None));
         Self {
             ttl,
@@ -31,7 +31,7 @@ impl Heartbeat {
         };
     }
 
-    fn thread<T: 'static + Send + Copy + Clone>(expiry: Arc<RwLock<Option<std::time::Instant>>>, sender: Sender<T>, delay: std::time::Duration, expire_message: T, send_heartbeat_message: T) -> std::thread::JoinHandle<()> {
+    fn thread<T: 'static + Send + Clone>(expiry: Arc<RwLock<Option<std::time::Instant>>>, sender: Sender<T>, delay: std::time::Duration, expire_message: T, send_heartbeat_message: T) -> std::thread::JoinHandle<()> {
 
         thread::spawn({
             let expiry = expiry.clone();
@@ -39,7 +39,7 @@ impl Heartbeat {
             move || {
                 loop {
                     std::thread::sleep(delay);
-                    let _ = sender.try_send(send_heartbeat_message);
+                    let _ = sender.try_send(send_heartbeat_message.clone());
 
                     match expiry.read() {
                         Ok(t) => {

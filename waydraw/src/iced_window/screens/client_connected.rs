@@ -27,7 +27,6 @@ pub struct ClientConnected {
     pub key: String,
     pub pin: String,
     pub sender: Option<Sender<WorkerEvent>>,
-    pub heartbeat: Option<Heartbeat>,
     pub server_info: Option<protocol::ServerHello>,
     pub image_allocation: Option<iced_core::image::Allocation>,
 }
@@ -40,7 +39,6 @@ impl ClientConnected {
             sender: None,
             server_info: None,
             image_allocation: None,
-            heartbeat: None,
         }
     }
 
@@ -50,7 +48,6 @@ impl ClientConnected {
             pin: String::from(""),
             sender: None,
             server_info: None,
-            heartbeat: None,
             image_allocation: None,
         }
     }
@@ -62,7 +59,6 @@ impl ClientConnected {
             sender: None,
             server_info: None,
             image_allocation: None,
-            heartbeat: None,
         }
     }
 
@@ -230,6 +226,7 @@ pub enum WorkerEvent {
     MouseMove(i32, i32),
     MouseClick(MouseButton, MouseState),
     Screenshot(Vec<u8>, (usize, usize)),
+    Heartbeat
 }
 
 #[derive(Debug)]
@@ -257,8 +254,8 @@ impl Hash for Params {
 pub fn worker(params: &Params) -> impl Stream<Item = WorkerEvent> + use<> {
     let params = params.clone();
     iced::stream::channel(100, async move |mut out| {
-        let (cmd_tx, mut cmd_rx) = mpsc::channel(32);
-        let _ = out.send(WorkerEvent::Ready(cmd_tx)).await;
+        let (mut cmd_tx, mut cmd_rx) = mpsc::channel(32);
+        let _ = out.send(WorkerEvent::Ready(cmd_tx.clone())).await;
 
         // Handshake: p2p is owned here, so &mut methods (await_connection) just work
         let (mut p2p, mut codec) = match handshake(&params, &mut out).await {
@@ -269,7 +266,7 @@ pub fn worker(params: &Params) -> impl Stream<Item = WorkerEvent> + use<> {
             }
         };
 
-        let reason = session(&mut p2p, codec.as_mut(), &mut out, &mut cmd_rx).await;
+        let reason = session(&mut p2p, codec.as_mut(), &mut out, &mut cmd_tx, &mut cmd_rx).await;
 
         p2p.close().await; // the borrow from session() has ended, so &mut is fine
         let _ = out.send(WorkerEvent::Disconnect(reason)).await;
@@ -355,8 +352,17 @@ async fn session(
     p2p: &mut p2p::P2P,
     codec: &mut dyn Codec,
     out: &mut Sender<WorkerEvent>,
+    cmd_tx: &mut Sender<WorkerEvent>,
     cmd_rx: &mut Receiver<WorkerEvent>,
 ) -> String {
+    let heartbeat = Heartbeat::new(
+        std::time::Duration::from_secs(5), 
+        std::time::Duration::from_secs(1), 
+        cmd_tx.clone(), 
+        WorkerEvent::Disconnect(String::from("Lost connection to client")), 
+        WorkerEvent::Heartbeat
+    );
+
     loop {
         let event = tokio::select! {
             cmd = cmd_rx.next() => match cmd {
@@ -370,15 +376,6 @@ async fn session(
         };
 
         match event {
-            IncomingEvent::P2p(FromBytes::Screenshot(ss)) => {
-                let decoded = codec.decode(&ss.bytes);
-                let _ = out
-                    .send(WorkerEvent::Screenshot(decoded, (ss.width, ss.height)))
-                    .await;
-            }
-            IncomingEvent::P2p(FromBytes::Goodbye(_)) => {
-                let _ = out.send(WorkerEvent::Disconnect("Host disconnected".to_string())).await;
-            }
             IncomingEvent::WorkerEvent(WorkerEvent::Disconnect(reason)) => {
                 let goodbye = protocol::Goodbye {};
                 let _ = p2p.send(&goodbye.into_bytes()).await;
@@ -394,6 +391,22 @@ async fn session(
                     y: y as u32,
                 };
                 let _ = p2p.send(&message.into_bytes()).await;
+            }
+            IncomingEvent::WorkerEvent(WorkerEvent::Heartbeat) => {
+                let message = protocol::Heartbeat {};
+                let _ = p2p.send(&message.into_bytes()).await;
+            }
+            IncomingEvent::P2p(FromBytes::Screenshot(ss)) => {
+                let decoded = codec.decode(&ss.bytes);
+                let _ = out
+                    .send(WorkerEvent::Screenshot(decoded, (ss.width, ss.height)))
+                    .await;
+            }
+            IncomingEvent::P2p(FromBytes::Goodbye(_)) => {
+                let _ = out.send(WorkerEvent::Disconnect("Host disconnected".to_string())).await;
+            }
+            IncomingEvent::P2p(FromBytes::Heartbeat(_)) => {
+                heartbeat.refresh();
             }
             _ => {}
         }
