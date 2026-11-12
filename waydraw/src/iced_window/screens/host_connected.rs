@@ -2,12 +2,12 @@ use std::hash::{Hash, Hasher};
 
 use iced::futures::channel::mpsc::{self, Receiver, Sender};
 use iced::futures::{SinkExt, Stream, StreamExt};
-use iced::widget::{button, column, container, row, text};
+use iced::widget::{button, column, container, row, text, text_input};
 use iced::{Alignment, Length, Task};
 use iroh::SecretKey;
 
 use crate::encoding::{self, Codec};
-use crate::iced_window::Message;
+use crate::iced_window::{Message, styles};
 use crate::iced_window::screens::host::Monitor;
 use crate::input::{self, Input};
 use crate::p2p::protocol::{FromBytes, IntoBytes};
@@ -62,12 +62,24 @@ impl HostConnected {
             .into()
         }
 
+        fn textbox_row<'a>(label: &'a str, value: &'a str) -> iced::Element<'a, Message> {
+            row![
+                text(label)
+                    .width(Length::Fixed(80.0))
+                    .style(text::secondary),
+                text_input("", value)
+                    .style(|t, _| styles::context_textbox(t)),
+            ]
+            .spacing(12)
+            .into()
+        }
+
         let mut card = column![text("Connected").size(22)]
             .spacing(8)
             .align_x(Alignment::Start);
 
-        card = card.push(info_row("Pin", &self.pin));
-        card = card.push(info_row("Key", &self.key));
+        card = card.push(textbox_row("Pin", &self.pin));
+        card = card.push(textbox_row("Key", &self.key));
 
         if let Some(client_info) = self.client_info.as_ref() {
             card = card
@@ -75,6 +87,8 @@ impl HostConnected {
                 .push(info_row("OS", deref(&client_info.name)))
                 .push(info_row("Version", deref(&client_info.os_version)))
                 .push(info_row("Kernel", deref(&client_info.kernel_version)));
+        } else {
+
         }
 
         card = card.push(
@@ -114,6 +128,7 @@ pub enum WorkerEvent {
     UpdateKey(String),
     SetClientInfo(protocol::ClientHello),
     Disconnect(String),
+
     // To Worker
     Frame(Vec<u8>),
 }

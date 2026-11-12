@@ -1,5 +1,5 @@
 use iced::futures::channel::mpsc::Sender;
-use iced::futures::{SinkExt, Stream};
+use iced::futures::{Stream};
 use pinray::{CaptureEvent, CaptureSession, SourceId, VideoCaptureTarget, VideoFrame};
 use std::hash::{Hash, Hasher};
 use std::ops::Deref;

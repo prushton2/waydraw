@@ -107,3 +107,18 @@ pub fn unselected_monitor(theme: &Theme) -> button::Style {
         snap: false,
     }
 }
+
+pub fn context_textbox(theme: &Theme) -> text_input::Style {
+    text_input::Style {
+        background: iced::Background::from(theme.extended_palette().background.weak.color),
+        border: Border {
+            color: theme.extended_palette().primary.base.text,
+            width: 0.0,
+            radius: Radius::new(2),
+        },
+        icon: iced::Color::from_rgb8(255, 255, 255),
+        placeholder: iced::Color::from_rgb8(0, 0, 0),
+        selection: theme.extended_palette().primary.weak.color,
+        value: theme.extended_palette().background.weak.text,
+    }
+}
