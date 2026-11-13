@@ -2,7 +2,7 @@ use fast_image_resize::Resizer;
 use fast_image_resize::images::{Image, ImageRef};
 use iced::{Alignment, Length};
 use iced::futures::{SinkExt, StreamExt};
-use iced::widget::{column, image, text};
+use iced::widget::{column, image, text, text_input};
 use iced::{
     Task,
     futures::{
@@ -17,7 +17,7 @@ use std::hash::{Hash, Hasher};
 use std::sync::Arc;
 
 use crate::encoding;
-use crate::iced_window::Screen;
+use crate::iced_window::{Screen, styles};
 use crate::iced_window::heartbeat::Heartbeat;
 use crate::input::{MouseButton, MouseState};
 use crate::p2p::protocol::{self, FromBytes, IntoBytes};
@@ -206,6 +206,17 @@ impl ClientConnected {
     }
 
     pub fn view(&self) -> iced::Element<'_, Message> {
+        fn textbox_row<'a>(label: &'a str, value: &'a str) -> iced::Element<'a, Message> {
+            row![
+                text(label)
+                    .width(Length::Fixed(80.0))
+                    .style(text::secondary),
+                text_input("", value).style(|t, _| styles::context_textbox(t)),
+            ]
+            .spacing(12)
+            .into()
+        }
+
         let mut card = column![].spacing(8).align_x(Alignment::Start);
 
         if !self.error.is_empty() {
@@ -213,6 +224,13 @@ impl ClientConnected {
                 .push(text(&self.error).style(text::danger))
         } else if self.server_info.is_none() {
             card = card.push(text("Connecting").size(22));
+            if !self.key.is_empty() {
+                card = card.push(textbox_row("key", &self.key));
+            }
+            if !self.pin.is_empty() {
+                card = card.push(textbox_row("pin", &self.pin));
+            }
+                
         } else {
             return container(stack![
                 MouseArea::new(row![].width(Length::Fill).height(Length::Fill))
