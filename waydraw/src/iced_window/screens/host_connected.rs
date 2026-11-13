@@ -312,6 +312,7 @@ async fn session(
     cmd_rx: &mut Receiver<WorkerEvent>,
     client_info: &ClientHello,
 ) -> String {
+    #[cfg(debug_assertions)]
     let mut input: Box<dyn Input> = Box::new(input::DummyInput::new());
     #[cfg(not(debug_assertions))]
     let mut input: Box<dyn Input> = Box::new(input::EnigoInput::new());

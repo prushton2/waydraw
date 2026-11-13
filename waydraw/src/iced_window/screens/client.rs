@@ -54,9 +54,9 @@ impl Client {
                         })))
                         .width(Length::Fill)
                         .style(|t, _| crate::iced_window::styles::square_button(t)),
-                    // button("X")
-                    //     .on_press(Message::RemoveKnownHost(key.clone()))
-                    //     .style(|t, _| styles::square_button(t)),
+                    button("X")
+                        .on_press(Message::RemoveKnownHost(key.clone()))
+                        .style(|t, _| crate::iced_window::styles::square_button(t)),
                 ]
                 .spacing(0)
                 .into(),

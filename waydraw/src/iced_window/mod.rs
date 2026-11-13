@@ -27,6 +27,9 @@ pub enum Message {
     Tab(Arc<dyn Fn() -> Screen + Sync + Send>),
     /// Arguments are (String, String). First string is the hostname, second string is the key
     UpdateKnownHosts(String, String),
+    /// Pass the key to remove the host
+    RemoveKnownHost(String),
+
     HostMessage(screens::HostMessage),
     HostConnectedMessage(screens::host_connected::HostConnectedMessage),
     ClientMessage(screens::ClientMessage),

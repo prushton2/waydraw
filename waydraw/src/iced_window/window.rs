@@ -76,6 +76,10 @@ impl Window {
                 }
                 Task::none()
             }
+            Message::RemoveKnownHost(key) => {
+                let _ = self.config.known_hosts.remove(&key);
+                Task::none()
+            }
             Message::None => Task::none(),
         }
     }
