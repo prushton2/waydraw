@@ -1,8 +1,8 @@
 use fast_image_resize::Resizer;
 use fast_image_resize::images::{Image, ImageRef};
-use iced::Length;
+use iced::{Alignment, Length};
 use iced::futures::{SinkExt, StreamExt};
-use iced::widget::image;
+use iced::widget::{column, image, text};
 use iced::{
     Task,
     futures::{
@@ -30,6 +30,7 @@ use crate::{
 pub struct ClientConnected {
     pub key: String,
     pub pin: String,
+    pub error: String,
     pub sender: Option<Sender<WorkerEvent>>,
     pub server_info: Option<protocol::ServerHello>,
     pub image_allocation: Option<iced_core::image::Allocation>,
@@ -40,6 +41,7 @@ impl ClientConnected {
         Self {
             key,
             pin,
+            error: String::from(""),
             sender: None,
             server_info: None,
             image_allocation: None,
@@ -50,6 +52,7 @@ impl ClientConnected {
         Self {
             key,
             pin: String::from(""),
+            error: String::from(""),
             sender: None,
             server_info: None,
             image_allocation: None,
@@ -60,6 +63,7 @@ impl ClientConnected {
         Self {
             key: String::from(""),
             pin,
+            error: String::from(""),
             sender: None,
             server_info: None,
             image_allocation: None,
@@ -85,7 +89,7 @@ impl ClientConnected {
                     WorkerEvent::Ready(t) => self.sender = Some(t),
                     WorkerEvent::UpdateKey(key) => self.key = key,
                     WorkerEvent::UpdatePin(pin) => self.pin = pin,
-                    WorkerEvent::Failed(e) => println!("Worker failed: {}", e),
+                    WorkerEvent::Failed(e) => self.error = e,
                     WorkerEvent::SetServerInfo(e) => self.server_info = Some(e),
                     WorkerEvent::Screenshot(bytes, res) => {
                         if bytes.len() != res.0 * res.1 * 4 {
@@ -202,35 +206,52 @@ impl ClientConnected {
     }
 
     pub fn view(&self) -> iced::Element<'_, Message> {
-        container(stack![
-            MouseArea::new(row![].width(Length::Fill).height(Length::Fill))
-                .on_move(|point| Message::ClientConnectedMessage(
-                    ClientConnectedMessage::MouseMove(point.x as i32, point.y as i32)
-                ))
-                .on_press(Message::ClientConnectedMessage(
-                    ClientConnectedMessage::MouseClick(MouseButton::Left, MouseState::Pressed)
-                ))
-                .on_release(Message::ClientConnectedMessage(
-                    ClientConnectedMessage::MouseClick(MouseButton::Left, MouseState::Released)
-                ))
-                .on_right_press(Message::ClientConnectedMessage(
-                    ClientConnectedMessage::MouseClick(MouseButton::Right, MouseState::Pressed)
-                ))
-                .on_right_release(Message::ClientConnectedMessage(
-                    ClientConnectedMessage::MouseClick(MouseButton::Right, MouseState::Released)
-                )),
-            match self.image_allocation.as_ref() {
-                Some(allocation) => iced::Element::from(
-                    image(allocation.handle())
-                        .width(Length::Fill)
-                        .height(Length::Fill)
-                ),
-                None => space().width(Length::Fill).height(Length::Fill).into(),
-            },
-            // space().width(Length::Fill).height(Length::Fill)
-        ])
-        .width(Length::Fill)
-        .height(Length::Fill)
+        let mut card = column![].spacing(8).align_x(Alignment::Start);
+
+        if !self.error.is_empty() {
+            card = card.push(text("Connect Failed").size(22))
+                .push(text(&self.error).style(text::danger))
+        } else if self.server_info.is_none() {
+            card = card.push(text("Connecting").size(22));
+        } else {
+            return container(stack![
+                MouseArea::new(row![].width(Length::Fill).height(Length::Fill))
+                    .on_move(|point| Message::ClientConnectedMessage(
+                        ClientConnectedMessage::MouseMove(point.x as i32, point.y as i32)
+                    ))
+                    .on_press(Message::ClientConnectedMessage(
+                        ClientConnectedMessage::MouseClick(MouseButton::Left, MouseState::Pressed)
+                    ))
+                    .on_release(Message::ClientConnectedMessage(
+                        ClientConnectedMessage::MouseClick(MouseButton::Left, MouseState::Released)
+                    ))
+                    .on_right_press(Message::ClientConnectedMessage(
+                        ClientConnectedMessage::MouseClick(MouseButton::Right, MouseState::Pressed)
+                    ))
+                    .on_right_release(Message::ClientConnectedMessage(
+                        ClientConnectedMessage::MouseClick(MouseButton::Right, MouseState::Released)
+                    )),
+                match self.image_allocation.as_ref() {
+                    Some(allocation) => iced::Element::from(
+                        image(allocation.handle())
+                            .width(Length::Fill)
+                            .height(Length::Fill)
+                    ),
+                    None => space().width(Length::Fill).height(Length::Fill).into(),
+                },
+            ])
+            .width(Length::Fill)
+            .height(Length::Fill)
+            .into()
+        }
+
+        container(
+            container(card)
+                .padding(20)
+                .max_width(420)
+                .style(container::rounded_box),
+        )
+        .center(Length::Fill)
         .into()
     }
 }
