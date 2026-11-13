@@ -1,6 +1,5 @@
 use std::{
-    sync::{Arc, RwLock},
-    thread,
+    sync::{Arc, RwLock, atomic::AtomicBool}, thread,
 };
 
 use iced::futures::channel::mpsc::Sender;
@@ -8,7 +7,7 @@ use iced::futures::channel::mpsc::Sender;
 pub struct Heartbeat {
     /// Time to live without receiving a heartbeat
     pub ttl: std::time::Duration,
-
+    active: Arc<AtomicBool>,
     expiry: Arc<RwLock<Option<std::time::Instant>>>,
     _thread_handle: std::thread::JoinHandle<()>,
 }
@@ -22,14 +21,17 @@ impl Heartbeat {
         send_heartbeat_message: T,
     ) -> Self {
         let expiry = Arc::new(RwLock::new(None));
+        let active = Arc::new(AtomicBool::new(true));
         Self {
             ttl,
             expiry: expiry.clone(),
+            active: active.clone(),
             _thread_handle: Self::thread(
                 expiry,
                 sender,
                 delay,
                 expire_message,
+                active,
                 send_heartbeat_message,
             ),
         }
@@ -47,14 +49,14 @@ impl Heartbeat {
         sender: Sender<T>,
         delay: std::time::Duration,
         expire_message: T,
+        active: Arc<AtomicBool>,
         send_heartbeat_message: T,
     ) -> std::thread::JoinHandle<()> {
         thread::spawn({
             let expiry = expiry.clone();
             let mut sender = sender;
             move || {
-                loop {
-                    std::thread::sleep(delay);
+                while active.fetch_and(true, std::sync::atomic::Ordering::Relaxed) {
                     let _ = sender.try_send(send_heartbeat_message.clone());
 
                     if let Ok(t) = expiry.read()
@@ -64,17 +66,17 @@ impl Heartbeat {
                         let _ = sender.try_send(expire_message);
                         return;
                     }
+
+                    std::thread::sleep(delay);
+                    println!("Heartbeat")
                 }
             }
         })
     }
 }
 
-// This drop implementation isnt great. It leaves an extra send_heartbeat and expire message in the mpsc channel. This is fine for now, but re using that channel in the future will cause issues.
 impl Drop for Heartbeat {
     fn drop(&mut self) {
-        let mut lock = self.expiry.write().unwrap();
-        // Write a time to the lock that ensures the thread will die
-        *lock = Some(std::time::Instant::now() - std::time::Duration::from_secs(1));
+        self.active.store(false, std::sync::atomic::Ordering::Relaxed);
     }
 }
