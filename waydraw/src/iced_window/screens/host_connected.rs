@@ -118,11 +118,17 @@ impl HostConnected {
 
         card = card.push(
             container(
-                button(text(if self.error.is_empty() { "Disconnect" } else { "Retry" }).align_x(Alignment::Center)).on_press(
-                    Message::HostConnectedMessage(HostConnectedMessage::Disconnect(
-                        "Host initiated disconnect".to_string(),
-                    )),
-                ),
+                button(
+                    text(if self.error.is_empty() {
+                        "Disconnect"
+                    } else {
+                        "Retry"
+                    })
+                    .align_x(Alignment::Center),
+                )
+                .on_press(Message::HostConnectedMessage(
+                    HostConnectedMessage::Disconnect("Host initiated disconnect".to_string()),
+                )),
             )
             .center_x(Length::Fill)
             .padding(iced::Padding::ZERO.top(12)),

@@ -2,7 +2,6 @@ use fast_image_resize::Resizer;
 use fast_image_resize::images::{Image, ImageRef};
 use iced::Length;
 use iced::futures::{SinkExt, StreamExt};
-use iced::keyboard::key;
 use iced::widget::image;
 use iced::{
     Task,
@@ -161,16 +160,24 @@ impl ClientConnected {
                 Task::none()
             }
             ClientConnectedMessage::KeyEvent(event) => {
-                let (key , state): (crate::input::Key, crate::input::KeyState) = match event {
-                    iced::keyboard::Event::KeyPressed { key, modified_key: _, physical_key: _, location: _, modifiers: _, text: _, repeat: false } => {
-                        (key.into(), crate::input::KeyState::Pressed)
-                    }
-                    iced::keyboard::Event::KeyReleased { key, modified_key: _, physical_key: _, location: _, modifiers: _ } => {
-                        (key.into(), crate::input::KeyState::Released)
-                    }
-                    _ => {
-                        return Task::none()
-                    }
+                let (key, state): (crate::input::Key, crate::input::KeyState) = match event {
+                    iced::keyboard::Event::KeyPressed {
+                        key,
+                        modified_key: _,
+                        physical_key: _,
+                        location: _,
+                        modifiers: _,
+                        text: _,
+                        repeat: false,
+                    } => (key.into(), crate::input::KeyState::Pressed),
+                    iced::keyboard::Event::KeyReleased {
+                        key,
+                        modified_key: _,
+                        physical_key: _,
+                        location: _,
+                        modifiers: _,
+                    } => (key.into(), crate::input::KeyState::Released),
+                    _ => return Task::none(),
                 };
                 if let Some(sender) = &mut self.sender {
                     let _ = sender.try_send(WorkerEvent::KeyEvent(key, state));
@@ -426,10 +433,7 @@ async fn session(
                 let _ = p2p.send(&message.into_bytes()).await;
             }
             IncomingEvent::WorkerEvent(WorkerEvent::KeyEvent(key, state)) => {
-                let message = protocol::KeyEvent {
-                    key,
-                    state
-                };
+                let message = protocol::KeyEvent { key, state };
                 let _ = p2p.send(&message.into_bytes()).await;
             }
             IncomingEvent::P2p(FromBytes::Screenshot(ss)) => {
