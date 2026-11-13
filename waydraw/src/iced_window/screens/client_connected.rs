@@ -1,8 +1,8 @@
 use fast_image_resize::Resizer;
 use fast_image_resize::images::{Image, ImageRef};
-use iced::{Alignment, Length};
 use iced::futures::{SinkExt, StreamExt};
 use iced::widget::{column, image, text, text_input};
+use iced::{Alignment, Length};
 use iced::{
     Task,
     futures::{
@@ -17,8 +17,8 @@ use std::hash::{Hash, Hasher};
 use std::sync::Arc;
 
 use crate::encoding;
-use crate::iced_window::{Screen, styles};
 use crate::iced_window::heartbeat::Heartbeat;
+use crate::iced_window::{Screen, styles};
 use crate::input::{MouseButton, MouseState};
 use crate::p2p::protocol::{self, FromBytes, IntoBytes};
 use crate::{
@@ -220,7 +220,8 @@ impl ClientConnected {
         let mut card = column![].spacing(8).align_x(Alignment::Start);
 
         if !self.error.is_empty() {
-            card = card.push(text("Connect Failed").size(22))
+            card = card
+                .push(text("Connect Failed").size(22))
                 .push(text(&self.error).style(text::danger))
         } else if self.server_info.is_none() {
             card = card.push(text("Connecting").size(22));
@@ -230,7 +231,6 @@ impl ClientConnected {
             if !self.pin.is_empty() {
                 card = card.push(textbox_row("pin", &self.pin));
             }
-                
         } else {
             return container(stack![
                 MouseArea::new(row![].width(Length::Fill).height(Length::Fill))
@@ -247,7 +247,10 @@ impl ClientConnected {
                         ClientConnectedMessage::MouseClick(MouseButton::Right, MouseState::Pressed)
                     ))
                     .on_right_release(Message::ClientConnectedMessage(
-                        ClientConnectedMessage::MouseClick(MouseButton::Right, MouseState::Released)
+                        ClientConnectedMessage::MouseClick(
+                            MouseButton::Right,
+                            MouseState::Released
+                        )
                     )),
                 match self.image_allocation.as_ref() {
                     Some(allocation) => iced::Element::from(
@@ -260,7 +263,7 @@ impl ClientConnected {
             ])
             .width(Length::Fill)
             .height(Length::Fill)
-            .into()
+            .into();
         }
 
         container(
