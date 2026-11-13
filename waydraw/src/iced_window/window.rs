@@ -136,6 +136,7 @@ pub fn subscription(window: &Window) -> Subscription<Message> {
                         client_connected::ClientConnectedMessage::WorkerEvent(e),
                     )
                 }),
+                iced::keyboard::listen().map(|e| Message::ClientConnectedMessage(client_connected::ClientConnectedMessage::KeyEvent(e)))
             ]
         }
         _ => vec![],

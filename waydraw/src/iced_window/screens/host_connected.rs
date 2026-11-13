@@ -98,6 +98,10 @@ impl HostConnected {
                 .push(info_row("OS", deref(&client_info.name)))
                 .push(info_row("Version", deref(&client_info.os_version)))
                 .push(info_row("Kernel", deref(&client_info.kernel_version)));
+        } else if !self.error.is_empty() {
+            card = card
+                .push(text("Error Connecting").size(22))
+                .push(text(&self.error).style(text::danger));
         } else if self.key.is_empty() {
             card = card
                 .push(text("Registering...").size(22))
@@ -114,7 +118,7 @@ impl HostConnected {
 
         card = card.push(
             container(
-                button(text("Disconnect").align_x(Alignment::Center)).on_press(
+                button(text(if self.error.is_empty() { "Disconnect" } else { "Retry" }).align_x(Alignment::Center)).on_press(
                     Message::HostConnectedMessage(HostConnectedMessage::Disconnect(
                         "Host initiated disconnect".to_string(),
                     )),
@@ -384,6 +388,9 @@ async fn session(
                 );
 
                 input.move_mouse(mouse_position.0 as i32, mouse_position.1 as i32);
+            }
+            IncomingEvent::P2p(FromBytes::KeyEvent(e)) => {
+                input.key_event(e.key, e.state);
             }
             IncomingEvent::P2p(FromBytes::Heartbeat(_)) => {
                 heartbeat.refresh();

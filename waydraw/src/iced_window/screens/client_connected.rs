@@ -2,6 +2,7 @@ use fast_image_resize::Resizer;
 use fast_image_resize::images::{Image, ImageRef};
 use iced::Length;
 use iced::futures::{SinkExt, StreamExt};
+use iced::keyboard::key;
 use iced::widget::image;
 use iced::{
     Task,
@@ -159,6 +160,23 @@ impl ClientConnected {
                 }
                 Task::none()
             }
+            ClientConnectedMessage::KeyEvent(event) => {
+                let (key , state): (crate::input::Key, crate::input::KeyState) = match event {
+                    iced::keyboard::Event::KeyPressed { key, modified_key: _, physical_key: _, location: _, modifiers: _, text: _, repeat: false } => {
+                        (key.into(), crate::input::KeyState::Pressed)
+                    }
+                    iced::keyboard::Event::KeyReleased { key, modified_key: _, physical_key: _, location: _, modifiers: _ } => {
+                        (key.into(), crate::input::KeyState::Released)
+                    }
+                    _ => {
+                        return Task::none()
+                    }
+                };
+                if let Some(sender) = &mut self.sender {
+                    let _ = sender.try_send(WorkerEvent::KeyEvent(key, state));
+                }
+                Task::none()
+            }
             ClientConnectedMessage::ImageAllocated(allocation) => {
                 if let Ok(t) = allocation {
                     self.image_allocation = Some(t);
@@ -214,6 +232,7 @@ impl ClientConnected {
 pub enum ClientConnectedMessage {
     WorkerEvent(WorkerEvent),
     MouseClick(MouseButton, MouseState),
+    KeyEvent(iced::keyboard::Event),
     MouseMove(i32, i32),
     ImageAllocated(Result<Allocation, image::Error>),
     Disconnect(String),
@@ -234,6 +253,7 @@ pub enum WorkerEvent {
     // Sent to worker
     MouseMove(i32, i32),
     MouseClick(MouseButton, MouseState),
+    KeyEvent(crate::input::Key, crate::input::KeyState),
     Screenshot(Vec<u8>, (usize, usize)),
     Heartbeat,
 }
@@ -403,6 +423,13 @@ async fn session(
             }
             IncomingEvent::WorkerEvent(WorkerEvent::Heartbeat) => {
                 let message = protocol::Heartbeat {};
+                let _ = p2p.send(&message.into_bytes()).await;
+            }
+            IncomingEvent::WorkerEvent(WorkerEvent::KeyEvent(key, state)) => {
+                let message = protocol::KeyEvent {
+                    key,
+                    state
+                };
                 let _ = p2p.send(&message.into_bytes()).await;
             }
             IncomingEvent::P2p(FromBytes::Screenshot(ss)) => {
