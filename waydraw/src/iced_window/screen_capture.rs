@@ -3,6 +3,7 @@ use iced::futures::channel::mpsc::Sender;
 use pinray::{CaptureEvent, CaptureSession, SourceId, VideoCaptureTarget, VideoFrame};
 use std::hash::{Hash, Hasher};
 use std::ops::Deref;
+use std::sync::atomic::AtomicBool;
 use std::sync::{Arc, RwLock};
 use std::thread::JoinHandle;
 
@@ -13,7 +14,7 @@ use crate::iced_window::screens::host_connected::WorkerEvent;
 pub struct ScreenCapture {
     _consumer_thread: JoinHandle<()>,
     latest_frame: Arc<RwLock<Option<Arc<VideoFrame>>>>,
-    active: Arc<RwLock<bool>>,
+    active: Arc<AtomicBool>,
 }
 
 #[derive(Debug)]
@@ -25,24 +26,32 @@ pub enum ScreenCaptureError {
 impl ScreenCapture {
     pub fn new(monitor_name: &str) -> Result<Self, ScreenCaptureError> {
         let latest_frame = Arc::new(RwLock::new(None));
-        let active = Arc::new(RwLock::new(true));
+        let active = Arc::new(AtomicBool::new(true));
 
-        let latest_frame_clone = latest_frame.clone();
-        let monitor_name_clone = monitor_name.to_owned();
-        let active_clone = active.clone();
+        let this = Self {
+            active: active.clone(),
+            latest_frame: latest_frame.clone(),
+            _consumer_thread: Self::thread(active, latest_frame, monitor_name.to_owned()),
+        };
 
-        let thread = std::thread::spawn(move || {
+        Ok(this)
+    }
+
+    fn thread(
+        active: Arc<AtomicBool>,
+        latest_frame_arc: Arc<RwLock<Option<Arc<VideoFrame>>>>,
+        monitor_name: String,
+    ) -> std::thread::JoinHandle<()> {
+        std::thread::spawn(move || {
             let mut session = CaptureSession::builder()
-                .video_target(VideoCaptureTarget::Display(SourceId::new(
-                    monitor_name_clone,
-                )))
+                .video_target(VideoCaptureTarget::Display(SourceId::new(monitor_name)))
                 .pixel_format(pinray::PixelFormat::Rgba8888)
                 .build()
                 .unwrap();
 
             let _ = session.start();
 
-            loop {
+            while active.fetch_and(true, std::sync::atomic::Ordering::Relaxed) {
                 let frame = match session.next_event(Some(std::time::Duration::from_secs(1))) {
                     Ok(CaptureEvent::Video(frame)) => frame,
                     Err(t) => {
@@ -52,22 +61,13 @@ impl ScreenCapture {
                     _ => continue,
                 };
 
-                let mut lock = latest_frame_clone.write().unwrap();
+                let mut lock = latest_frame_arc.write().unwrap();
                 *lock = Some(Arc::new(frame));
-
-                if !*active_clone.read().unwrap() {
-                    return;
-                }
+                println!("Screen!!!");
             }
-        });
 
-        let this = Self {
-            latest_frame,
-            _consumer_thread: thread,
-            active,
-        };
-
-        Ok(this)
+            let _ = session.stop();
+        })
     }
 
     /// Returns the video frame
@@ -76,16 +76,12 @@ impl ScreenCapture {
 
         lock.deref().as_ref().map(|t| t.clone())
     }
-
-    pub fn kill(&self) {
-        let mut lock = self.active.write().unwrap();
-        *lock = false;
-    }
 }
 
 impl Drop for ScreenCapture {
     fn drop(&mut self) {
-        self.kill();
+        self.active
+            .store(false, std::sync::atomic::Ordering::Relaxed);
     }
 }
 

@@ -1,7 +1,7 @@
 use fast_image_resize::Resizer;
 use fast_image_resize::images::{Image, ImageRef};
 use iced::futures::{SinkExt, StreamExt};
-use iced::widget::{column, image, text, text_input};
+use iced::widget::{button, column, image, text, text_input};
 use iced::{Alignment, Length};
 use iced::{
     Task,
@@ -222,7 +222,15 @@ impl ClientConnected {
         if !self.error.is_empty() {
             card = card
                 .push(text("Connect Failed").size(22))
-                .push(text(&self.error).style(text::danger))
+                .push(text(&self.error).style(text::danger));
+
+            card = card.push(
+                container(button("Retry").on_press(Message::ClientConnectedMessage(
+                    ClientConnectedMessage::Disconnect("Client initiated disconnect".to_string()),
+                )))
+                .center_x(Length::Fill)
+                .padding(iced::Padding::ZERO.top(12)),
+            );
         } else if self.server_info.is_none() {
             card = card.push(text("Connecting").size(22));
             if !self.key.is_empty() {

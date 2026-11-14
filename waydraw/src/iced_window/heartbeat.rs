@@ -1,5 +1,6 @@
 use std::{
-    sync::{Arc, RwLock, atomic::AtomicBool}, thread,
+    sync::{Arc, RwLock, atomic::AtomicBool},
+    thread,
 };
 
 use iced::futures::channel::mpsc::Sender;
@@ -68,7 +69,6 @@ impl Heartbeat {
                     }
 
                     std::thread::sleep(delay);
-                    println!("Heartbeat")
                 }
             }
         })
@@ -77,6 +77,7 @@ impl Heartbeat {
 
 impl Drop for Heartbeat {
     fn drop(&mut self) {
-        self.active.store(false, std::sync::atomic::Ordering::Relaxed);
+        self.active
+            .store(false, std::sync::atomic::Ordering::Relaxed);
     }
 }
