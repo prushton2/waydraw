@@ -99,7 +99,7 @@ impl Hash for Params {
 pub fn worker(params: &Params) -> impl Stream<Item = Message> + use<> {
     let mut params = params.clone();
     iced::stream::channel(100, async move |_| {
-        let screencap = ScreenCapture::new(&params.monitor.label).unwrap();
+        let screencap = ScreenCapture::new(&params.monitor.id).unwrap();
 
         loop {
             #[cfg(not(debug_assertions))]
