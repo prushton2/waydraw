@@ -296,7 +296,7 @@ async fn handshake(
     let confirmed = native_dialog::DialogBuilder::message()
         .set_title("Confirm Connection")
         .set_text(
-            format!("A Waydraw client is attempting to connect to your device.\n\n{} running {} version {} with kernel {}\n\n Waydraw version: {}\n Window Size: {}\n Supported video codecs: {}", 
+            format!("A Waydraw client is attempting to connect to your device.\n\n Device Name: {}\n OS: {}\n Version: {}\n Kernel version: {}\n\n Waydraw version: {}\n Window Size: {}\n Supported video codecs: {}", 
             client_info.host_name.as_ref().unwrap_or(&String::from("Unknown")),
             client_info.name.as_ref().unwrap_or(&String::from("Unknown")),
             client_info.os_version.as_ref().unwrap_or(&String::from("Unknown")),
