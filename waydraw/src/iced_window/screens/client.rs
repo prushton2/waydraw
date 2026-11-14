@@ -10,8 +10,6 @@ use crate::iced_window::{Message, Screen, screens};
 pub struct Client {
     pin_input: String,
     key_input: String,
-    wait: String,
-    err: String,
 }
 
 impl Client {
@@ -19,8 +17,6 @@ impl Client {
         Self {
             pin_input: String::from(""),
             key_input: String::from(""),
-            wait: String::from(""),
-            err: String::from(""),
         }
     }
 
@@ -101,14 +97,6 @@ impl Client {
             Column::from_vec(buttons)
                 .width(Length::Fill)
                 .align_x(Alignment::Center),
-            space().height(20),
-            text(&self.wait)
-                .width(Length::Fill)
-                .align_x(Alignment::Center),
-            text(&self.err)
-                .width(Length::Fill)
-                .align_x(Alignment::Center)
-                .style(|t| { text::danger(t) }),
         ]
         .into()
     }

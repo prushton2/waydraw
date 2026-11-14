@@ -9,8 +9,6 @@ use iced::{
 pub struct Host {
     monitors: Vec<(Monitor, String)>,
     monitor: Option<Monitor>,
-    wait: String,
-    err: String,
 }
 
 impl Host {
@@ -29,8 +27,6 @@ impl Host {
         Self {
             monitor: monitors.first().map(|e| e.0.clone()),
             monitors,
-            wait: String::from(""),
-            err: String::from(""),
         }
     }
 
@@ -77,14 +73,6 @@ impl Host {
                 }))),
                 space().width(Length::Fill),
             ]
-            .width(Length::Fill),
-            text(&self.wait)
-                .width(Length::Fill)
-                .align_x(Alignment::Center),
-            text(&self.err)
-                .width(Length::Fill)
-                .align_x(Alignment::Center)
-                .style(|t| { text::danger(t) }),
         ]
         .into()
     }
