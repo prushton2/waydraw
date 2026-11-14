@@ -283,14 +283,14 @@ async fn handshake(
     let confirmed = native_dialog::DialogBuilder::message()
         .set_title("Confirm Connection")
         .set_text(
-            format!("A Waydraw client is attempting to connect to your device.\n\n{} running {} version {} with kernel {}\n\n Waydraw version: {:#?}\nResolution: {:#?}\n Supported video codecs: {:#?}", 
+            format!("A Waydraw client is attempting to connect to your device.\n\n{} running {} version {} with kernel {}\n\n Waydraw version: {}\n Window Size: {}\n Supported video codecs: {}", 
             client_info.host_name.as_ref().unwrap_or(&String::from("Unknown")),
             client_info.name.as_ref().unwrap_or(&String::from("Unknown")),
             client_info.os_version.as_ref().unwrap_or(&String::from("Unknown")),
             client_info.kernel_version.as_ref().unwrap_or(&String::from("Unknown")),
-            client_info.version,
-            (client_info.window_width, client_info.window_height),
-            client_info.supported_codecs
+            format!("{}.{}.{}", client_info.version.0, client_info.version.1, client_info.version.2),
+            format!("{}x{}", client_info.window_width, client_info.window_height),
+            client_info.supported_codecs.join(", ")
         ))
         .confirm()
         .show()
@@ -299,6 +299,7 @@ async fn handshake(
     if !confirmed {
         let goodbye = protocol::Goodbye {};
         let _res = p2p.send(&goodbye.into_bytes()).await;
+        p2p.close().await;
         return Err(String::from("Host denied connection"))
     }
 
