@@ -128,8 +128,8 @@ impl From<Key> for enigo::Key {
             Key::Unicode(c) => enigo::Key::Unicode(c),
             Key::Other(c) => enigo::Key::Other(c),
 
-            Key::Named(Named::ArrowUp) => enigo::Key::DownArrow,
-            Key::Named(Named::ArrowDown) => enigo::Key::UpArrow,
+            Key::Named(Named::ArrowUp) => enigo::Key::UpArrow,
+            Key::Named(Named::ArrowDown) => enigo::Key::DownArrow,
             Key::Named(Named::ArrowLeft) => enigo::Key::LeftArrow,
             Key::Named(Named::ArrowRight) => enigo::Key::RightArrow,
             Key::Named(Named::Super) => enigo::Key::Meta,
