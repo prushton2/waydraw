@@ -408,6 +408,7 @@ async fn handshake(
 
     let server_info = match protocol::FromBytes::parse(&data) {
         protocol::FromBytes::ServerHello(d) => d,
+        protocol::FromBytes::Goodbye(_) => return Err(String::from("Host refused connection")),
         _ => panic!("Did not receive server info"),
     };
 

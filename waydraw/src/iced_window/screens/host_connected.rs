@@ -280,6 +280,28 @@ async fn handshake(
         )
     })?;
 
+    let confirmed = native_dialog::DialogBuilder::message()
+        .set_title("Confirm Connection")
+        .set_text(
+            format!("A Waydraw client is attempting to connect to your device.\n\n{} running {} version {} with kernel {}\n\n Waydraw version: {:#?}\nResolution: {:#?}\n Supported video codecs: {:#?}", 
+            client_info.host_name.as_ref().unwrap_or(&String::from("Unknown")),
+            client_info.name.as_ref().unwrap_or(&String::from("Unknown")),
+            client_info.os_version.as_ref().unwrap_or(&String::from("Unknown")),
+            client_info.kernel_version.as_ref().unwrap_or(&String::from("Unknown")),
+            client_info.version,
+            (client_info.window_width, client_info.window_height),
+            client_info.supported_codecs
+        ))
+        .confirm()
+        .show()
+        .unwrap_or(true);
+    
+    if !confirmed {
+        let goodbye = protocol::Goodbye {};
+        let _res = p2p.send(&goodbye.into_bytes()).await;
+        return Err(String::from("Host denied connection"))
+    }
+
     // Find a codec match
 
     let codec = crate::encoding::get_compatible_codecs()
