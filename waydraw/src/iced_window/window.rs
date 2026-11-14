@@ -62,7 +62,12 @@ impl Window {
 
             Message::WindowResize(w, h) => {
                 self.window_size = (w, h);
-                Task::none()
+                
+                if let Screen::ClientConnected(client) = &mut self.screen {
+                    client.update(client_connected::ClientConnectedMessage::WindowResize(w, h), (w, h))
+                } else {
+                    Task::none()
+                }
             }
             Message::Tab(tab) => {
                 self.screen = tab.as_ref()();

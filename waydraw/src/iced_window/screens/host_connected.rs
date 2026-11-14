@@ -53,6 +53,13 @@ impl HostConnected {
                     WorkerEvent::Failed(e) => self.error = e,
                     WorkerEvent::SetClientInfo(t) => self.client_info = Some(t),
                     WorkerEvent::Ready(t) => self.sender = Some(t),
+                    WorkerEvent::UpdateClientWindowSize(w, h) => {
+                        if let Some(client_info) = &mut self.client_info {
+                            client_info.window_width = w;
+                            client_info.window_height = h;
+                            println!("{:?}", (client_info.window_width, client_info.window_height));
+                        }
+                    }
                     _ => {}
                 }
                 Task::none()
@@ -156,6 +163,7 @@ pub enum WorkerEvent {
     // From Worker
     /// See Message::UpdateKnownHosts
     UpdateKnownHosts(String, String),
+    UpdateClientWindowSize(u32, u32),
     Ready(mpsc::Sender<WorkerEvent>),
     Failed(String),
     UpdatePin(String),
@@ -423,6 +431,9 @@ async fn session(
             }
             IncomingEvent::P2p(FromBytes::Heartbeat(_)) => {
                 heartbeat.refresh();
+            }
+            IncomingEvent::P2p(FromBytes::WindowResized(m)) => {
+                let _ = out.send(WorkerEvent::UpdateClientWindowSize(m.window_width, m.window_height)).await;
             }
             _ => {}
         }

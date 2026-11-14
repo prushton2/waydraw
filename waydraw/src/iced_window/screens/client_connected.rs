@@ -194,6 +194,12 @@ impl ClientConnected {
                 }
                 Task::none()
             }
+            ClientConnectedMessage::WindowResize(w, h) => {
+                if let Some(sender) = &mut self.sender {
+                    let _ = sender.try_send(WorkerEvent::SendWindowSizeToHost(w, h));
+                }
+                Task::none()
+            }
             ClientConnectedMessage::Disconnect(reason) => {
                 if let Some(sender) = &mut self.sender {
                     let _ = sender.try_send(WorkerEvent::Disconnect(reason));
@@ -291,6 +297,7 @@ pub enum ClientConnectedMessage {
     MouseClick(MouseButton, MouseState),
     KeyEvent(iced::keyboard::Event),
     MouseMove(i32, i32),
+    WindowResize(usize, usize),
     ImageAllocated(Result<Allocation, image::Error>),
     Disconnect(String),
 }
@@ -308,6 +315,7 @@ pub enum WorkerEvent {
     Disconnect(String),
 
     // Sent to worker
+    SendWindowSizeToHost(usize, usize),
     MouseMove(i32, i32),
     MouseClick(MouseButton, MouseState),
     KeyEvent(crate::input::Key, crate::input::KeyState),
@@ -476,6 +484,13 @@ async fn session(
                 let message = protocol::MouseMove {
                     x: x as u32,
                     y: y as u32,
+                };
+                let _ = p2p.send(&message.into_bytes()).await;
+            }
+            IncomingEvent::WorkerEvent(WorkerEvent::SendWindowSizeToHost(w, h)) => {
+                let message = protocol::WindowResized {
+                    window_width: w as u32,
+                    window_height: h as u32,
                 };
                 let _ = p2p.send(&message.into_bytes()).await;
             }
