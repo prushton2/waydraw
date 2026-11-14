@@ -1,5 +1,5 @@
 use std::hash::{Hash, Hasher};
-use std::sync::Arc;
+use std::sync::{Arc, RwLock};
 
 use iced::futures::channel::mpsc::{self, Receiver, Sender};
 use iced::futures::{SinkExt, Stream, StreamExt};
@@ -20,7 +20,8 @@ pub struct HostConnected {
     pub pin: String,
     pub error: String,
     pub sender: Option<Sender<WorkerEvent>>,
-    pub client_info: Option<protocol::ClientHello>,
+    pub client_info: Option<Arc<RwLock<ClientHello>>>,
+    pub static_client_info: Option<ClientHello>,
     pub monitor: Monitor,
 }
 
@@ -32,6 +33,7 @@ impl HostConnected {
             error: String::from(""),
             sender: None,
             client_info: None,
+            static_client_info: None,
             monitor,
         }
     }
@@ -51,13 +53,16 @@ impl HostConnected {
                     WorkerEvent::UpdateKey(key) => self.key = key,
                     WorkerEvent::UpdatePin(pin) => self.pin = pin,
                     WorkerEvent::Failed(e) => self.error = e,
-                    WorkerEvent::SetClientInfo(t) => self.client_info = Some(t),
+                    WorkerEvent::SetClientInfo(t) => {
+                        self.static_client_info = Some(t.read().unwrap().clone());
+                        self.client_info = Some(t);
+                    },
                     WorkerEvent::Ready(t) => self.sender = Some(t),
                     WorkerEvent::UpdateClientWindowSize(w, h) => {
-                        if let Some(client_info) = &mut self.client_info {
-                            client_info.window_width = w;
-                            client_info.window_height = h;
-                            println!("{:?}", (client_info.window_width, client_info.window_height));
+                        if let Some(client_info) = &self.client_info {
+                            let mut lock = client_info.write().unwrap();
+                            lock.window_width = w;
+                            lock.window_height = h;
                         }
                     }
                     _ => {}
@@ -98,13 +103,13 @@ impl HostConnected {
 
         let mut card = column![].spacing(8).align_x(Alignment::Start);
 
-        if let Some(client_info) = self.client_info.as_ref() {
+        if let Some(static_client_info) = self.static_client_info.as_ref() {
             card = card
                 .push(text("Connected").size(22))
-                .push(info_row("Device", deref(&client_info.host_name)))
-                .push(info_row("OS", deref(&client_info.name)))
-                .push(info_row("Version", deref(&client_info.os_version)))
-                .push(info_row("Kernel", deref(&client_info.kernel_version)));
+                .push(info_row("Device", deref(&static_client_info.host_name)))
+                .push(info_row("OS", deref(&static_client_info.name)))
+                .push(info_row("Version", deref(&static_client_info.os_version)))
+                .push(info_row("Kernel", deref(&static_client_info.kernel_version)));
         } else if !self.error.is_empty() {
             card = card
                 .push(text("Error Connecting").size(22))
@@ -168,7 +173,7 @@ pub enum WorkerEvent {
     Failed(String),
     UpdatePin(String),
     UpdateKey(String),
-    SetClientInfo(protocol::ClientHello),
+    SetClientInfo(Arc<RwLock<protocol::ClientHello>>),
     Disconnect(String),
 
     // To Worker
@@ -219,7 +224,7 @@ pub fn worker(params: &Params) -> impl Stream<Item = WorkerEvent> + use<> {
             &mut out,
             &mut cmd_tx,
             &mut cmd_rx,
-            &client_info,
+            client_info,
         )
         .await;
 
@@ -231,7 +236,7 @@ pub fn worker(params: &Params) -> impl Stream<Item = WorkerEvent> + use<> {
 async fn handshake(
     params: &Params,
     out: &mut Sender<WorkerEvent>,
-) -> Result<(p2p::P2P, Box<dyn Codec>, ClientHello), String> {
+) -> Result<(p2p::P2P, Box<dyn Codec>, Arc<RwLock<ClientHello>>), String> {
     // Register
     let (mut p2p, key) = p2p::P2P::init(params.secret_key.clone())
         .await
@@ -318,6 +323,8 @@ async fn handshake(
         .find(|c| client_info.supported_codecs.contains(&c.to_string()))
         .map_err(|| "No valid codec found")?;
 
+    let client_info= Arc::new(RwLock::new(client_info));
+
     out.try_send(WorkerEvent::SetClientInfo(client_info.clone()))
         .map_err(|e| {
             format!(
@@ -351,7 +358,7 @@ async fn session(
     out: &mut Sender<WorkerEvent>,
     cmd_tx: &mut Sender<WorkerEvent>,
     cmd_rx: &mut Receiver<WorkerEvent>,
-    client_info: &ClientHello,
+    client_info: Arc<RwLock<ClientHello>>,
 ) -> String {
     #[cfg(debug_assertions)]
     let mut input: Box<dyn Input> = Box::new(input::DummyInput::new());
@@ -406,6 +413,7 @@ async fn session(
             IncomingEvent::P2p(FromBytes::MouseClick(e)) => input.click_mouse(e.button, e.state),
             IncomingEvent::P2p(FromBytes::MouseMove(MouseMove { x, y })) => {
                 let (offset_x, offset_y) = params.monitor.position;
+                let client_info = client_info.read().unwrap();
                 let client_res = (client_info.window_width, client_info.window_height);
                 let scale = params.monitor.scale;
 
