@@ -19,25 +19,15 @@ pub async fn set(value: &str) -> Result<String, String> {
 
 pub async fn get(key: &str) -> Result<String, String> {
     let client = reqwest::Client::new();
-    let response = client
-        .get(format!("{}/keys/{}", URL, key))
-        .send()
-        .await;
+    let response = client.get(format!("{}/keys/{}", URL, key)).send().await;
 
     let response = match response {
-        Ok(t) if t.status().is_success() => {
-            Ok(t)
-        }
-        Ok(t) if !t.status().is_success() => {
-            Err("Pin does not exist".to_owned())
-        }
-        t => t.map_err(|e| e.to_string())
+        Ok(t) if t.status().is_success() => Ok(t),
+        Ok(t) if !t.status().is_success() => Err("Pin does not exist".to_owned()),
+        t => t.map_err(|e| e.to_string()),
     };
 
-    let response = response?
-        .text()
-        .await
-        .map_err(|e| e.to_string())?;
+    let response = response?.text().await.map_err(|e| e.to_string())?;
 
     Ok(response)
 }

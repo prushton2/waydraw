@@ -62,9 +62,12 @@ impl Window {
 
             Message::WindowResize(w, h) => {
                 self.window_size = (w, h);
-                
+
                 if let Screen::ClientConnected(client) = &mut self.screen {
-                    client.update(client_connected::ClientConnectedMessage::WindowResize(w, h), (w, h))
+                    client.update(
+                        client_connected::ClientConnectedMessage::WindowResize(w, h),
+                        (w, h),
+                    )
                 } else {
                     Task::none()
                 }
@@ -117,7 +120,9 @@ pub fn subscription(window: &Window) -> Subscription<Message> {
                 }),
             ];
 
-            if let Some(sender) = &host.sender && host.client_info.is_some() {
+            if let Some(sender) = &host.sender
+                && host.client_info.is_some()
+            {
                 let params = screen_capture::Params {
                     monitor: host.monitor.clone().unwrap(),
                     sender: sender.clone(),

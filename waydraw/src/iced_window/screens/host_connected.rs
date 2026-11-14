@@ -30,7 +30,11 @@ impl HostConnected {
         Self {
             key: String::from(""),
             pin: String::from(""),
-            error: if monitor.is_none() { String::from("No monitor selected") } else { String::from("") },
+            error: if monitor.is_none() {
+                String::from("No monitor selected")
+            } else {
+                String::from("")
+            },
             sender: None,
             client_info: None,
             static_client_info: None,
@@ -56,7 +60,7 @@ impl HostConnected {
                     WorkerEvent::SetClientInfo(t) => {
                         self.static_client_info = Some(t.read().unwrap().clone());
                         self.client_info = Some(t);
-                    },
+                    }
                     WorkerEvent::Ready(t) => self.sender = Some(t),
                     WorkerEvent::UpdateClientWindowSize(w, h) => {
                         if let Some(client_info) = &self.client_info {
@@ -71,9 +75,12 @@ impl HostConnected {
             }
             HostConnectedMessage::Disconnect(reason) => {
                 if let Some(mut sender) = self.sender.clone() {
-                    Task::perform(async move {
-                        let _ = sender.send(WorkerEvent::Disconnect(reason)).await;
-                    }, |_| Message::Tab(Arc::new(|| Screen::Host(super::Host::new()))))
+                    Task::perform(
+                        async move {
+                            let _ = sender.send(WorkerEvent::Disconnect(reason)).await;
+                        },
+                        |_| Message::Tab(Arc::new(|| Screen::Host(super::Host::new()))),
+                    )
                 } else {
                     Task::done(Message::Tab(Arc::new(|| Screen::Host(super::Host::new()))))
                 }
@@ -112,7 +119,10 @@ impl HostConnected {
                 .push(info_row("Device", deref(&static_client_info.host_name)))
                 .push(info_row("OS", deref(&static_client_info.name)))
                 .push(info_row("Version", deref(&static_client_info.os_version)))
-                .push(info_row("Kernel", deref(&static_client_info.kernel_version)));
+                .push(info_row(
+                    "Kernel",
+                    deref(&static_client_info.kernel_version),
+                ));
         } else if !self.error.is_empty() {
             card = card
                 .push(text("Error Connecting").size(22))
@@ -260,13 +270,14 @@ async fn handshake(
                 e.is_disconnected()
             )
         })?;
-    out.try_send(WorkerEvent::UpdatePin(pin.clone())).map_err(|e| {
-        format!(
-            "TrySendError: Full: {}, Disconnected: {}",
-            e.is_full(),
-            e.is_disconnected()
-        )
-    })?;
+    out.try_send(WorkerEvent::UpdatePin(pin.clone()))
+        .map_err(|e| {
+            format!(
+                "TrySendError: Full: {}, Disconnected: {}",
+                e.is_full(),
+                e.is_disconnected()
+            )
+        })?;
 
     // Await connection
 
@@ -284,24 +295,24 @@ async fn handshake(
     let confirmed = native_dialog::DialogBuilder::message()
         .set_title("Confirm Connection")
         .set_text(
-            format!("A Waydraw client is attempting to connect to your device.\n\n Device Name: {}\n OS: {}\n Version: {}\n Kernel version: {}\n\n Waydraw version: {}\n Window Size: {}\n Supported video codecs: {}", 
+            format!("A Waydraw client is attempting to connect to your device.\n\n Device Name: {}\n OS: {}\n Version: {}\n Kernel version: {}\n\n Waydraw version: {}.{}.{}\n Window Size: {}x{}\n Supported video codecs: {}", 
             client_info.host_name.as_ref().unwrap_or(&String::from("Unknown")),
             client_info.name.as_ref().unwrap_or(&String::from("Unknown")),
             client_info.os_version.as_ref().unwrap_or(&String::from("Unknown")),
             client_info.kernel_version.as_ref().unwrap_or(&String::from("Unknown")),
-            format!("{}.{}.{}", client_info.version.0, client_info.version.1, client_info.version.2),
-            format!("{}x{}", client_info.window_width, client_info.window_height),
+            client_info.version.0, client_info.version.1, client_info.version.2,
+            client_info.window_width, client_info.window_height,
             client_info.supported_codecs.join(", ")
         ))
         .confirm()
         .show()
         .unwrap_or(true);
-    
+
     if !confirmed {
         let goodbye = protocol::Goodbye {};
         let _res = p2p.send(&goodbye.into_bytes()).await;
         p2p.close().await;
-        return Err(String::from("Host denied connection"))
+        return Err(String::from("Host denied connection"));
     }
 
     // Find a codec match
@@ -311,7 +322,7 @@ async fn handshake(
         .find(|c| client_info.supported_codecs.contains(&c.to_string()))
         .map_err(|| "No valid codec found")?;
 
-    let client_info= Arc::new(RwLock::new(client_info));
+    let client_info = Arc::new(RwLock::new(client_info));
 
     out.try_send(WorkerEvent::SetClientInfo(client_info.clone()))
         .map_err(|e| {
@@ -433,7 +444,12 @@ async fn session(
                 heartbeat.refresh();
             }
             IncomingEvent::P2p(FromBytes::WindowResized(m)) => {
-                let _ = out.send(WorkerEvent::UpdateClientWindowSize(m.window_width, m.window_height)).await;
+                let _ = out
+                    .send(WorkerEvent::UpdateClientWindowSize(
+                        m.window_width,
+                        m.window_height,
+                    ))
+                    .await;
             }
             _ => {}
         }

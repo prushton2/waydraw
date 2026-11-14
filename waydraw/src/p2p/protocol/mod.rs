@@ -44,12 +44,12 @@ pub enum FromBytes {
 impl FromBytes {
     pub fn parse(bytes: &[u8]) -> Self {
         if bytes.is_empty() {
-            return Self::UnknownInstruction(vec![])
+            return Self::UnknownInstruction(vec![]);
         }
 
         match Self::convert_bytes(bytes) {
             Ok(t) => t,
-            Err(_) => Self::UnknownInstruction(bytes.into())
+            Err(_) => Self::UnknownInstruction(bytes.into()),
         }
     }
 
@@ -70,8 +70,10 @@ impl FromBytes {
     }
 }
 
-pub trait IntoBytes 
-    where Self: Sized {
+pub trait IntoBytes
+where
+    Self: Sized,
+{
     fn into_bytes(self) -> Vec<u8>;
     fn from_bytes(bytes: &[u8]) -> Result<Self, String>;
 }

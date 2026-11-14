@@ -196,20 +196,24 @@ impl ClientConnected {
             }
             ClientConnectedMessage::WindowResize(w, h) => {
                 if let Some(mut sender) = self.sender.clone() {
-                    Task::perform(async move {
-                        let _ = sender.send(WorkerEvent::SendWindowSizeToHost(w, h)).await;
-                    }, |_| Message::None)
+                    Task::perform(
+                        async move {
+                            let _ = sender.send(WorkerEvent::SendWindowSizeToHost(w, h)).await;
+                        },
+                        |_| Message::None,
+                    )
                 } else {
                     Task::none()
                 }
             }
             ClientConnectedMessage::Disconnect(reason) => {
                 if let Some(mut sender) = self.sender.clone() {
-                    Task::perform(async move {
-                        let _ = sender.send(WorkerEvent::Disconnect(reason)).await;
-                    }, |_| Message::Tab(Arc::new(move || {
-                        Screen::Client(screens::Client::new())
-                    })))
+                    Task::perform(
+                        async move {
+                            let _ = sender.send(WorkerEvent::Disconnect(reason)).await;
+                        },
+                        |_| Message::Tab(Arc::new(move || Screen::Client(screens::Client::new()))),
+                    )
                 } else {
                     Task::done(Message::Tab(Arc::new(move || {
                         Screen::Client(screens::Client::new())
@@ -428,12 +432,13 @@ async fn handshake(
         _ => return Err("Did not receive server info".to_string()),
     };
 
-    let _ = out.send(WorkerEvent::UpdateKnownHosts(server_info.name.clone(), key)).await;
+    let _ = out
+        .send(WorkerEvent::UpdateKnownHosts(server_info.name.clone(), key))
+        .await;
 
     let codec_box = encoding::get_codec(&server_info.selected_codec)?;
 
     let _ = out.send(WorkerEvent::SetServerInfo(server_info)).await;
-
 
     Ok((p2p, codec_box))
 }

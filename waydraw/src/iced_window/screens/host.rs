@@ -27,7 +27,7 @@ impl Host {
             .collect();
 
         Self {
-            monitor: monitors.get(0).map(|e| e.0.clone()),
+            monitor: monitors.first().map(|e| e.0.clone()),
             monitors,
             wait: String::from(""),
             err: String::from(""),

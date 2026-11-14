@@ -122,11 +122,19 @@ impl From<iced::keyboard::Key> for Key {
             iced::keyboard::Key::Named(iced::keyboard::key::Named::F11) => Self::Named(Named::F11),
             iced::keyboard::Key::Named(iced::keyboard::key::Named::F12) => Self::Named(Named::F12),
 
-            iced::keyboard::Key::Named(iced::keyboard::key::Named::Escape) => Self::Named(Named::Escape),
-            iced::keyboard::Key::Named(iced::keyboard::key::Named::Home) => Self::Named(Named::Home),
+            iced::keyboard::Key::Named(iced::keyboard::key::Named::Escape) => {
+                Self::Named(Named::Escape)
+            }
+            iced::keyboard::Key::Named(iced::keyboard::key::Named::Home) => {
+                Self::Named(Named::Home)
+            }
             iced::keyboard::Key::Named(iced::keyboard::key::Named::End) => Self::Named(Named::End),
-            iced::keyboard::Key::Named(iced::keyboard::key::Named::PageUp) => Self::Named(Named::PageUp),
-            iced::keyboard::Key::Named(iced::keyboard::key::Named::PageDown) => Self::Named(Named::PageDown),
+            iced::keyboard::Key::Named(iced::keyboard::key::Named::PageUp) => {
+                Self::Named(Named::PageUp)
+            }
+            iced::keyboard::Key::Named(iced::keyboard::key::Named::PageDown) => {
+                Self::Named(Named::PageDown)
+            }
 
             _ => Key::Other(0),
         }
