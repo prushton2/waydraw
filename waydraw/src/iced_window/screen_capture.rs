@@ -63,7 +63,6 @@ impl ScreenCapture {
 
                 let mut lock = latest_frame_arc.write().unwrap();
                 *lock = Some(Arc::new(frame));
-                println!("Screen!!!");
             }
 
             let _ = session.stop();
