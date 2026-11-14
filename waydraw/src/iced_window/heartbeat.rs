@@ -47,15 +47,13 @@ impl Heartbeat {
 
     fn thread<T: 'static + Send + Clone>(
         expiry: Arc<RwLock<Option<std::time::Instant>>>,
-        sender: Sender<T>,
+        mut sender: Sender<T>,
         delay: std::time::Duration,
         expire_message: T,
         active: Arc<AtomicBool>,
         send_heartbeat_message: T,
     ) -> std::thread::JoinHandle<()> {
         thread::spawn({
-            let expiry = expiry.clone();
-            let mut sender = sender;
             move || {
                 while active.fetch_and(true, std::sync::atomic::Ordering::Relaxed) {
                     let _ = sender.try_send(send_heartbeat_message.clone());
