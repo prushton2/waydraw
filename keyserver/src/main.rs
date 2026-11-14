@@ -32,8 +32,8 @@ async fn main() {
         loop {
             std::thread::sleep(time::Duration::from_mins(1));
             let now = time::Instant::now();
-            let store = store_clone.write().await;
-            let _ = store.iter().filter(|(_, v)| now < v.expiry);
+            let mut store = store_clone.write().await;
+            *store = store.clone().into_iter().filter(|(_, v)| now < v.expiry).collect::<HashMap<String, ValueStore>>();
         }
     });
 

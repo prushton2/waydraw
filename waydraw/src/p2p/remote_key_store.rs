@@ -22,8 +22,19 @@ pub async fn get(key: &str) -> Result<String, String> {
     let response = client
         .get(format!("{}/keys/{}", URL, key))
         .send()
-        .await
-        .map_err(|e| e.to_string())?
+        .await;
+
+    let response = match response {
+        Ok(t) if t.status().is_success() => {
+            Ok(t)
+        }
+        Ok(t) if !t.status().is_success() => {
+            Err("Pin does not exist".to_owned())
+        }
+        t => t.map_err(|e| e.to_string())
+    };
+
+    let response = response?
         .text()
         .await
         .map_err(|e| e.to_string())?;

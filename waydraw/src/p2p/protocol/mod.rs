@@ -36,29 +36,42 @@ pub enum FromBytes {
     Opcode Categories
 
     0x0[0-F]: Client / Server metadata
-    0x1[0-F]: Mouse events
+    0x1[0-F]: Keyboard / Mouse events
     0x2[0-F]: Screenshot events
 
 */
 
 impl FromBytes {
     pub fn parse(bytes: &[u8]) -> Self {
-        match bytes[0] {
-            0x00 => Self::ServerHello(ServerHello::from_bytes(&bytes[1..])),
-            0x01 => Self::ClientHello(ClientHello::from_bytes(&bytes[1..])),
-            0x02 => Self::WindowResized(WindowResized::from_bytes(&bytes[1..])),
-            0x03 => Self::Heartbeat(Heartbeat::from_bytes(&bytes[1..])),
-            0x0F => Self::Goodbye(Goodbye::from_bytes(&bytes[1..])),
-            0x10 => Self::MouseMove(MouseMove::from_bytes(&bytes[1..])),
-            0x11 => Self::MouseClick(MouseClick::from_bytes(&bytes[1..])),
-            0x12 => Self::KeyEvent(KeyEvent::from_bytes(&bytes[1..])),
-            0x20 => Self::Screenshot(Screenshot::from_bytes(&bytes[1..])),
-            _ => Self::UnknownInstruction(bytes.into()),
+        if bytes.is_empty() {
+            return Self::UnknownInstruction(vec![])
         }
+
+        match Self::convert_bytes(bytes) {
+            Ok(t) => t,
+            Err(_) => Self::UnknownInstruction(bytes.into())
+        }
+    }
+
+    fn convert_bytes(bytes: &[u8]) -> Result<Self, String> {
+        let result = match bytes[0] {
+            0x00 => Self::ServerHello(ServerHello::from_bytes(&bytes[1..])?),
+            0x01 => Self::ClientHello(ClientHello::from_bytes(&bytes[1..])?),
+            0x02 => Self::WindowResized(WindowResized::from_bytes(&bytes[1..])?),
+            0x03 => Self::Heartbeat(Heartbeat::from_bytes(&bytes[1..])?),
+            0x0F => Self::Goodbye(Goodbye::from_bytes(&bytes[1..])?),
+            0x10 => Self::MouseMove(MouseMove::from_bytes(&bytes[1..])?),
+            0x11 => Self::MouseClick(MouseClick::from_bytes(&bytes[1..])?),
+            0x12 => Self::KeyEvent(KeyEvent::from_bytes(&bytes[1..])?),
+            0x20 => Self::Screenshot(Screenshot::from_bytes(&bytes[1..])?),
+            _ => Self::UnknownInstruction(bytes.into()),
+        };
+        Ok(result)
     }
 }
 
-pub trait IntoBytes {
+pub trait IntoBytes 
+    where Self: Sized {
     fn into_bytes(self) -> Vec<u8>;
-    fn from_bytes(bytes: &[u8]) -> Self;
+    fn from_bytes(bytes: &[u8]) -> Result<Self, String>;
 }

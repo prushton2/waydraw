@@ -83,6 +83,7 @@ impl Window {
             }
             Message::RemoveKnownHost(key) => {
                 let _ = self.config.known_hosts.remove(&key);
+                self.config.write();
                 Task::none()
             }
             Message::None => Task::none(),
@@ -102,11 +103,11 @@ impl Window {
 
 pub fn subscription(window: &Window) -> Subscription<Message> {
     let mut subscriptions: Vec<Subscription<Message>> = match &window.screen {
-        Screen::HostConnected(host) => {
+        Screen::HostConnected(host) if host.monitor.is_some() => {
             let props = host_connected::Params {
                 id: 0,
                 secret_key: window.config.secret_key.clone(),
-                monitor: host.monitor.clone(),
+                monitor: host.monitor.clone().unwrap(),
             };
             let mut s = vec![
                 iced::Subscription::run_with(props, host_connected::worker).map(|e| {
@@ -116,9 +117,9 @@ pub fn subscription(window: &Window) -> Subscription<Message> {
                 }),
             ];
 
-            if let Some(sender) = &host.sender {
+            if let Some(sender) = &host.sender && host.client_info.is_some() {
                 let params = screen_capture::Params {
-                    monitor: host.monitor.clone(),
+                    monitor: host.monitor.clone().unwrap(),
                     sender: sender.clone(),
                 };
 

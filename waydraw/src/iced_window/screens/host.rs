@@ -8,7 +8,7 @@ use iced::{
 
 pub struct Host {
     monitors: Vec<(Monitor, String)>,
-    monitor: Monitor,
+    monitor: Option<Monitor>,
     wait: String,
     err: String,
 }
@@ -27,7 +27,7 @@ impl Host {
             .collect();
 
         Self {
-            monitor: monitors[0].0.clone(),
+            monitor: monitors.get(0).map(|e| e.0.clone()),
             monitors,
             wait: String::from(""),
             err: String::from(""),
@@ -37,7 +37,7 @@ impl Host {
     pub fn update(&mut self, message: HostMessage) -> Task<Message> {
         match message {
             HostMessage::SetMonitor(m) => {
-                self.monitor = m;
+                self.monitor = Some(m);
                 Task::none()
             }
         }
@@ -51,7 +51,7 @@ impl Host {
                 button(e.1.as_str())
                     .on_press(Message::HostMessage(HostMessage::SetMonitor(e.0.clone())))
                     .style(|t, _| {
-                        if self.monitor == e.0 {
+                        if self.monitor == Some(e.0.clone()) {
                             styles::selected_monitor(t)
                         } else {
                             styles::unselected_monitor(t)
@@ -95,7 +95,7 @@ pub enum HostMessage {
     SetMonitor(Monitor),
 }
 
-#[derive(Clone, PartialEq)]
+#[derive(Clone, PartialEq, Debug)]
 pub struct Monitor {
     pub id: String,
     pub position: (i32, i32),

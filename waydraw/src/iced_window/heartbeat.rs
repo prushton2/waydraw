@@ -55,7 +55,7 @@ impl Heartbeat {
     ) -> std::thread::JoinHandle<()> {
         thread::spawn({
             move || {
-                while active.fetch_and(true, std::sync::atomic::Ordering::Relaxed) {
+                while active.load(std::sync::atomic::Ordering::Relaxed) {
                     let _ = sender.try_send(send_heartbeat_message.clone());
 
                     if let Ok(t) = expiry.read()

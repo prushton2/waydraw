@@ -112,12 +112,14 @@ pub fn worker(params: &Params) -> impl Stream<Item = Message> + use<> {
                 None => continue,
             };
 
+            let res = (frame.width, frame.height);
+
             let bytes = match frame.to_tight_bytes() {
                 Some(t) => t,
                 None => continue,
             };
 
-            match params.sender.try_send(WorkerEvent::Frame(bytes)) {
+            match params.sender.try_send(WorkerEvent::Frame(bytes, res)) {
                 Ok(_) => {}
                 Err(_) => continue,
             };

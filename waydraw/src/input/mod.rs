@@ -38,6 +38,11 @@ pub enum Key {
 
 #[derive(Debug, Copy, Clone, Serialize, Deserialize)]
 pub enum Named {
+    Escape,
+    Home,
+    End,
+    PageUp,
+    PageDown,
     Super,
     Alt,
     Ctrl,
@@ -117,6 +122,12 @@ impl From<iced::keyboard::Key> for Key {
             iced::keyboard::Key::Named(iced::keyboard::key::Named::F11) => Self::Named(Named::F11),
             iced::keyboard::Key::Named(iced::keyboard::key::Named::F12) => Self::Named(Named::F12),
 
+            iced::keyboard::Key::Named(iced::keyboard::key::Named::Escape) => Self::Named(Named::Escape),
+            iced::keyboard::Key::Named(iced::keyboard::key::Named::Home) => Self::Named(Named::Home),
+            iced::keyboard::Key::Named(iced::keyboard::key::Named::End) => Self::Named(Named::End),
+            iced::keyboard::Key::Named(iced::keyboard::key::Named::PageUp) => Self::Named(Named::PageUp),
+            iced::keyboard::Key::Named(iced::keyboard::key::Named::PageDown) => Self::Named(Named::PageDown),
+
             _ => Key::Other(0),
         }
     }
@@ -153,6 +164,12 @@ impl From<Key> for enigo::Key {
             Key::Named(Named::F10) => enigo::Key::F10,
             Key::Named(Named::F11) => enigo::Key::F11,
             Key::Named(Named::F12) => enigo::Key::F12,
+
+            Key::Named(Named::Escape) => enigo::Key::Escape,
+            Key::Named(Named::Home) => enigo::Key::Home,
+            Key::Named(Named::End) => enigo::Key::End,
+            Key::Named(Named::PageUp) => enigo::Key::PageUp,
+            Key::Named(Named::PageDown) => enigo::Key::PageDown,
         }
     }
 }

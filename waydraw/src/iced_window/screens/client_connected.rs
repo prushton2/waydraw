@@ -195,18 +195,26 @@ impl ClientConnected {
                 Task::none()
             }
             ClientConnectedMessage::WindowResize(w, h) => {
-                if let Some(sender) = &mut self.sender {
-                    let _ = sender.try_send(WorkerEvent::SendWindowSizeToHost(w, h));
+                if let Some(mut sender) = self.sender.clone() {
+                    Task::perform(async move {
+                        let _ = sender.send(WorkerEvent::SendWindowSizeToHost(w, h)).await;
+                    }, |_| Message::None)
+                } else {
+                    Task::none()
                 }
-                Task::none()
             }
             ClientConnectedMessage::Disconnect(reason) => {
-                if let Some(sender) = &mut self.sender {
-                    let _ = sender.try_send(WorkerEvent::Disconnect(reason));
+                if let Some(mut sender) = self.sender.clone() {
+                    Task::perform(async move {
+                        let _ = sender.send(WorkerEvent::Disconnect(reason)).await;
+                    }, |_| Message::Tab(Arc::new(move || {
+                        Screen::Client(screens::Client::new())
+                    })))
+                } else {
+                    Task::done(Message::Tab(Arc::new(move || {
+                        Screen::Client(screens::Client::new())
+                    })))
                 }
-                Task::done(Message::Tab(Arc::new(move || {
-                    Screen::Client(screens::Client::new())
-                })))
             }
         }
     }
@@ -417,28 +425,15 @@ async fn handshake(
     let server_info = match protocol::FromBytes::parse(&data) {
         protocol::FromBytes::ServerHello(d) => d,
         protocol::FromBytes::Goodbye(_) => return Err(String::from("Host refused connection")),
-        _ => panic!("Did not receive server info"),
+        _ => return Err("Did not receive server info".to_string()),
     };
 
-    out.try_send(WorkerEvent::UpdateKnownHosts(server_info.name.clone(), key))
-        .map_err(|e| {
-            format!(
-                "TrySendError: Full: {}, Disconnected: {}",
-                e.is_full(),
-                e.is_disconnected()
-            )
-        })?;
+    let _ = out.send(WorkerEvent::UpdateKnownHosts(server_info.name.clone(), key)).await;
 
     let codec_box = encoding::get_codec(&server_info.selected_codec)?;
 
-    out.try_send(WorkerEvent::SetServerInfo(server_info))
-        .map_err(|e| {
-            format!(
-                "TrySendError: Full: {}, Disconnected: {}",
-                e.is_full(),
-                e.is_disconnected()
-            )
-        })?;
+    let _ = out.send(WorkerEvent::SetServerInfo(server_info)).await;
+
 
     Ok((p2p, codec_box))
 }

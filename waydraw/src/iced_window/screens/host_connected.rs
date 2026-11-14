@@ -22,15 +22,15 @@ pub struct HostConnected {
     pub sender: Option<Sender<WorkerEvent>>,
     pub client_info: Option<Arc<RwLock<ClientHello>>>,
     pub static_client_info: Option<ClientHello>,
-    pub monitor: Monitor,
+    pub monitor: Option<Monitor>,
 }
 
 impl HostConnected {
-    pub fn new(monitor: Monitor) -> Self {
+    pub fn new(monitor: Option<Monitor>) -> Self {
         Self {
             key: String::from(""),
             pin: String::from(""),
-            error: String::from(""),
+            error: if monitor.is_none() { String::from("No monitor selected") } else { String::from("") },
             sender: None,
             client_info: None,
             static_client_info: None,
@@ -70,10 +70,13 @@ impl HostConnected {
                 Task::none()
             }
             HostConnectedMessage::Disconnect(reason) => {
-                if let Some(sender) = &mut self.sender {
-                    let _ = sender.try_send(WorkerEvent::Disconnect(reason));
+                if let Some(mut sender) = self.sender.clone() {
+                    Task::perform(async move {
+                        let _ = sender.send(WorkerEvent::Disconnect(reason)).await;
+                    }, |_| Message::Tab(Arc::new(|| Screen::Host(super::Host::new()))))
+                } else {
+                    Task::done(Message::Tab(Arc::new(|| Screen::Host(super::Host::new()))))
                 }
-                Task::done(Message::Tab(Arc::new(|| Screen::Host(super::Host::new()))))
             }
         }
     }
@@ -177,7 +180,7 @@ pub enum WorkerEvent {
     Disconnect(String),
 
     // To Worker
-    Frame(Vec<u8>),
+    Frame(Vec<u8>, (u32, u32)),
     Heartbeat,
 }
 
@@ -187,7 +190,7 @@ pub enum IncomingEvent {
     P2p(FromBytes),
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Params {
     pub id: u64,
     pub secret_key: SecretKey,
@@ -257,7 +260,7 @@ async fn handshake(
                 e.is_disconnected()
             )
         })?;
-    out.try_send(WorkerEvent::UpdatePin(pin)).map_err(|e| {
+    out.try_send(WorkerEvent::UpdatePin(pin.clone())).map_err(|e| {
         format!(
             "TrySendError: Full: {}, Disconnected: {}",
             e.is_full(),
@@ -275,23 +278,8 @@ async fn handshake(
 
     let client_info = match protocol::FromBytes::parse(&data) {
         protocol::FromBytes::ClientHello(d) => d,
-        _ => panic!("Did not receive client info"),
+        _ => return Err("Did not receive client info".to_string()),
     };
-
-    out.try_send(WorkerEvent::UpdateKnownHosts(
-        client_info
-            .host_name
-            .clone()
-            .unwrap_or(String::from("Unnamed Device")),
-        key,
-    ))
-    .map_err(|e| {
-        format!(
-            "TrySendError: Full: {}, Disconnected: {}",
-            e.is_full(),
-            e.is_disconnected()
-        )
-    })?;
 
     let confirmed = native_dialog::DialogBuilder::message()
         .set_title("Confirm Connection")
@@ -348,6 +336,8 @@ async fn handshake(
 
     let codec_box = encoding::get_codec(codec)?;
 
+    p2p::remote_key_store::delete(&pin).await;
+
     Ok((p2p, codec_box, client_info))
 }
 
@@ -386,8 +376,8 @@ async fn session(
         };
 
         match event {
-            IncomingEvent::WorkerEvent(WorkerEvent::Frame(bytes)) => {
-                let encoded = codec.encode(&bytes, params.monitor.resolution);
+            IncomingEvent::WorkerEvent(WorkerEvent::Frame(bytes, res)) => {
+                let encoded = codec.encode(&bytes, res);
                 let frame = protocol::Screenshot {
                     bytes: encoded,
                     width: params.monitor.resolution.0 as usize,
@@ -416,6 +406,8 @@ async fn session(
                 let client_info = client_info.read().unwrap();
                 let client_res = (client_info.window_width, client_info.window_height);
                 let scale = params.monitor.scale;
+
+                println!("{:?}", params.monitor.position);
 
                 let mouse_pct = (
                     x as f32 / client_res.0 as f32,
