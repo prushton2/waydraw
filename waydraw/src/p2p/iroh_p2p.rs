@@ -261,7 +261,9 @@ impl P2P {
 
             match recv.read_chunk(usize::MAX).await {
                 Ok(Some(chunk)) => buf_lock.extend_from_slice(&chunk),
-                Ok(None) => {}
+                Ok(None) => {
+                    return Err(P2PError::ConnectionNotFound);
+                }
                 Err(e) => {
                     return Err(P2PError::during(
                         "Reading entire buffer",
