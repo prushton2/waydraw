@@ -28,14 +28,14 @@ async fn main() {
         .route("/keys/{name}", delete(delete_key))
         .with_state(store);
 
-    let _thread = std::thread::spawn(async move || {
+    let _cleanup = tokio::spawn(async move {
         loop {
-            std::thread::sleep(time::Duration::from_mins(1));
+            tokio::time::sleep(time::Duration::from_mins(1)).await;
             let now = time::Instant::now();
-            let mut store = store_clone.write().await;
-            *store = store.clone().into_iter().filter(|(_, v)| now < v.expiry).collect::<HashMap<String, ValueStore>>();
+            store_clone.write().await.retain(|_, v| now < v.expiry);
         }
     });
+
 
     let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await.unwrap();
     println!("keyserver listening on {}", listener.local_addr().unwrap());

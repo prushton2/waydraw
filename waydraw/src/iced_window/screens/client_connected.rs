@@ -183,10 +183,13 @@ impl ClientConnected {
                     } => (key.into(), crate::input::KeyState::Released),
                     _ => return Task::none(),
                 };
-                if let Some(sender) = &mut self.sender {
-                    let _ = sender.try_send(WorkerEvent::KeyEvent(key, state));
+                if let Some(mut sender) = self.sender.clone() {
+                    Task::perform(async move {
+                        let _ = sender.send(WorkerEvent::KeyEvent(key, state)).await;
+                    }, |_| Message::None)
+                } else {
+                    Task::none()
                 }
-                Task::none()
             }
             ClientConnectedMessage::ImageAllocated(allocation) => {
                 if let Ok(t) = allocation {
@@ -435,6 +438,13 @@ async fn handshake(
     let _ = out
         .send(WorkerEvent::UpdateKnownHosts(server_info.name.clone(), key))
         .await;
+
+    if crate::get_version().0 != server_info.version.0 {
+        return Err(format!("Could not connect to client. Client's major version ({}) does not match host's major version ({}). Update either app to the same major version",
+            crate::get_version().0,
+            server_info.version.0
+        ));
+    }
 
     let codec_box = encoding::get_codec(&server_info.selected_codec)?;
 

@@ -70,8 +70,8 @@ jobs:
         workspaces: keyserver
 
     - run: cargo check
-    - run: cargo fmt
-    - run: cargo clippy
+    - run: cargo fmt --check
+    - run: cargo clippy -- -D warnings
 
   check-macros:
     runs-on: ubuntu-latest
@@ -99,5 +99,5 @@ jobs:
         workspaces: waydraw-macros
 
     - run: cargo check
-    - run: cargo fmt
-    - run: cargo clippy
+    - run: cargo fmt --check
+    - run: cargo clippy -- -D warnings

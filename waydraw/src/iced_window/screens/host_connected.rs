@@ -322,9 +322,9 @@ async fn handshake(
         .find(|c| client_info.supported_codecs.contains(&c.to_string()))
         .map_err(|| "No valid codec found")?;
 
-    let client_info = Arc::new(RwLock::new(client_info));
+    let client_info_arc = Arc::new(RwLock::new(client_info.clone()));
 
-    out.try_send(WorkerEvent::SetClientInfo(client_info.clone()))
+    out.try_send(WorkerEvent::SetClientInfo(client_info_arc.clone()))
         .map_err(|e| {
             format!(
                 "TrySendError: Full: {}, Disconnected: {}",
@@ -345,11 +345,18 @@ async fn handshake(
 
     p2p.send(&server_hello.into_bytes()).await?;
 
+    if crate::get_version().0 != client_info.version.0 {
+        return Err(format!("Could not connect to client. Host's major version ({}) does not match client's major version ({}). Update either app to the same major version",
+            crate::get_version().0,
+            client_info.version.0
+        ));
+    }
+
     let codec_box = encoding::get_codec(codec)?;
 
     p2p::remote_key_store::delete(&pin).await;
 
-    Ok((p2p, codec_box, client_info))
+    Ok((p2p, codec_box, client_info_arc))
 }
 
 async fn session(
@@ -391,8 +398,8 @@ async fn session(
                 let encoded = codec.encode(&bytes, res);
                 let frame = protocol::Screenshot {
                     bytes: encoded,
-                    width: params.monitor.resolution.0 as usize,
-                    height: params.monitor.resolution.1 as usize,
+                    width:  res.0 as usize,
+                    height: res.1 as usize,
                 };
 
                 let _ = p2p.send(&frame.into_bytes()).await;
@@ -417,8 +424,6 @@ async fn session(
                 let client_info = client_info.read().unwrap();
                 let client_res = (client_info.window_width, client_info.window_height);
                 let scale = params.monitor.scale;
-
-                println!("{:?}", params.monitor.position);
 
                 let mouse_pct = (
                     x as f32 / client_res.0 as f32,
