@@ -37,7 +37,6 @@ pub enum IncomingWorkerEvent {
     MouseMove(i32, i32),
     MouseClick(MouseButton, MouseState),
     KeyEvent(crate::input::Key, crate::input::KeyState),
-    Screenshot(Vec<u8>, (usize, usize)),
     Heartbeat,
     Disconnect(String),
 }

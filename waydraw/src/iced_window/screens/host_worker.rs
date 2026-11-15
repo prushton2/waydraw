@@ -168,17 +168,16 @@ async fn handshake(
 
     let (sender, mut receiver) = mpsc::channel(4);
 
-    out
-        .try_send(OutgoingWorkerEvent::SetConfirmConnectPromptSender(Some(
-            sender,
-        )))
-        .map_err(|e| {
-            format!(
-                "TrySendError: Full: {}, Disconnected: {}",
-                e.is_full(),
-                e.is_disconnected()
-            )
-        })?;
+    out.try_send(OutgoingWorkerEvent::SetConfirmConnectPromptSender(Some(
+        sender,
+    )))
+    .map_err(|e| {
+        format!(
+            "TrySendError: Full: {}, Disconnected: {}",
+            e.is_full(),
+            e.is_disconnected()
+        )
+    })?;
 
     let confirmed = receiver.recv().await.unwrap_or(false);
 
@@ -189,7 +188,9 @@ async fn handshake(
         return Err(String::from("Host denied connection"));
     }
 
-    let _ = out.send(OutgoingWorkerEvent::SetConfirmConnectPromptSender(None)).await;
+    let _ = out
+        .send(OutgoingWorkerEvent::SetConfirmConnectPromptSender(None))
+        .await;
     drop(receiver);
 
     // Find a codec match

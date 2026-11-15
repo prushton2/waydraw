@@ -137,63 +137,35 @@ impl HostConnected {
 
         let mut card = column![].spacing(8).align_x(Alignment::Start);
 
-        if self.confirm_connect_prompt.is_some() {
+        if self.confirm_connect_prompt.is_some()
+            && let Some(info) = self.static_client_info.as_ref()
+        {
             card = card
                 .push(text("Confirm Connection").size(22))
                 .push(text(
                     "A waydraw client is attempting to connect to your device",
                 ))
-                .push(info_row(
-                    "Device Name",
-                    self
-                        .static_client_info
-                        .as_ref()
-                        .unwrap()
-                        .host_name
-                        .as_ref()
-                        .unwrap(),
-                ))
-                .push(info_row(
-                    "OS",
-                    self
-                        .static_client_info
-                        .as_ref()
-                        .unwrap()
-                        .name
-                        .as_ref()
-                        .unwrap(),
-                ))
-                .push(info_row(
-                    "OS Version",
-                    self
-                        .static_client_info
-                        .as_ref()
-                        .unwrap()
-                        .os_version
-                        .as_ref()
-                        .unwrap(),
-                ))
-                .push(info_row(
-                    "Kernel Version",
-                    self
-                        .static_client_info
-                        .as_ref()
-                        .unwrap()
-                        .kernel_version
-                        .as_ref()
-                        .unwrap(),
-                ))
+                .push(info_row("Device Name", deref(&info.host_name)))
+                .push(info_row("OS", deref(&info.name)))
+                .push(info_row("OS Version", deref(&info.os_version)))
+                .push(info_row("Kernel Version", deref(&info.kernel_version)))
                 .push(container(row![
                     space().width(Length::Fill),
-                    button("Yes").on_press(Message::HostConnectedMessage(
+                    button("Accept").on_press(Message::HostConnectedMessage(
                         HostConnectedMessage::AnswerConfirmConnectionPrompt(true)
-                    )),
-                    space().width(Length::Fill),
-                    button("No").on_press(Message::HostConnectedMessage(
+                    ))
+                    .style(button::primary),
+                    space().width(Length::Fixed(32.0)),
+                    button("Reject").on_press(Message::HostConnectedMessage(
                         HostConnectedMessage::AnswerConfirmConnectionPrompt(false)
-                    )),
+                    ))
+                    .style(button::secondary),
                     space().width(Length::Fill),
                 ]));
+        } else if !self.error.is_empty() {
+            card = card
+                .push(text("Error Connecting").size(22))
+                .push(text(&self.error).style(text::danger));
         } else if let Some(static_client_info) = self.static_client_info.as_ref() {
             card = card
                 .push(text("Connected").size(22))
@@ -223,10 +195,6 @@ impl HostConnected {
                     .center_x(Length::Fill)
                     .padding(iced::Padding::ZERO.top(12)),
                 );
-        } else if !self.error.is_empty() {
-            card = card
-                .push(text("Error Connecting").size(22))
-                .push(text(&self.error).style(text::danger));
         } else if self.key.is_empty() {
             card = card
                 .push(text("Registering...").size(22))
