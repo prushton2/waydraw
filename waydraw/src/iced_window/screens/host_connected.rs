@@ -1,27 +1,29 @@
-use std::hash::{Hash, Hasher};
 use std::sync::{Arc, RwLock};
 
-use iced::futures::channel::mpsc::{self, Receiver, Sender};
-use iced::futures::{SinkExt, Stream, StreamExt};
-use iced::widget::{button, column, container, row, text, text_input};
+use iced::futures::SinkExt;
+use iced::futures::channel::mpsc::Sender;
+use iced::widget::{button, column, container, row, space, text, text_input};
 use iced::{Alignment, Length, Task};
-use iroh::SecretKey;
 
-use crate::encoding::{self, Codec};
-use crate::iced_window::heartbeat::Heartbeat;
+use super::host_worker;
 use crate::iced_window::screens::host::Monitor;
 use crate::iced_window::{Message, Screen, styles};
-use crate::input::{self, Input};
-use crate::p2p::protocol::{ClientHello, FromBytes, IntoBytes, MouseMove};
-use crate::p2p::{self, protocol}; // for out.send(..).await and cmd_rx.next().await
+use crate::p2p::protocol; // for out.send(..).await and cmd_rx.next().await
+
+#[derive(Clone, Debug)]
+pub enum HostConnectedMessage {
+    WorkerEvent(host_worker::OutgoingWorkerEvent),
+    Disconnect(String),
+    AnswerConfirmConnectionPrompt(bool),
+}
 
 pub struct HostConnected {
     pub key: String,
     pub pin: String,
     pub error: String,
-    pub sender: Option<Sender<WorkerEvent>>,
-    pub client_info: Option<Arc<RwLock<ClientHello>>>,
-    pub static_client_info: Option<ClientHello>,
+    pub sender: Option<Sender<host_worker::IncomingWorkerEvent>>,
+    pub client_info: Option<Arc<RwLock<protocol::ClientHello>>>,
+    pub static_client_info: Option<protocol::ClientHello>,
     pub monitor: Option<Monitor>,
     pub confirm_connect_prompt: Option<Sender<bool>>,
 }
@@ -48,33 +50,34 @@ impl HostConnected {
         match message {
             HostConnectedMessage::WorkerEvent(event) => {
                 match event {
-                    WorkerEvent::UpdateKnownHosts(hostname, key) => {
+                    host_worker::OutgoingWorkerEvent::UpdateKnownHosts(hostname, key) => {
                         return Task::done(Message::UpdateKnownHosts(hostname, key));
                     }
-                    WorkerEvent::Disconnect(reason) => {
+                    host_worker::OutgoingWorkerEvent::Disconnect(reason) => {
                         return Task::done(Message::HostConnectedMessage(
                             HostConnectedMessage::Disconnect(reason),
                         ));
                     }
-                    WorkerEvent::UpdateKey(key) => self.key = key,
-                    WorkerEvent::UpdatePin(pin) => self.pin = pin,
-                    WorkerEvent::Failed(e) => self.error = e,
-                    WorkerEvent::SetClientInfo(t) => {
-                        self.static_client_info = Some(t.read().unwrap().clone());
+                    host_worker::OutgoingWorkerEvent::UpdateKey(key) => self.key = key,
+                    host_worker::OutgoingWorkerEvent::UpdatePin(pin) => self.pin = pin,
+                    host_worker::OutgoingWorkerEvent::Failed(e) => self.error = e,
+                    host_worker::OutgoingWorkerEvent::SetStaticClientInfo(t) => {
+                        self.static_client_info = Some(t);
+                    }
+                    host_worker::OutgoingWorkerEvent::SetClientInfo(t) => {
                         self.client_info = Some(t);
                     }
-                    WorkerEvent::Ready(t) => self.sender = Some(t),
-                    WorkerEvent::UpdateClientWindowSize(w, h) => {
+                    host_worker::OutgoingWorkerEvent::Ready(t) => self.sender = Some(t),
+                    host_worker::OutgoingWorkerEvent::UpdateClientWindowSize(w, h) => {
                         if let Some(client_info) = &self.client_info {
                             let mut lock = client_info.write().unwrap();
                             lock.window_width = w;
                             lock.window_height = h;
                         }
                     }
-                    WorkerEvent::SetConfirmConnectPromptSender(sender) => {
+                    host_worker::OutgoingWorkerEvent::SetConfirmConnectPromptSender(sender) => {
                         self.confirm_connect_prompt = sender;
                     }
-                    _ => {}
                 }
                 Task::none()
             }
@@ -82,7 +85,9 @@ impl HostConnected {
                 if let Some(mut sender) = self.sender.clone() {
                     Task::perform(
                         async move {
-                            let _ = sender.send(WorkerEvent::Disconnect(reason)).await;
+                            let _ = sender
+                                .send(host_worker::IncomingWorkerEvent::Disconnect(reason))
+                                .await;
                         },
                         |_| Message::Tab(Arc::new(|| Screen::Host(super::Host::new()))),
                     )
@@ -93,9 +98,13 @@ impl HostConnected {
             HostConnectedMessage::AnswerConfirmConnectionPrompt(value) => {
                 if let Some(mut sender) = self.confirm_connect_prompt.clone() {
                     let _ = sender.try_send(value);
+                    sender.disconnect();
                 }
+                self.confirm_connect_prompt = None;
                 if !value {
-                    Task::done(Message::HostConnectedMessage(HostConnectedMessage::Disconnect("Host refused connection".to_owned())))
+                    Task::done(Message::HostConnectedMessage(
+                        HostConnectedMessage::Disconnect("Host refused connection".to_owned()),
+                    ))
                 } else {
                     Task::none()
                 }
@@ -107,7 +116,7 @@ impl HostConnected {
         fn info_row<'a>(label: &'a str, value: &'a str) -> iced::Element<'a, Message> {
             row![
                 text(label)
-                    .width(Length::Fixed(80.0))
+                    .width(Length::Fixed(120.0))
                     .style(text::secondary),
                 text(value),
             ]
@@ -128,7 +137,64 @@ impl HostConnected {
 
         let mut card = column![].spacing(8).align_x(Alignment::Start);
 
-        if let Some(static_client_info) = self.static_client_info.as_ref() {
+        if self.confirm_connect_prompt.is_some() {
+            card = card
+                .push(text("Confirm Connection").size(22))
+                .push(text(
+                    "A waydraw client is attempting to connect to your device",
+                ))
+                .push(info_row(
+                    "Device Name",
+                    self
+                        .static_client_info
+                        .as_ref()
+                        .unwrap()
+                        .host_name
+                        .as_ref()
+                        .unwrap(),
+                ))
+                .push(info_row(
+                    "OS",
+                    self
+                        .static_client_info
+                        .as_ref()
+                        .unwrap()
+                        .name
+                        .as_ref()
+                        .unwrap(),
+                ))
+                .push(info_row(
+                    "OS Version",
+                    self
+                        .static_client_info
+                        .as_ref()
+                        .unwrap()
+                        .os_version
+                        .as_ref()
+                        .unwrap(),
+                ))
+                .push(info_row(
+                    "Kernel Version",
+                    self
+                        .static_client_info
+                        .as_ref()
+                        .unwrap()
+                        .kernel_version
+                        .as_ref()
+                        .unwrap(),
+                ))
+                .push(container(row![
+                    space().width(Length::Fill),
+                    button("Yes").on_press(Message::HostConnectedMessage(
+                        HostConnectedMessage::AnswerConfirmConnectionPrompt(true)
+                    )),
+                    space().width(Length::Fill),
+                    button("No").on_press(Message::HostConnectedMessage(
+                        HostConnectedMessage::AnswerConfirmConnectionPrompt(false)
+                    )),
+                    space().width(Length::Fill),
+                ]));
+        } else if let Some(static_client_info) = self.static_client_info.as_ref() {
             card = card
                 .push(text("Connected").size(22))
                 .push(info_row("Device", deref(&static_client_info.host_name)))
@@ -137,21 +203,26 @@ impl HostConnected {
                 .push(info_row(
                     "Kernel",
                     deref(&static_client_info.kernel_version),
-                ));
-        } else if self.confirm_connect_prompt.is_some() {
-            card = card
-                .push(text("Confirm Connection").size(22))
-                .push(text(
-                    "A waydraw client is attempting to connect to your device",
                 ))
-                .push(container(row![
-                    button("Yes").on_press(Message::HostConnectedMessage(
-                        HostConnectedMessage::AnswerConfirmConnectionPrompt(true)
-                    )),
-                    button("No").on_press(Message::HostConnectedMessage(
-                        HostConnectedMessage::AnswerConfirmConnectionPrompt(false)
-                    ))
-                ]));
+                .push(
+                    container(
+                        button(
+                            text(if self.error.is_empty() {
+                                "Disconnect"
+                            } else {
+                                "Retry"
+                            })
+                            .align_x(Alignment::Center),
+                        )
+                        .on_press(Message::HostConnectedMessage(
+                            HostConnectedMessage::Disconnect(
+                                "Host initiated disconnect".to_string(),
+                            ),
+                        )),
+                    )
+                    .center_x(Length::Fill)
+                    .padding(iced::Padding::ZERO.top(12)),
+                );
         } else if !self.error.is_empty() {
             card = card
                 .push(text("Error Connecting").size(22))
@@ -170,33 +241,6 @@ impl HostConnected {
                 .push(text(&self.error).style(text::danger));
         }
 
-        // format!("A Waydraw client is attempting to connect to your device.\n\n Device Name: {}\n OS: {}\n Version: {}\n Kernel version: {}\n\n Waydraw version: {}.{}.{}\n Window Size: {}x{}\n Supported video codecs: {}",
-        // client_info.host_name.as_ref().unwrap_or(&String::from("Unknown")),
-        // client_info.name.as_ref().unwrap_or(&String::from("Unknown")),
-        // client_info.os_version.as_ref().unwrap_or(&String::from("Unknown")),
-        // client_info.kernel_version.as_ref().unwrap_or(&String::from("Unknown")),
-        // client_info.version.0, client_info.version.1, client_info.version.2,
-        // client_info.window_width, client_info.window_height,
-        // client_info.supported_codecs.join(", ")
-
-        card = card.push(
-            container(
-                button(
-                    text(if self.error.is_empty() {
-                        "Disconnect"
-                    } else {
-                        "Retry"
-                    })
-                    .align_x(Alignment::Center),
-                )
-                .on_press(Message::HostConnectedMessage(
-                    HostConnectedMessage::Disconnect("Host initiated disconnect".to_string()),
-                )),
-            )
-            .center_x(Length::Fill)
-            .padding(iced::Padding::ZERO.top(12)),
-        );
-
         container(
             container(card)
                 .padding(20)
@@ -205,332 +249,6 @@ impl HostConnected {
         )
         .center(Length::Fill)
         .into()
-    }
-}
-
-#[derive(Clone)]
-pub enum HostConnectedMessage {
-    WorkerEvent(WorkerEvent),
-    Disconnect(String),
-    AnswerConfirmConnectionPrompt(bool),
-}
-
-#[derive(Clone, Debug)]
-pub enum WorkerEvent {
-    // From Worker
-    /// See Message::UpdateKnownHosts
-    UpdateKnownHosts(String, String),
-    UpdateClientWindowSize(u32, u32),
-    Ready(mpsc::Sender<WorkerEvent>),
-    Failed(String),
-    UpdatePin(String),
-    UpdateKey(String),
-    SetClientInfo(Arc<RwLock<protocol::ClientHello>>),
-    Disconnect(String),
-    SetConfirmConnectPromptSender(Option<Sender<bool>>),
-
-    // To Worker
-    Frame(Vec<u8>, (u32, u32)),
-    Heartbeat,
-}
-
-#[derive(Debug)]
-pub enum IncomingEvent {
-    WorkerEvent(WorkerEvent),
-    P2p(FromBytes),
-}
-
-#[derive(Clone, Debug)]
-pub struct Params {
-    pub id: u64,
-    pub secret_key: SecretKey,
-    pub monitor: Monitor,
-}
-
-// Hash ONLY the session id. Anything that changes mid-session (window size etc.)
-// must go through Command, or iced restarts the worker = new connection.
-impl Hash for Params {
-    fn hash<H: Hasher>(&self, h: &mut H) {
-        self.id.hash(h)
-    }
-}
-
-pub fn worker(params: &Params) -> impl Stream<Item = WorkerEvent> + use<> {
-    let params = params.clone();
-    iced::stream::channel(100, async move |mut out| {
-        let (mut cmd_tx, mut cmd_rx) = mpsc::channel(32);
-        let _ = out.send(WorkerEvent::Ready(cmd_tx.clone())).await;
-
-        // Handshake: p2p is owned here, so &mut methods (await_connection) just work
-        let (mut p2p, mut codec, client_info) = match handshake(&params, &mut out).await {
-            Ok(t) => t,
-            Err(e) => {
-                let _ = out.send(WorkerEvent::Failed(e)).await;
-                return;
-            }
-        };
-
-        let reason = session(
-            &params,
-            &mut p2p,
-            codec.as_mut(),
-            &mut out,
-            &mut cmd_tx,
-            &mut cmd_rx,
-            client_info,
-        )
-        .await;
-
-        p2p.close().await; // the borrow from session() has ended, so &mut is fine
-        let _ = out.send(WorkerEvent::Disconnect(reason)).await;
-    })
-}
-
-async fn handshake(
-    params: &Params,
-    out: &mut Sender<WorkerEvent>,
-) -> Result<(p2p::P2P, Box<dyn Codec>, Arc<RwLock<ClientHello>>), String> {
-    // Register
-    let (mut p2p, key) = p2p::P2P::init(params.secret_key.clone())
-        .await
-        .map_err(|e| e.to_string())?;
-
-    let key = key.to_string();
-
-    let pin = match p2p::remote_key_store::set(&key.to_string()).await {
-        Ok(t) => t,
-        Err(e) => return Err(e),
-    };
-
-    out.try_send(WorkerEvent::UpdateKey(key.clone()))
-        .map_err(|e| {
-            format!(
-                "TrySendError: Full: {}, Disconnected: {}",
-                e.is_full(),
-                e.is_disconnected()
-            )
-        })?;
-    out.try_send(WorkerEvent::UpdatePin(pin.clone()))
-        .map_err(|e| {
-            format!(
-                "TrySendError: Full: {}, Disconnected: {}",
-                e.is_full(),
-                e.is_disconnected()
-            )
-        })?;
-
-    // Await connection
-
-    p2p.await_connection().await?;
-
-    // Await hello
-
-    let data = p2p.read().await?;
-
-    let client_info = match protocol::FromBytes::parse(&data) {
-        protocol::FromBytes::ClientHello(d) => d,
-        _ => return Err("Did not receive client info".to_string()),
-    };
-
-    if crate::get_version().0 != client_info.version.0 {
-        return Err(format!(
-            "Could not connect to client. Host's major version ({}) does not match client's major version ({}). Update either app to the same major version",
-            crate::get_version().0,
-            client_info.version.0
-        ));
-    }
-
-    let (sender, mut receiver) = mpsc::channel(4);
-
-    let _ = out
-        .try_send(WorkerEvent::SetConfirmConnectPromptSender(Some(sender)))
-        .map_err(|e| {
-            format!(
-                "TrySendError: Full: {}, Disconnected: {}",
-                e.is_full(),
-                e.is_disconnected()
-            )
-        })?;
-
-
-    // let confirmed = native_dialog::DialogBuilder::message()
-    //     .set_title("Confirm Connection")
-    //     .set_text(
-    //         format!("A Waydraw client is attempting to connect to your device.\n\n Device Name: {}\n OS: {}\n Version: {}\n Kernel version: {}\n\n Waydraw version: {}.{}.{}\n Window Size: {}x{}\n Supported video codecs: {}",
-    //         client_info.host_name.as_ref().unwrap_or(&String::from("Unknown")),
-    //         client_info.name.as_ref().unwrap_or(&String::from("Unknown")),
-    //         client_info.os_version.as_ref().unwrap_or(&String::from("Unknown")),
-    //         client_info.kernel_version.as_ref().unwrap_or(&String::from("Unknown")),
-    //         client_info.version.0, client_info.version.1, client_info.version.2,
-    //         client_info.window_width, client_info.window_height,
-    //         client_info.supported_codecs.join(", ")
-    //     ))
-    //     .confirm()
-    //     .show()
-    //     .unwrap_or(true);
-
-    let confirmed = receiver.recv().await.unwrap_or(false);
-
-    if !confirmed {
-        let goodbye = protocol::Goodbye {};
-        let _res = p2p.send(&goodbye.into_bytes()).await;
-        p2p.close().await;
-        return Err(String::from("Host denied connection"));
-    }
-
-    let _ = out.send(WorkerEvent::SetConfirmConnectPromptSender(None));
-    drop(receiver);
-
-    // Find a codec match
-
-    let codec = crate::encoding::get_compatible_codecs()
-        .into_iter()
-        .find(|c| client_info.supported_codecs.contains(&c.to_string()))
-        .map_err(|| "No valid codec found")?;
-
-    let client_info_arc = Arc::new(RwLock::new(client_info.clone()));
-
-    out.try_send(WorkerEvent::SetClientInfo(client_info_arc.clone()))
-        .map_err(|e| {
-            format!(
-                "TrySendError: Full: {}, Disconnected: {}",
-                e.is_full(),
-                e.is_disconnected()
-            )
-        })?;
-
-    // Send Hello
-
-    let server_hello = protocol::ServerHello {
-        selected_codec: String::from(codec),
-        name: sysinfo::System::host_name().unwrap_or(String::from("Unnamed Device")),
-        version: crate::get_version(),
-        screen_width: 0,
-        screen_height: 0,
-    };
-
-    p2p.send(&server_hello.into_bytes()).await?;
-
-    let codec_box = encoding::get_codec(codec)?;
-
-    p2p::remote_key_store::delete(&pin).await;
-
-    Ok((p2p, codec_box, client_info_arc))
-}
-
-async fn session(
-    params: &Params,
-    p2p: &mut p2p::P2P,
-    codec: &mut dyn Codec,
-    out: &mut Sender<WorkerEvent>,
-    cmd_tx: &mut Sender<WorkerEvent>,
-    cmd_rx: &mut Receiver<WorkerEvent>,
-    client_info: Arc<RwLock<ClientHello>>,
-) -> String {
-    #[cfg(debug_assertions)]
-    let mut input: Box<dyn Input> = Box::new(input::DummyInput::new());
-    #[cfg(not(debug_assertions))]
-    let mut input: Box<dyn Input> = Box::new(input::EnigoInput::new());
-
-    let heartbeat = Heartbeat::new(
-        std::time::Duration::from_secs(5),
-        std::time::Duration::from_secs(1),
-        cmd_tx.clone(),
-        WorkerEvent::Disconnect(String::from("Lost connection to client")),
-        WorkerEvent::Heartbeat,
-    );
-
-    loop {
-        let event = tokio::select! {
-            cmd = cmd_rx.next() => match cmd {
-                Some(t) => IncomingEvent::WorkerEvent(t),
-                None => break, // UI dropped the sender, stop the worker
-            },
-            cmd = p2p.read() => match cmd {
-                Ok(t) => IncomingEvent::P2p(FromBytes::parse(&t)),
-                Err(e) => return e.to_string(),
-            },
-        };
-
-        match event {
-            IncomingEvent::WorkerEvent(WorkerEvent::Frame(bytes, res)) => {
-                let encoded = codec.encode(&bytes, res);
-                let frame = protocol::Screenshot {
-                    bytes: encoded,
-                    width: res.0 as usize,
-                    height: res.1 as usize,
-                };
-
-                let _ = p2p.send(&frame.into_bytes()).await;
-            }
-            IncomingEvent::WorkerEvent(WorkerEvent::Disconnect(reason)) => {
-                let goodbye = protocol::Goodbye {};
-                let _ = p2p.send(&goodbye.into_bytes()).await;
-                return reason;
-            }
-            IncomingEvent::WorkerEvent(WorkerEvent::Heartbeat) => {
-                let message = protocol::Heartbeat {};
-                let _ = p2p.send(&message.into_bytes()).await;
-            }
-            IncomingEvent::P2p(FromBytes::Goodbye(_)) => {
-                let _ = out
-                    .send(WorkerEvent::Disconnect("Client disconnected".to_string()))
-                    .await;
-            }
-            IncomingEvent::P2p(FromBytes::MouseClick(e)) => input.click_mouse(e.button, e.state),
-            IncomingEvent::P2p(FromBytes::MouseMove(MouseMove { x, y })) => {
-                let (offset_x, offset_y) = params.monitor.position;
-                let client_info = client_info.read().unwrap();
-                let client_res = (client_info.window_width, client_info.window_height);
-                let scale = params.monitor.scale;
-
-                let mouse_pct = (
-                    x as f32 / client_res.0 as f32,
-                    y as f32 / client_res.1 as f32,
-                );
-
-                let mouse_scaled_to_target_res = (
-                    mouse_pct.0 * params.monitor.resolution.0 as f32,
-                    mouse_pct.1 * params.monitor.resolution.1 as f32,
-                );
-
-                let mouse_position = (
-                    ((mouse_scaled_to_target_res.0 as i32 + offset_x) as f32) / scale,
-                    ((mouse_scaled_to_target_res.1 as i32 + offset_y) as f32) / scale,
-                );
-
-                input.move_mouse(mouse_position.0 as i32, mouse_position.1 as i32);
-            }
-            IncomingEvent::P2p(FromBytes::KeyEvent(e)) => {
-                input.key_event(e.key, e.state);
-            }
-            IncomingEvent::P2p(FromBytes::Heartbeat(_)) => {
-                heartbeat.refresh();
-            }
-            IncomingEvent::P2p(FromBytes::WindowResized(m)) => {
-                let _ = out
-                    .send(WorkerEvent::UpdateClientWindowSize(
-                        m.window_width,
-                        m.window_height,
-                    ))
-                    .await;
-            }
-            _ => {}
-        }
-    }
-    String::from("Failsafe return")
-}
-
-trait MapErr<T, E> {
-    fn map_err(self, op: impl FnOnce() -> E) -> Result<T, E>;
-}
-
-impl<T, E> MapErr<T, E> for Option<T> {
-    fn map_err(self, op: impl FnOnce() -> E) -> Result<T, E> {
-        match self {
-            Some(t) => Ok(t),
-            None => Err(op()),
-        }
     }
 }
 

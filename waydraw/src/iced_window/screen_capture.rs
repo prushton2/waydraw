@@ -9,7 +9,7 @@ use std::thread::JoinHandle;
 
 use crate::iced_window::Message;
 use crate::iced_window::screens::host::Monitor;
-use crate::iced_window::screens::host_connected::WorkerEvent;
+use crate::iced_window::screens::host_worker::IncomingWorkerEvent;
 
 pub struct ScreenCapture {
     _consumer_thread: JoinHandle<()>,
@@ -87,7 +87,7 @@ impl Drop for ScreenCapture {
 #[derive(Clone)]
 pub struct Params {
     pub monitor: Monitor,
-    pub sender: Sender<WorkerEvent>,
+    pub sender: Sender<IncomingWorkerEvent>,
 }
 
 impl Hash for Params {
@@ -119,7 +119,10 @@ pub fn worker(params: &Params) -> impl Stream<Item = Message> + use<> {
                 None => continue,
             };
 
-            match params.sender.try_send(WorkerEvent::Frame(bytes, res)) {
+            match params
+                .sender
+                .try_send(IncomingWorkerEvent::Frame(bytes, res))
+            {
                 Ok(_) => {}
                 Err(_) => continue,
             };

@@ -5,12 +5,7 @@ use iced::{
     widget::{button, column, container, row, space},
 };
 
-use crate::iced_window::{
-    screen_capture,
-    screens::{client_connected, host_connected},
-};
-
-use super::{Message, Screen, Window, screens, styles};
+use super::{Message, Screen, Window, screen_capture, screens, styles};
 
 impl Window {
     pub fn boot() -> Self {
@@ -64,10 +59,7 @@ impl Window {
                 self.window_size = (w, h);
 
                 if let Screen::ClientConnected(client) = &mut self.screen {
-                    client.update(
-                        client_connected::ClientConnectedMessage::WindowResize(w, h),
-                        (w, h),
-                    )
+                    client.update(screens::ClientConnectedMessage::WindowResize(w, h), (w, h))
                 } else {
                     Task::none()
                 }
@@ -107,16 +99,14 @@ impl Window {
 pub fn subscription(window: &Window) -> Subscription<Message> {
     let mut subscriptions: Vec<Subscription<Message>> = match &window.screen {
         Screen::HostConnected(host) if host.monitor.is_some() => {
-            let props = host_connected::Params {
+            let props = screens::host_worker::Params {
                 id: 0,
                 secret_key: window.config.secret_key.clone(),
                 monitor: host.monitor.clone().unwrap(),
             };
             let mut s = vec![
-                iced::Subscription::run_with(props, host_connected::worker).map(|e| {
-                    Message::HostConnectedMessage(
-                        host_connected::HostConnectedMessage::WorkerEvent(e),
-                    )
+                iced::Subscription::run_with(props, screens::host_worker::worker).map(|e| {
+                    Message::HostConnectedMessage(screens::HostConnectedMessage::WorkerEvent(e))
                 }),
             ];
 
@@ -134,7 +124,7 @@ pub fn subscription(window: &Window) -> Subscription<Message> {
             s
         }
         Screen::ClientConnected(t) => {
-            let props = client_connected::Params {
+            let props = screens::client_worker::Params {
                 id: 0,
                 pin: t.pin.clone(),
                 key: t.key.clone(),
@@ -142,15 +132,11 @@ pub fn subscription(window: &Window) -> Subscription<Message> {
             };
 
             vec![
-                iced::Subscription::run_with(props, client_connected::worker).map(|e| {
-                    Message::ClientConnectedMessage(
-                        client_connected::ClientConnectedMessage::WorkerEvent(e),
-                    )
+                iced::Subscription::run_with(props, screens::client_worker::worker).map(|e| {
+                    Message::ClientConnectedMessage(screens::ClientConnectedMessage::WorkerEvent(e))
                 }),
                 iced::keyboard::listen().map(|e| {
-                    Message::ClientConnectedMessage(
-                        client_connected::ClientConnectedMessage::KeyEvent(e),
-                    )
+                    Message::ClientConnectedMessage(screens::ClientConnectedMessage::KeyEvent(e))
                 }),
             ]
         }
