@@ -23,6 +23,7 @@ pub struct HostConnected {
     pub client_info: Option<Arc<RwLock<ClientHello>>>,
     pub static_client_info: Option<ClientHello>,
     pub monitor: Option<Monitor>,
+    pub confirm_connect_prompt: Option<Sender<bool>>,
 }
 
 impl HostConnected {
@@ -39,6 +40,7 @@ impl HostConnected {
             client_info: None,
             static_client_info: None,
             monitor,
+            confirm_connect_prompt: None,
         }
     }
 
@@ -69,6 +71,9 @@ impl HostConnected {
                             lock.window_height = h;
                         }
                     }
+                    WorkerEvent::SetConfirmConnectPromptSender(sender) => {
+                        self.confirm_connect_prompt = sender;
+                    }
                     _ => {}
                 }
                 Task::none()
@@ -83,6 +88,16 @@ impl HostConnected {
                     )
                 } else {
                     Task::done(Message::Tab(Arc::new(|| Screen::Host(super::Host::new()))))
+                }
+            }
+            HostConnectedMessage::AnswerConfirmConnectionPrompt(value) => {
+                if let Some(mut sender) = self.confirm_connect_prompt.clone() {
+                    let _ = sender.try_send(value);
+                }
+                if !value {
+                    Task::done(Message::HostConnectedMessage(HostConnectedMessage::Disconnect("Host refused connection".to_owned())))
+                } else {
+                    Task::none()
                 }
             }
         }
@@ -123,6 +138,20 @@ impl HostConnected {
                     "Kernel",
                     deref(&static_client_info.kernel_version),
                 ));
+        } else if self.confirm_connect_prompt.is_some() {
+            card = card
+                .push(text("Confirm Connection").size(22))
+                .push(text(
+                    "A waydraw client is attempting to connect to your device",
+                ))
+                .push(container(row![
+                    button("Yes").on_press(Message::HostConnectedMessage(
+                        HostConnectedMessage::AnswerConfirmConnectionPrompt(true)
+                    )),
+                    button("No").on_press(Message::HostConnectedMessage(
+                        HostConnectedMessage::AnswerConfirmConnectionPrompt(false)
+                    ))
+                ]));
         } else if !self.error.is_empty() {
             card = card
                 .push(text("Error Connecting").size(22))
@@ -140,6 +169,15 @@ impl HostConnected {
                 .push(textbox_row("Key", &self.key))
                 .push(text(&self.error).style(text::danger));
         }
+
+        // format!("A Waydraw client is attempting to connect to your device.\n\n Device Name: {}\n OS: {}\n Version: {}\n Kernel version: {}\n\n Waydraw version: {}.{}.{}\n Window Size: {}x{}\n Supported video codecs: {}",
+        // client_info.host_name.as_ref().unwrap_or(&String::from("Unknown")),
+        // client_info.name.as_ref().unwrap_or(&String::from("Unknown")),
+        // client_info.os_version.as_ref().unwrap_or(&String::from("Unknown")),
+        // client_info.kernel_version.as_ref().unwrap_or(&String::from("Unknown")),
+        // client_info.version.0, client_info.version.1, client_info.version.2,
+        // client_info.window_width, client_info.window_height,
+        // client_info.supported_codecs.join(", ")
 
         card = card.push(
             container(
@@ -174,6 +212,7 @@ impl HostConnected {
 pub enum HostConnectedMessage {
     WorkerEvent(WorkerEvent),
     Disconnect(String),
+    AnswerConfirmConnectionPrompt(bool),
 }
 
 #[derive(Clone, Debug)]
@@ -188,6 +227,7 @@ pub enum WorkerEvent {
     UpdateKey(String),
     SetClientInfo(Arc<RwLock<protocol::ClientHello>>),
     Disconnect(String),
+    SetConfirmConnectPromptSender(Option<Sender<bool>>),
 
     // To Worker
     Frame(Vec<u8>, (u32, u32)),
@@ -292,21 +332,44 @@ async fn handshake(
         _ => return Err("Did not receive client info".to_string()),
     };
 
-    let confirmed = native_dialog::DialogBuilder::message()
-        .set_title("Confirm Connection")
-        .set_text(
-            format!("A Waydraw client is attempting to connect to your device.\n\n Device Name: {}\n OS: {}\n Version: {}\n Kernel version: {}\n\n Waydraw version: {}.{}.{}\n Window Size: {}x{}\n Supported video codecs: {}", 
-            client_info.host_name.as_ref().unwrap_or(&String::from("Unknown")),
-            client_info.name.as_ref().unwrap_or(&String::from("Unknown")),
-            client_info.os_version.as_ref().unwrap_or(&String::from("Unknown")),
-            client_info.kernel_version.as_ref().unwrap_or(&String::from("Unknown")),
-            client_info.version.0, client_info.version.1, client_info.version.2,
-            client_info.window_width, client_info.window_height,
-            client_info.supported_codecs.join(", ")
-        ))
-        .confirm()
-        .show()
-        .unwrap_or(true);
+    if crate::get_version().0 != client_info.version.0 {
+        return Err(format!(
+            "Could not connect to client. Host's major version ({}) does not match client's major version ({}). Update either app to the same major version",
+            crate::get_version().0,
+            client_info.version.0
+        ));
+    }
+
+    let (sender, mut receiver) = mpsc::channel(4);
+
+    let _ = out
+        .try_send(WorkerEvent::SetConfirmConnectPromptSender(Some(sender)))
+        .map_err(|e| {
+            format!(
+                "TrySendError: Full: {}, Disconnected: {}",
+                e.is_full(),
+                e.is_disconnected()
+            )
+        })?;
+
+
+    // let confirmed = native_dialog::DialogBuilder::message()
+    //     .set_title("Confirm Connection")
+    //     .set_text(
+    //         format!("A Waydraw client is attempting to connect to your device.\n\n Device Name: {}\n OS: {}\n Version: {}\n Kernel version: {}\n\n Waydraw version: {}.{}.{}\n Window Size: {}x{}\n Supported video codecs: {}",
+    //         client_info.host_name.as_ref().unwrap_or(&String::from("Unknown")),
+    //         client_info.name.as_ref().unwrap_or(&String::from("Unknown")),
+    //         client_info.os_version.as_ref().unwrap_or(&String::from("Unknown")),
+    //         client_info.kernel_version.as_ref().unwrap_or(&String::from("Unknown")),
+    //         client_info.version.0, client_info.version.1, client_info.version.2,
+    //         client_info.window_width, client_info.window_height,
+    //         client_info.supported_codecs.join(", ")
+    //     ))
+    //     .confirm()
+    //     .show()
+    //     .unwrap_or(true);
+
+    let confirmed = receiver.recv().await.unwrap_or(false);
 
     if !confirmed {
         let goodbye = protocol::Goodbye {};
@@ -314,6 +377,9 @@ async fn handshake(
         p2p.close().await;
         return Err(String::from("Host denied connection"));
     }
+
+    let _ = out.send(WorkerEvent::SetConfirmConnectPromptSender(None));
+    drop(receiver);
 
     // Find a codec match
 
@@ -344,13 +410,6 @@ async fn handshake(
     };
 
     p2p.send(&server_hello.into_bytes()).await?;
-
-    if crate::get_version().0 != client_info.version.0 {
-        return Err(format!("Could not connect to client. Host's major version ({}) does not match client's major version ({}). Update either app to the same major version",
-            crate::get_version().0,
-            client_info.version.0
-        ));
-    }
 
     let codec_box = encoding::get_codec(codec)?;
 
@@ -398,7 +457,7 @@ async fn session(
                 let encoded = codec.encode(&bytes, res);
                 let frame = protocol::Screenshot {
                     bytes: encoded,
-                    width:  res.0 as usize,
+                    width: res.0 as usize,
                     height: res.1 as usize,
                 };
 

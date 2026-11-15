@@ -184,9 +184,12 @@ impl ClientConnected {
                     _ => return Task::none(),
                 };
                 if let Some(mut sender) = self.sender.clone() {
-                    Task::perform(async move {
-                        let _ = sender.send(WorkerEvent::KeyEvent(key, state)).await;
-                    }, |_| Message::None)
+                    Task::perform(
+                        async move {
+                            let _ = sender.send(WorkerEvent::KeyEvent(key, state)).await;
+                        },
+                        |_| Message::None,
+                    )
                 } else {
                     Task::none()
                 }
@@ -435,16 +438,17 @@ async fn handshake(
         _ => return Err("Did not receive server info".to_string()),
     };
 
-    let _ = out
-        .send(WorkerEvent::UpdateKnownHosts(server_info.name.clone(), key))
-        .await;
-
     if crate::get_version().0 != server_info.version.0 {
-        return Err(format!("Could not connect to client. Client's major version ({}) does not match host's major version ({}). Update either app to the same major version",
+        return Err(format!(
+            "Could not connect to host. Client's major version ({}) does not match host's major version ({}). Update either app to the same major version",
             crate::get_version().0,
             server_info.version.0
         ));
     }
+
+    let _ = out
+        .send(WorkerEvent::UpdateKnownHosts(server_info.name.clone(), key))
+        .await;
 
     let codec_box = encoding::get_codec(&server_info.selected_codec)?;
 
