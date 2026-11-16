@@ -2,7 +2,6 @@ use iced::futures::Stream;
 use iced::futures::channel::mpsc::Sender;
 use pinray::{CaptureEvent, CaptureSession, SourceId, VideoCaptureTarget, VideoFrame};
 use std::hash::{Hash, Hasher};
-use std::ops::Deref;
 use std::sync::atomic::AtomicBool;
 use std::sync::{Arc, RwLock};
 use std::thread::JoinHandle;
@@ -13,7 +12,7 @@ use crate::iced_window::screens::host_worker::IncomingWorkerEvent;
 
 pub struct ScreenCapture {
     _consumer_thread: JoinHandle<()>,
-    latest_frame: Arc<RwLock<Option<Arc<VideoFrame>>>>,
+    latest_frame: Arc<RwLock<Option<VideoFrame>>>,
     active: Arc<AtomicBool>,
 }
 
@@ -39,7 +38,7 @@ impl ScreenCapture {
 
     fn thread(
         active: Arc<AtomicBool>,
-        latest_frame_arc: Arc<RwLock<Option<Arc<VideoFrame>>>>,
+        latest_frame: Arc<RwLock<Option<VideoFrame>>>,
         monitor_name: String,
     ) -> std::thread::JoinHandle<()> {
         std::thread::spawn(move || {
@@ -61,8 +60,8 @@ impl ScreenCapture {
                     _ => continue,
                 };
 
-                let mut lock = latest_frame_arc.write().unwrap();
-                *lock = Some(Arc::new(frame));
+                let mut lock = latest_frame.write().unwrap();
+                *lock = Some(frame);
             }
 
             let _ = session.stop();
@@ -70,10 +69,8 @@ impl ScreenCapture {
     }
 
     /// Returns the video frame
-    pub fn latest(&self) -> Option<Arc<VideoFrame>> {
-        let lock = self.latest_frame.read().unwrap();
-
-        lock.deref().as_ref().map(|t| t.clone())
+    pub fn latest(&self) ->Arc<RwLock<Option<VideoFrame>>> {
+        self.latest_frame.clone()
     }
 }
 
@@ -107,25 +104,12 @@ pub fn worker(params: &Params) -> impl Stream<Item = Message> + use<> {
             #[cfg(debug_assertions)]
             tokio::time::sleep(std::time::Duration::from_secs(5)).await;
 
-            let frame = match screencap.latest() {
-                Some(t) => t,
-                None => continue,
-            };
+            if let Ok(t) = screencap.latest().read() && t.is_some() {
+                let _ = params
+                    .sender
+                    .try_send(IncomingWorkerEvent::Frame(screencap.latest()));
+            }
 
-            let res = (frame.width, frame.height);
-
-            let bytes = match frame.to_tight_bytes() {
-                Some(t) => t,
-                None => continue,
-            };
-
-            match params
-                .sender
-                .try_send(IncomingWorkerEvent::Frame(bytes, res))
-            {
-                Ok(_) => {}
-                Err(_) => continue,
-            };
         }
     })
 }

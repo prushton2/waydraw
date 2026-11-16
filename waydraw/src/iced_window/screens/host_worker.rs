@@ -1,10 +1,11 @@
-use std::hash::{Hash, Hasher};
+use std::{hash::{Hash, Hasher}, sync::{Arc, RwLock}};
 
 use iced::futures::{
     SinkExt, Stream, StreamExt,
     channel::mpsc::{self, Receiver, Sender},
 };
 use iroh::SecretKey;
+use pinray::VideoFrame;
 
 use crate::{
     encoding, iced_window::screens::host_connected::HostState, input, p2p::protocol::FromBytes,
@@ -34,7 +35,7 @@ pub enum OutgoingWorkerEvent {
 
 #[derive(Clone, Debug)]
 pub enum IncomingWorkerEvent {
-    Frame(Vec<u8>, (u32, u32)),
+    Frame(Arc<RwLock<Option<VideoFrame>>>),
     Disconnect(String),
     Heartbeat,
 }
@@ -247,7 +248,25 @@ async fn session(
         };
 
         match event {
-            IncomingEvent::WorkerEvent(IncomingWorkerEvent::Frame(bytes, res)) => {
+            IncomingEvent::WorkerEvent(IncomingWorkerEvent::Frame(frame_arc)) => {
+                let frame = {
+                    let mut frame_lock = match frame_arc.write()  {
+                        Ok(t) => t,
+                        _ => continue,
+                    };
+
+                    match frame_lock.take() {
+                        Some(t) => t,
+                        None => continue,
+                    }
+                };
+
+                let res = (frame.width, frame.height);
+                let bytes = match frame.to_tight_bytes() {
+                    Some(t) => t,
+                    None => continue,
+                };
+
                 let encoded = codec.encode(&bytes, res);
                 let frame = protocol::Screenshot {
                     bytes: encoded,
