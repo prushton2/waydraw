@@ -233,7 +233,7 @@ async fn session(
                     // NOTE this will drop newer frames if the client is running slow,
                     // however this is a worthy tradeoff to keep the client from falling behind too far
                     if lock.is_some() {
-                        continue
+                        continue;
                     }
 
                     *lock = Some((decoded, (ss.width, ss.height)));

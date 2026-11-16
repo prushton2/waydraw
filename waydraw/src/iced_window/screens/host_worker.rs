@@ -1,6 +1,4 @@
-use std::{
-    hash::{Hash, Hasher}
-};
+use std::hash::{Hash, Hasher};
 
 use iced::futures::{
     SinkExt, Stream, StreamExt,
@@ -9,7 +7,10 @@ use iced::futures::{
 use iroh::SecretKey;
 
 use crate::{
-    encoding, iced_window::{screen_capture, screens::host_connected::HostState}, input, p2p::protocol::FromBytes,
+    encoding,
+    iced_window::{screen_capture, screens::host_connected::HostState},
+    input,
+    p2p::protocol::FromBytes,
 };
 use crate::{
     encoding::Codec,
