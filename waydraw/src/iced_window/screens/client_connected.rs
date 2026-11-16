@@ -76,28 +76,30 @@ impl ClientConnected {
         queue: Arc<Mutex<Vec<(Key, KeyState)>>>,
         active: Arc<AtomicBool>,
     ) -> JoinHandle<()> {
-        std::thread::Builder::new().name("Key Process Thread".to_owned()).spawn(move || {
-            let mut lock = queue.lock().unwrap();
-            dbg!(&lock);
-            while active.load(std::sync::atomic::Ordering::Relaxed) {
-                // Drain panics when the range is outside the vec bounds, so guard against that condition
-                if lock.is_empty() {
-                    lock = condvar.wait(lock).unwrap();
-                }
-
+        std::thread::Builder::new()
+            .name("Key Process Thread".to_owned())
+            .spawn(move || {
+                let mut lock = queue.lock().unwrap();
                 dbg!(&lock);
+                while active.load(std::sync::atomic::Ordering::Relaxed) {
+                    // Drain panics when the range is outside the vec bounds, so guard against that condition
+                    if lock.is_empty() {
+                        lock = condvar.wait(lock).unwrap();
+                    }
 
-                let first = lock.drain(0..1).into_iter().next();
-            
-                if let Some((key, state)) = first {
-                    let send = sender.send(IncomingWorkerEvent::KeyEvent(key, state));
-                    let _ = iced::futures::executor::block_on(send);
-                } else {
-                    lock = condvar.wait(lock).unwrap();
+                    dbg!(&lock);
+
+                    let first = lock.drain(0..1).next();
+
+                    if let Some((key, state)) = first {
+                        let send = sender.send(IncomingWorkerEvent::KeyEvent(key, state));
+                        let _ = iced::futures::executor::block_on(send);
+                    } else {
+                        lock = condvar.wait(lock).unwrap();
+                    }
                 }
-            }
-            ()
-        }).unwrap()
+            })
+            .unwrap()
     }
 
     pub fn update(
@@ -118,7 +120,7 @@ impl ClientConnected {
                     }
                     OutgoingWorkerEvent::Ready(t) => {
                         self.sender = Some(t.clone());
-                        
+
                         self.key_process_thread_active
                             .store(true, std::sync::atomic::Ordering::Relaxed);
 
@@ -227,7 +229,10 @@ impl ClientConnected {
                     _ => return Task::none(),
                 };
 
-                if self.key_process_thread_active.load(std::sync::atomic::Ordering::Relaxed) {
+                if self
+                    .key_process_thread_active
+                    .load(std::sync::atomic::Ordering::Relaxed)
+                {
                     self.key_queue.lock().unwrap().push((key, state));
                     self.key_queue_condvar.notify_all();
                 }
@@ -353,6 +358,7 @@ impl ClientConnected {
 
 impl Drop for ClientConnected {
     fn drop(&mut self) {
-        self.key_process_thread_active.store(false, std::sync::atomic::Ordering::Relaxed);
+        self.key_process_thread_active
+            .store(false, std::sync::atomic::Ordering::Relaxed);
     }
 }
