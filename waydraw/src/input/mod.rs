@@ -34,6 +34,7 @@ pub enum Key {
     Unicode(char),
     Named(Named),
     Other(u32),
+    None
 }
 
 #[derive(Debug, Copy, Clone, Serialize, Deserialize)]
@@ -136,14 +137,15 @@ impl From<iced::keyboard::Key> for Key {
                 Self::Named(Named::PageDown)
             }
 
-            _ => Key::Other(0),
+            _ => Key::None,
         }
     }
 }
 
-impl From<Key> for enigo::Key {
-    fn from(value: Key) -> Self {
-        match value {
+impl TryFrom<Key> for enigo::Key {
+    type Error = Option<()>;
+    fn try_from(value: Key) -> Result<Self, Self::Error> {
+        let v = match value {
             Key::Unicode(c) => enigo::Key::Unicode(c),
             Key::Other(c) => enigo::Key::Other(c),
 
@@ -178,6 +180,8 @@ impl From<Key> for enigo::Key {
             Key::Named(Named::End) => enigo::Key::End,
             Key::Named(Named::PageUp) => enigo::Key::PageUp,
             Key::Named(Named::PageDown) => enigo::Key::PageDown,
-        }
+            Key::None => return Err(None)
+        };
+        Ok(v)
     }
 }

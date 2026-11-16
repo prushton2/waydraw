@@ -39,12 +39,14 @@ impl super::Input for EnigoInput {
     }
 
     fn key_event(&mut self, key: super::Key, state: super::KeyState) {
-        let _ = self.enigo.key(
-            key.into(),
-            match state {
-                super::KeyState::Pressed => enigo::Direction::Press,
-                super::KeyState::Released => enigo::Direction::Release,
-            },
-        );
+        if let Ok(key) = key.try_into() {
+            let _ = self.enigo.key(
+                key,
+                match state {
+                    super::KeyState::Pressed => enigo::Direction::Press,
+                    super::KeyState::Released => enigo::Direction::Release,
+                },
+            );
+        }
     }
 }
