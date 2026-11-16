@@ -1,6 +1,4 @@
-use std::{
-    hash::{Hash, Hasher}
-};
+use std::hash::{Hash, Hasher};
 
 use iced::futures::{
     SinkExt, Stream, StreamExt,
@@ -313,7 +311,10 @@ async fn session(
             IncomingEvent::P2p(FromBytes::Heartbeat(_)) => {
                 heartbeat.refresh();
             }
-            IncomingEvent::P2p(FromBytes::WindowResized(protocol::WindowResized{window_width: w, window_height: h})) => {
+            IncomingEvent::P2p(FromBytes::WindowResized(protocol::WindowResized {
+                window_width: w,
+                window_height: h,
+            })) => {
                 client_info.window_width = w;
                 client_info.window_height = h;
             }

@@ -9,12 +9,14 @@ use iced::{
     widget::{MouseArea, container, row, space, stack},
 };
 use iced_core::image::Allocation;
-use std::sync::Arc;
+use std::sync::atomic::AtomicBool;
+use std::sync::{Arc, Condvar, Mutex};
+use std::thread::JoinHandle;
 
 use crate::iced_window::screens::client_worker::{IncomingWorkerEvent, OutgoingWorkerEvent};
 use crate::iced_window::{Message, screens};
 use crate::iced_window::{Screen, styles};
-use crate::input::{MouseButton, MouseState};
+use crate::input::{Key, KeyState, MouseButton, MouseState};
 use crate::p2p::protocol;
 
 #[derive(Clone)]
@@ -31,10 +33,16 @@ pub enum ClientConnectedMessage {
 pub struct ClientConnected {
     pub key: String,
     pub pin: String,
-    pub error: String,
-    pub sender: Option<Sender<IncomingWorkerEvent>>,
-    pub server_info: Option<protocol::ServerHello>,
-    pub image_allocation: Option<iced_core::image::Allocation>,
+    error: String,
+    sender: Option<Sender<IncomingWorkerEvent>>,
+    server_info: Option<protocol::ServerHello>,
+    image_allocation: Option<iced_core::image::Allocation>,
+
+    // pub key_thread
+    key_queue: Arc<Mutex<Vec<(Key, KeyState)>>>,
+    key_queue_condvar: Arc<Condvar>,
+    key_process_thread_active: Arc<AtomicBool>,
+    key_process_thread: Option<JoinHandle<()>>,
 }
 
 impl ClientConnected {
@@ -46,29 +54,50 @@ impl ClientConnected {
             sender: None,
             server_info: None,
             image_allocation: None,
+
+            key_queue: Arc::new(Mutex::new(vec![])),
+            key_queue_condvar: Arc::new(Condvar::new()),
+            key_process_thread_active: Arc::new(AtomicBool::from(false)),
+            key_process_thread: None,
         }
     }
 
     pub fn from_key(key: String) -> Self {
-        Self {
-            key,
-            pin: String::from(""),
-            error: String::from(""),
-            sender: None,
-            server_info: None,
-            image_allocation: None,
-        }
+        Self::new(String::from(""), key)
     }
 
     pub fn from_pin(pin: String) -> Self {
-        Self {
-            key: String::from(""),
-            pin,
-            error: String::from(""),
-            sender: None,
-            server_info: None,
-            image_allocation: None,
-        }
+        Self::new(pin, String::from(""))
+    }
+
+    fn key_process_thread(
+        mut sender: Sender<IncomingWorkerEvent>,
+        condvar: Arc<Condvar>,
+        queue: Arc<Mutex<Vec<(Key, KeyState)>>>,
+        active: Arc<AtomicBool>,
+    ) -> JoinHandle<()> {
+        std::thread::Builder::new().name("Key Process Thread".to_owned()).spawn(move || {
+            let mut lock = queue.lock().unwrap();
+            dbg!(&lock);
+            while active.load(std::sync::atomic::Ordering::Relaxed) {
+                // Drain panics when the range is outside the vec bounds, so guard against that condition
+                if lock.is_empty() {
+                    lock = condvar.wait(lock).unwrap();
+                }
+
+                dbg!(&lock);
+
+                let first = lock.drain(0..1).into_iter().next();
+            
+                if let Some((key, state)) = first {
+                    let send = sender.send(IncomingWorkerEvent::KeyEvent(key, state));
+                    let _ = iced::futures::executor::block_on(send);
+                } else {
+                    lock = condvar.wait(lock).unwrap();
+                }
+            }
+            ()
+        }).unwrap()
     }
 
     pub fn update(
@@ -87,7 +116,19 @@ impl ClientConnected {
                             ClientConnectedMessage::Disconnect(reason),
                         ));
                     }
-                    OutgoingWorkerEvent::Ready(t) => self.sender = Some(t),
+                    OutgoingWorkerEvent::Ready(t) => {
+                        self.sender = Some(t.clone());
+                        
+                        self.key_process_thread_active
+                            .store(true, std::sync::atomic::Ordering::Relaxed);
+
+                        self.key_process_thread = Some(Self::key_process_thread(
+                            t,
+                            self.key_queue_condvar.clone(),
+                            self.key_queue.clone(),
+                            self.key_process_thread_active.clone(),
+                        ));
+                    }
                     OutgoingWorkerEvent::UpdateKey(key) => self.key = key,
                     OutgoingWorkerEvent::UpdatePin(pin) => self.pin = pin,
                     OutgoingWorkerEvent::Failed(e) => self.error = e,
@@ -185,16 +226,13 @@ impl ClientConnected {
                     } => (key.into(), crate::input::KeyState::Released),
                     _ => return Task::none(),
                 };
-                if let Some(mut sender) = self.sender.clone() {
-                    Task::perform(
-                        async move {
-                            let _ = sender.send(IncomingWorkerEvent::KeyEvent(key, state)).await;
-                        },
-                        |_| Message::None,
-                    )
-                } else {
-                    Task::none()
+
+                if self.key_process_thread_active.load(std::sync::atomic::Ordering::Relaxed) {
+                    self.key_queue.lock().unwrap().push((key, state));
+                    self.key_queue_condvar.notify_all();
                 }
+
+                Task::none()
             }
             ClientConnectedMessage::ImageAllocated(allocation) => {
                 if let Ok(t) = allocation {
@@ -310,5 +348,11 @@ impl ClientConnected {
         )
         .center(Length::Fill)
         .into()
+    }
+}
+
+impl Drop for ClientConnected {
+    fn drop(&mut self) {
+        self.key_process_thread_active.store(false, std::sync::atomic::Ordering::Relaxed);
     }
 }

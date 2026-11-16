@@ -18,13 +18,13 @@ pub enum HostConnectedMessage {
 }
 
 pub struct HostConnected {
-    pub key: String,
-    pub pin: String,
-    pub error: String,
+    key: String,
+    pin: String,
+    error: String,
     pub sender: Option<Sender<host_worker::IncomingWorkerEvent>>,
     pub client_info: Option<protocol::ClientHello>,
     pub monitor: Option<Monitor>,
-    pub confirm_connect_prompt: Option<Sender<bool>>,
+    confirm_connect_prompt: Option<Sender<bool>>,
 }
 
 impl HostConnected {
@@ -125,15 +125,11 @@ impl HostConnected {
         }
 
         fn disconnect_button<'a>(label: &'a str) -> iced::Element<'a, Message> {
-            container(
-                button(
-                    text(label)
-                    .align_x(Alignment::Center),
-                )
-                .on_press(Message::HostConnectedMessage(
-                    HostConnectedMessage::Disconnect("Host initiated disconnect".to_string()),
+            container(button(text(label).align_x(Alignment::Center)).on_press(
+                Message::HostConnectedMessage(HostConnectedMessage::Disconnect(
+                    "Host initiated disconnect".to_string(),
                 )),
-            )
+            ))
             .center_x(Length::Fill)
             .padding(iced::Padding::ZERO.top(12))
             .into()
