@@ -1,6 +1,6 @@
 use iced::futures::Stream;
 use iced::futures::channel::mpsc::Sender;
-use pinray::{CaptureEvent, CaptureSession, SourceId, VideoCaptureTarget, VideoFrame};
+use pinray::{CaptureEvent, CaptureSession, PinrayError, SourceId, VideoCaptureTarget, VideoFrame};
 use std::hash::{Hash, Hasher};
 use std::sync::atomic::AtomicBool;
 use std::sync::{Arc, RwLock};
@@ -52,12 +52,14 @@ impl ScreenCapture {
             let _ = session.start();
 
             while active.fetch_and(true, std::sync::atomic::Ordering::Relaxed) {
+                // BUG Sometimes on wayland pipewire stops sending frames and pinray starts timing out
                 let frame = match session.next_event(Some(std::time::Duration::from_secs(1))) {
                     Ok(CaptureEvent::Video(frame)) => frame,
+                    Err(PinrayError::Timeout(_)) => continue,
                     Err(error) => {
                         println!("{}", error);
                         continue;
-                    },
+                    }
                     _ => continue,
                 };
 
