@@ -1,6 +1,5 @@
 use std::{
-    hash::{Hash, Hasher},
-    sync::{Arc, RwLock},
+    hash::{Hash, Hasher}
 };
 
 use iced::futures::{
@@ -8,7 +7,6 @@ use iced::futures::{
     channel::mpsc::{self, Receiver, Sender},
 };
 use iroh::SecretKey;
-use pinray::VideoFrame;
 
 use crate::{
     encoding, iced_window::{screen_capture, screens::host_connected::HostState}, input, p2p::protocol::FromBytes,
