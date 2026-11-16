@@ -52,11 +52,12 @@ impl ScreenCapture {
             let _ = session.start();
 
             while active.fetch_and(true, std::sync::atomic::Ordering::Relaxed) {
-                // Prevent the thread from becoming all consuming of CPU cycles
-                std::thread::sleep(std::time::Duration::from_millis(1000/30));
-                
-                let frame = match session.next_event(Some(std::time::Duration::ZERO)) {
+                let frame = match session.next_event(Some(std::time::Duration::from_secs(1))) {
                     Ok(CaptureEvent::Video(frame)) => frame,
+                    Err(error) => {
+                        println!("{}", error);
+                        continue;
+                    },
                     _ => continue,
                 };
 
