@@ -221,6 +221,9 @@ async fn session(
                 let _ = p2p.send(&message.into_bytes()).await;
             }
             IncomingEvent::P2p(FromBytes::Screenshot(ss)) => {
+                // Decode MUST take place every frame since a dropped frame can break a decoder
+                // at least until a keyframe is sent
+                let decoded = codec.decode(&ss.bytes);
                 {
                     let mut lock = match latest_frame.write() {
                         Ok(t) => t,
@@ -232,8 +235,6 @@ async fn session(
                     if lock.is_some() {
                         continue
                     }
-
-                    let decoded = codec.decode(&ss.bytes);
 
                     *lock = Some((decoded, (ss.width, ss.height)));
 
