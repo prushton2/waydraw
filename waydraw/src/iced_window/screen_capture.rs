@@ -52,12 +52,11 @@ impl ScreenCapture {
             let _ = session.start();
 
             while active.fetch_and(true, std::sync::atomic::Ordering::Relaxed) {
-                let frame = match session.next_event(Some(std::time::Duration::from_secs(1))) {
+                // Prevent the thread from becoming all consuming of CPU cycles
+                std::thread::sleep(std::time::Duration::from_millis(1000/30));
+                
+                let frame = match session.next_event(Some(std::time::Duration::ZERO)) {
                     Ok(CaptureEvent::Video(frame)) => frame,
-                    Err(t) => {
-                        println!("Pinray Screencap Error: {:?}", t);
-                        continue;
-                    }
                     _ => continue,
                 };
 
