@@ -69,7 +69,7 @@ impl HostConnected {
                     host_worker::OutgoingWorkerEvent::UpdatePin(pin) => self.pin = pin,
                     host_worker::OutgoingWorkerEvent::Failed(e) => {
                         self.host_state = HostState::Error(e);
-                    },
+                    }
 
                     host_worker::OutgoingWorkerEvent::SetClientInfo(t) => {
                         self.client_info = Some(t);
@@ -194,15 +194,12 @@ impl HostConnected {
             HostState::Connected => {
                 let info = self.client_info.as_ref().unwrap();
                 card = card
-                   .push(text("Connected").size(22))
-                   .push(info_row("Device", deref(&info.host_name)))
-                   .push(info_row("OS", deref(&info.name)))
-                   .push(info_row("Version", deref(&info.os_version)))
-                   .push(info_row(
-                       "Kernel",
-                       deref(&info.kernel_version),
-                   ))
-                   .push(disconnect_button("Disconnect"));
+                    .push(text("Connected").size(22))
+                    .push(info_row("Device", deref(&info.host_name)))
+                    .push(info_row("OS", deref(&info.name)))
+                    .push(info_row("Version", deref(&info.os_version)))
+                    .push(info_row("Kernel", deref(&info.kernel_version)))
+                    .push(disconnect_button("Disconnect"));
             }
             HostState::Error(e) => {
                 card = card
@@ -210,7 +207,6 @@ impl HostConnected {
                     .push(text(e).style(text::danger))
                     .push(disconnect_button("Retry"));
             }
-            
         }
 
         container(

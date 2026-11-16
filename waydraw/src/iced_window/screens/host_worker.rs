@@ -149,13 +149,17 @@ async fn handshake(
 
     let (sender, mut receiver) = mpsc::channel(4);
 
-    let _ = out.send(OutgoingWorkerEvent::SetConfirmConnectPromptSender(Some(
-        sender,
-    ))).await;
-    
-    let _ = out.send(OutgoingWorkerEvent::SetHostState(
-        HostState::AwaitingConfirmation,
-    )).await;
+    let _ = out
+        .send(OutgoingWorkerEvent::SetConfirmConnectPromptSender(Some(
+            sender,
+        )))
+        .await;
+
+    let _ = out
+        .send(OutgoingWorkerEvent::SetHostState(
+            HostState::AwaitingConfirmation,
+        ))
+        .await;
 
     // Also read the p2p here to disconnect the host if the client closes the app or disconnects
     let confirmed = tokio::select! {
@@ -201,7 +205,9 @@ async fn handshake(
     p2p.send(&server_hello.into_bytes()).await?;
     let codec_box = encoding::get_codec(codec)?;
     p2p::remote_key_store::delete(&pin).await;
-    let _ = out.send(OutgoingWorkerEvent::SetHostState(HostState::Connected)).await;
+    let _ = out
+        .send(OutgoingWorkerEvent::SetHostState(HostState::Connected))
+        .await;
 
     Ok((p2p, codec_box, client_info))
 }
