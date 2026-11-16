@@ -82,20 +82,17 @@ impl ClientConnected {
                 let mut lock = queue.lock().unwrap();
                 dbg!(&lock);
                 while active.load(std::sync::atomic::Ordering::Relaxed) {
-                    // Drain panics when the range is outside the vec bounds, so guard against that condition
                     if lock.is_empty() {
                         lock = condvar.wait(lock).unwrap();
                     }
-
-                    dbg!(&lock);
-
-                    let first = lock.drain(0..1).next();
-
-                    if let Some((key, state)) = first {
+                    
+                    while !lock.is_empty() && active.load(std::sync::atomic::Ordering::Relaxed) {
+                        let (key, state) = lock.remove(0);
+                        
                         let send = sender.send(IncomingWorkerEvent::KeyEvent(key, state));
+                        drop(lock);
                         let _ = iced::futures::executor::block_on(send);
-                    } else {
-                        lock = condvar.wait(lock).unwrap();
+                        lock = queue.lock().unwrap();
                     }
                 }
             })
@@ -358,7 +355,12 @@ impl ClientConnected {
 
 impl Drop for ClientConnected {
     fn drop(&mut self) {
+        // Lock forces the key thread to be in the middle of a condvar wait. Then we set the thread to inactive, release the lock, 
+        // and tell the condvar to continue. This forces the thread to continue and die after seeing the active set to false.
+        let lock = self.key_queue.lock();
         self.key_process_thread_active
             .store(false, std::sync::atomic::Ordering::Relaxed);
+        drop(lock);
+        self.key_queue_condvar.notify_all();
     }
 }
