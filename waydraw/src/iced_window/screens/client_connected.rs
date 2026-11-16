@@ -131,7 +131,19 @@ impl ClientConnected {
                     OutgoingWorkerEvent::UpdatePin(pin) => self.pin = pin,
                     OutgoingWorkerEvent::Failed(e) => self.error = e,
                     OutgoingWorkerEvent::SetServerInfo(e) => self.server_info = Some(e),
-                    OutgoingWorkerEvent::Screenshot(bytes, res) => {
+                    OutgoingWorkerEvent::Screenshot(frame) => {
+                        let (bytes, res) = {
+                            let mut lock = match frame.write() {
+                                Ok(t) => t,
+                                _ => return Task::none(),
+                            };
+
+                            match lock.take() {
+                                Some(t) => t,
+                                None => return Task::none()
+                            }
+                        };
+                        
                         if bytes.len() != res.0 * res.1 * 4 {
                             // Decoder produced no frame (e.g. waiting for a keyframe) or size mismatch
                             return Task::none();

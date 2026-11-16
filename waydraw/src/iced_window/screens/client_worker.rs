@@ -1,4 +1,4 @@
-use std::hash::{Hash, Hasher};
+use std::{hash::{Hash, Hasher}, sync::Arc};
 
 use iced::futures::{
     SinkExt, Stream, StreamExt,
@@ -27,7 +27,7 @@ pub enum OutgoingWorkerEvent {
     UpdateKey(String),
     SetServerInfo(protocol::ServerHello),
     Disconnect(String),
-    Screenshot(Vec<u8>, (usize, usize)),
+    Screenshot(Arc<std::sync::RwLock<Option<(Vec<u8>, (usize, usize))>>>),
 }
 
 #[derive(Clone, Debug)]
@@ -169,6 +169,8 @@ async fn session(
         IncomingWorkerEvent::Heartbeat,
     );
 
+    let latest_frame: Arc<std::sync::RwLock<Option<(Vec<u8>, (usize, usize))>>> = Arc::new(std::sync::RwLock::new(None));
+
     loop {
         let event = tokio::select! {
             cmd = cmd_rx.next() => match cmd {
@@ -215,11 +217,19 @@ async fn session(
             }
             IncomingEvent::P2p(FromBytes::Screenshot(ss)) => {
                 let decoded = codec.decode(&ss.bytes);
+                {
+                    let mut lock = match latest_frame.write() {
+                        Ok(t) => t,
+                        _ => continue,
+                    };
+    
+                    *lock = Some((decoded, (ss.width, ss.height)));
+    
+                    drop(lock);
+                }
+
                 let _ = out
-                    .send(OutgoingWorkerEvent::Screenshot(
-                        decoded,
-                        (ss.width, ss.height),
-                    ))
+                    .send(OutgoingWorkerEvent::Screenshot(latest_frame.clone()))
                     .await;
             }
             IncomingEvent::P2p(FromBytes::Goodbye(_)) => {
