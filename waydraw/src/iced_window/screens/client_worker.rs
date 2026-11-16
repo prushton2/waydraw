@@ -221,12 +221,19 @@ async fn session(
                 let _ = p2p.send(&message.into_bytes()).await;
             }
             IncomingEvent::P2p(FromBytes::Screenshot(ss)) => {
-                let decoded = codec.decode(&ss.bytes);
                 {
                     let mut lock = match latest_frame.write() {
                         Ok(t) => t,
                         _ => continue,
                     };
+
+                    // NOTE this will drop newer frames if the client is running slow,
+                    // however this is a worthy tradeoff to keep the client from falling behind too far
+                    if lock.is_some() {
+                        continue
+                    }
+
+                    let decoded = codec.decode(&ss.bytes);
 
                     *lock = Some((decoded, (ss.width, ss.height)));
 
