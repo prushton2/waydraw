@@ -1,4 +1,4 @@
-use std::sync::{Arc, RwLock};
+use std::sync::Arc;
 
 use iced::futures::SinkExt;
 use iced::futures::channel::mpsc::Sender;
@@ -8,7 +8,7 @@ use iced::{Alignment, Length, Task};
 use super::host_worker;
 use crate::iced_window::screens::host::Monitor;
 use crate::iced_window::{Message, Screen, styles};
-use crate::p2p::protocol; // for out.send(..).await and cmd_rx.next().await
+use crate::p2p::protocol;
 
 #[derive(Clone, Debug)]
 pub enum HostConnectedMessage {
@@ -22,8 +22,7 @@ pub struct HostConnected {
     pub pin: String,
     pub error: String,
     pub sender: Option<Sender<host_worker::IncomingWorkerEvent>>,
-    pub client_info: Option<Arc<RwLock<protocol::ClientHello>>>,
-    pub static_client_info: Option<protocol::ClientHello>,
+    pub client_info: Option<protocol::ClientHello>,
     pub monitor: Option<Monitor>,
     pub confirm_connect_prompt: Option<Sender<bool>>,
 }
@@ -40,7 +39,6 @@ impl HostConnected {
             },
             sender: None,
             client_info: None,
-            static_client_info: None,
             monitor,
             confirm_connect_prompt: None,
         }
@@ -61,20 +59,11 @@ impl HostConnected {
                     host_worker::OutgoingWorkerEvent::UpdateKey(key) => self.key = key,
                     host_worker::OutgoingWorkerEvent::UpdatePin(pin) => self.pin = pin,
                     host_worker::OutgoingWorkerEvent::Failed(e) => self.error = e,
-                    host_worker::OutgoingWorkerEvent::SetStaticClientInfo(t) => {
-                        self.static_client_info = Some(t);
-                    }
+
                     host_worker::OutgoingWorkerEvent::SetClientInfo(t) => {
                         self.client_info = Some(t);
                     }
                     host_worker::OutgoingWorkerEvent::Ready(t) => self.sender = Some(t),
-                    host_worker::OutgoingWorkerEvent::UpdateClientWindowSize(w, h) => {
-                        if let Some(client_info) = &self.client_info {
-                            let mut lock = client_info.write().unwrap();
-                            lock.window_width = w;
-                            lock.window_height = h;
-                        }
-                    }
                     host_worker::OutgoingWorkerEvent::SetConfirmConnectPromptSender(sender) => {
                         self.confirm_connect_prompt = sender;
                     }
@@ -153,7 +142,7 @@ impl HostConnected {
         let mut card = column![].spacing(8).align_x(Alignment::Start);
 
         if self.confirm_connect_prompt.is_some()
-            && let Some(info) = self.static_client_info.as_ref()
+            && let Some(info) = self.client_info.as_ref()
         {
             card = card
                 .push(text("Confirm Connection").size(22))
@@ -184,7 +173,7 @@ impl HostConnected {
                 .push(text("Error Connecting").size(22))
                 .push(text(&self.error).style(text::danger))
                 .push(disconnect_button("Retry"));
-        } else if let Some(static_client_info) = self.static_client_info.as_ref() {
+        } else if let Some(static_client_info) = self.client_info.as_ref() {
             card = card
                 .push(text("Connected").size(22))
                 .push(info_row("Device", deref(&static_client_info.host_name)))

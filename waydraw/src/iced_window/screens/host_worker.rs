@@ -1,6 +1,5 @@
 use std::{
-    hash::{Hash, Hasher},
-    sync::{Arc, RwLock},
+    hash::{Hash, Hasher}
 };
 
 use iced::futures::{
@@ -23,13 +22,11 @@ use crate::{
 pub enum OutgoingWorkerEvent {
     /// See Message::UpdateKnownHosts
     UpdateKnownHosts(String, String),
-    UpdateClientWindowSize(u32, u32),
     Ready(Sender<IncomingWorkerEvent>),
     Failed(String),
     UpdatePin(String),
     UpdateKey(String),
-    SetStaticClientInfo(protocol::ClientHello),
-    SetClientInfo(Arc<RwLock<protocol::ClientHello>>),
+    SetClientInfo(protocol::ClientHello),
     Disconnect(String),
     SetConfirmConnectPromptSender(Option<Sender<bool>>),
 }
@@ -70,7 +67,7 @@ pub fn worker(params: &Params) -> impl Stream<Item = OutgoingWorkerEvent> + use<
         let _ = out.send(OutgoingWorkerEvent::Ready(cmd_tx.clone())).await;
 
         // Handshake: p2p is owned here, so &mut methods (await_connection) just work
-        let (mut p2p, mut codec, client_info) = match handshake(&params, &mut out).await {
+        let (mut p2p, mut codec, mut client_info) = match handshake(&params, &mut out).await {
             Ok(t) => t,
             Err(e) => {
                 let _ = out.send(OutgoingWorkerEvent::Failed(e)).await;
@@ -85,7 +82,7 @@ pub fn worker(params: &Params) -> impl Stream<Item = OutgoingWorkerEvent> + use<
             &mut out,
             &mut cmd_tx,
             &mut cmd_rx,
-            client_info,
+            &mut client_info,
         )
         .await;
 
@@ -97,7 +94,7 @@ pub fn worker(params: &Params) -> impl Stream<Item = OutgoingWorkerEvent> + use<
 async fn handshake(
     params: &Params,
     out: &mut Sender<OutgoingWorkerEvent>,
-) -> Result<(p2p::P2P, Box<dyn Codec>, Arc<RwLock<protocol::ClientHello>>), String> {
+) -> Result<(p2p::P2P, Box<dyn Codec>, protocol::ClientHello), String> {
     // Register
     let (mut p2p, key) = p2p::P2P::init(params.secret_key.clone())
         .await
@@ -150,19 +147,16 @@ async fn handshake(
         ));
     }
 
-    // Send static client info to main thread
-    //   This is client info for displaying, but it wont change
+    // Send client info to main thread
 
-    out.try_send(OutgoingWorkerEvent::SetStaticClientInfo(
-        client_info.clone(),
-    ))
-    .map_err(|e| {
-        format!(
-            "TrySendError: Full: {}, Disconnected: {}",
-            e.is_full(),
-            e.is_disconnected()
-        )
-    })?;
+    out.try_send(OutgoingWorkerEvent::SetClientInfo(client_info.clone()))
+        .map_err(|e| {
+            format!(
+                "TrySendError: Full: {}, Disconnected: {}",
+                e.is_full(),
+                e.is_disconnected()
+            )
+        })?;
 
     // Confirm Prompt
 
@@ -222,24 +216,11 @@ async fn handshake(
 
     p2p.send(&server_hello.into_bytes()).await?;
 
-    // Send client info to main thread
-
-    let client_info_arc = Arc::new(RwLock::new(client_info.clone()));
-
-    out.try_send(OutgoingWorkerEvent::SetClientInfo(client_info_arc.clone()))
-        .map_err(|e| {
-            format!(
-                "TrySendError: Full: {}, Disconnected: {}",
-                e.is_full(),
-                e.is_disconnected()
-            )
-        })?;
-
     let codec_box = encoding::get_codec(codec)?;
 
     p2p::remote_key_store::delete(&pin).await;
 
-    Ok((p2p, codec_box, client_info_arc))
+    Ok((p2p, codec_box, client_info))
 }
 
 async fn session(
@@ -249,7 +230,7 @@ async fn session(
     out: &mut Sender<OutgoingWorkerEvent>,
     cmd_tx: &mut Sender<IncomingWorkerEvent>,
     cmd_rx: &mut Receiver<IncomingWorkerEvent>,
-    client_info: Arc<RwLock<protocol::ClientHello>>,
+    client_info: &mut protocol::ClientHello,
 ) -> String {
     #[cfg(debug_assertions)]
     let mut input: Box<dyn input::Input> = Box::new(input::DummyInput::new());
@@ -306,7 +287,6 @@ async fn session(
             IncomingEvent::P2p(FromBytes::MouseClick(e)) => input.click_mouse(e.button, e.state),
             IncomingEvent::P2p(FromBytes::MouseMove(protocol::MouseMove { x, y })) => {
                 let (offset_x, offset_y) = params.monitor.position;
-                let client_info = client_info.read().unwrap();
                 let client_res = (client_info.window_width, client_info.window_height);
                 let scale = params.monitor.scale;
 
@@ -333,13 +313,9 @@ async fn session(
             IncomingEvent::P2p(FromBytes::Heartbeat(_)) => {
                 heartbeat.refresh();
             }
-            IncomingEvent::P2p(FromBytes::WindowResized(m)) => {
-                let _ = out
-                    .send(OutgoingWorkerEvent::UpdateClientWindowSize(
-                        m.window_width,
-                        m.window_height,
-                    ))
-                    .await;
+            IncomingEvent::P2p(FromBytes::WindowResized(protocol::WindowResized{window_width: w, window_height: h})) => {
+                client_info.window_width = w;
+                client_info.window_height = h;
             }
             IncomingEvent::P2p(_) => {}
         }
