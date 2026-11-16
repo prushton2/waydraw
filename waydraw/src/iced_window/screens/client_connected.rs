@@ -140,10 +140,10 @@ impl ClientConnected {
 
                             match lock.take() {
                                 Some(t) => t,
-                                None => return Task::none()
+                                None => return Task::none(),
                             }
                         };
-                        
+
                         if bytes.len() != res.0 * res.1 * 4 {
                             // Decoder produced no frame (e.g. waiting for a keyframe) or size mismatch
                             return Task::none();

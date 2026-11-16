@@ -1,4 +1,7 @@
-use std::{hash::{Hash, Hasher}, sync::{Arc, RwLock}};
+use std::{
+    hash::{Hash, Hasher},
+    sync::{Arc, RwLock},
+};
 
 use iced::futures::{
     SinkExt, Stream, StreamExt,
@@ -8,7 +11,7 @@ use iroh::SecretKey;
 use pinray::VideoFrame;
 
 use crate::{
-    encoding, iced_window::screens::host_connected::HostState, input, p2p::protocol::FromBytes,
+    encoding, iced_window::{screen_capture, screens::host_connected::HostState}, input, p2p::protocol::FromBytes,
 };
 use crate::{
     encoding::Codec,
@@ -35,7 +38,7 @@ pub enum OutgoingWorkerEvent {
 
 #[derive(Clone, Debug)]
 pub enum IncomingWorkerEvent {
-    Frame(Arc<RwLock<Option<VideoFrame>>>),
+    Frame(screen_capture::Frame),
     Disconnect(String),
     Heartbeat,
 }
@@ -250,7 +253,7 @@ async fn session(
         match event {
             IncomingEvent::WorkerEvent(IncomingWorkerEvent::Frame(frame_arc)) => {
                 let frame = {
-                    let mut frame_lock = match frame_arc.write()  {
+                    let mut frame_lock = match frame_arc.write() {
                         Ok(t) => t,
                         _ => continue,
                     };

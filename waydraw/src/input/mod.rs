@@ -34,7 +34,7 @@ pub enum Key {
     Unicode(char),
     Named(Named),
     Other(u32),
-    None
+    None,
 }
 
 #[derive(Debug, Copy, Clone, Serialize, Deserialize)]
@@ -180,7 +180,7 @@ impl TryFrom<Key> for enigo::Key {
             Key::Named(Named::End) => enigo::Key::End,
             Key::Named(Named::PageUp) => enigo::Key::PageUp,
             Key::Named(Named::PageDown) => enigo::Key::PageDown,
-            Key::None => return Err(None)
+            Key::None => return Err(None),
         };
         Ok(v)
     }

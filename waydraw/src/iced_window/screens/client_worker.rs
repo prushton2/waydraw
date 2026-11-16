@@ -1,4 +1,7 @@
-use std::{hash::{Hash, Hasher}, sync::Arc};
+use std::{
+    hash::{Hash, Hasher},
+    sync::Arc,
+};
 
 use iced::futures::{
     SinkExt, Stream, StreamExt,
@@ -16,6 +19,8 @@ use crate::{
     },
 };
 
+pub type Frame = Arc<std::sync::RwLock<Option<(Vec<u8>, (usize, usize))>>>;
+
 #[derive(Clone, Debug)]
 pub enum OutgoingWorkerEvent {
     // Sent from worker
@@ -27,7 +32,7 @@ pub enum OutgoingWorkerEvent {
     UpdateKey(String),
     SetServerInfo(protocol::ServerHello),
     Disconnect(String),
-    Screenshot(Arc<std::sync::RwLock<Option<(Vec<u8>, (usize, usize))>>>),
+    Screenshot(Frame),
 }
 
 #[derive(Clone, Debug)]
@@ -169,7 +174,7 @@ async fn session(
         IncomingWorkerEvent::Heartbeat,
     );
 
-    let latest_frame: Arc<std::sync::RwLock<Option<(Vec<u8>, (usize, usize))>>> = Arc::new(std::sync::RwLock::new(None));
+    let latest_frame: Frame = Arc::new(std::sync::RwLock::new(None));
 
     loop {
         let event = tokio::select! {
@@ -222,9 +227,9 @@ async fn session(
                         Ok(t) => t,
                         _ => continue,
                     };
-    
+
                     *lock = Some((decoded, (ss.width, ss.height)));
-    
+
                     drop(lock);
                 }
 

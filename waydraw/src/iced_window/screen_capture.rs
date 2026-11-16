@@ -10,9 +10,10 @@ use crate::iced_window::Message;
 use crate::iced_window::screens::host::Monitor;
 use crate::iced_window::screens::host_worker::IncomingWorkerEvent;
 
+pub type Frame = Arc<RwLock<Option<VideoFrame>>>;
 pub struct ScreenCapture {
     _consumer_thread: JoinHandle<()>,
-    latest_frame: Arc<RwLock<Option<VideoFrame>>>,
+    latest_frame: Frame,
     active: Arc<AtomicBool>,
 }
 
@@ -69,7 +70,7 @@ impl ScreenCapture {
     }
 
     /// Returns the video frame
-    pub fn latest(&self) ->Arc<RwLock<Option<VideoFrame>>> {
+    pub fn latest(&self) -> Arc<RwLock<Option<VideoFrame>>> {
         self.latest_frame.clone()
     }
 }
@@ -104,12 +105,13 @@ pub fn worker(params: &Params) -> impl Stream<Item = Message> + use<> {
             #[cfg(debug_assertions)]
             tokio::time::sleep(std::time::Duration::from_secs(5)).await;
 
-            if let Ok(t) = screencap.latest().read() && t.is_some() {
+            if let Ok(t) = screencap.latest().read()
+                && t.is_some()
+            {
                 let _ = params
                     .sender
                     .try_send(IncomingWorkerEvent::Frame(screencap.latest()));
             }
-
         }
     })
 }
