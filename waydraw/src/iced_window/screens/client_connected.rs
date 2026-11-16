@@ -84,10 +84,10 @@ impl ClientConnected {
                     if lock.is_empty() {
                         lock = condvar.wait(lock).unwrap();
                     }
-                    
+
                     while !lock.is_empty() && active.load(std::sync::atomic::Ordering::Relaxed) {
                         let (key, state) = lock.remove(0);
-                        
+
                         let send = sender.send(IncomingWorkerEvent::KeyEvent(key, state));
                         drop(lock);
                         let _ = iced::futures::executor::block_on(send);
@@ -354,7 +354,7 @@ impl ClientConnected {
 
 impl Drop for ClientConnected {
     fn drop(&mut self) {
-        // Lock forces the key thread to be in the middle of a condvar wait. Then we set the thread to inactive, release the lock, 
+        // Lock forces the key thread to be in the middle of a condvar wait. Then we set the thread to inactive, release the lock,
         // and tell the condvar to continue. This forces the thread to continue and die after seeing the active set to false.
         let lock = self.key_queue.lock();
         self.key_process_thread_active

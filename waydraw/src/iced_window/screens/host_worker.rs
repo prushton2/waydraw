@@ -6,7 +6,9 @@ use iced::futures::{
 };
 use iroh::SecretKey;
 
-use crate::{encoding, input, p2p::protocol::FromBytes};
+use crate::{
+    encoding, iced_window::screens::host_connected::HostState, input, p2p::protocol::FromBytes,
+};
 use crate::{
     encoding::Codec,
     iced_window::{heartbeat::Heartbeat, screens},
@@ -27,6 +29,7 @@ pub enum OutgoingWorkerEvent {
     SetClientInfo(protocol::ClientHello),
     Disconnect(String),
     SetConfirmConnectPromptSender(Option<Sender<bool>>),
+    SetHostState(HostState),
 }
 
 #[derive(Clone, Debug)]
@@ -105,22 +108,11 @@ async fn handshake(
         Err(e) => return Err(e),
     };
 
-    out.try_send(OutgoingWorkerEvent::UpdateKey(key.clone()))
-        .map_err(|e| {
-            format!(
-                "TrySendError: Full: {}, Disconnected: {}",
-                e.is_full(),
-                e.is_disconnected()
-            )
-        })?;
-    out.try_send(OutgoingWorkerEvent::UpdatePin(pin.clone()))
-        .map_err(|e| {
-            format!(
-                "TrySendError: Full: {}, Disconnected: {}",
-                e.is_full(),
-                e.is_disconnected()
-            )
-        })?;
+    let _ = out.send(OutgoingWorkerEvent::UpdateKey(key.clone())).await;
+    let _ = out.send(OutgoingWorkerEvent::UpdatePin(pin.clone())).await;
+    let _ = out
+        .send(OutgoingWorkerEvent::SetHostState(HostState::AwaitingClient))
+        .await;
 
     // Await connection
 
@@ -149,29 +141,21 @@ async fn handshake(
 
     // Send client info to main thread
 
-    out.try_send(OutgoingWorkerEvent::SetClientInfo(client_info.clone()))
-        .map_err(|e| {
-            format!(
-                "TrySendError: Full: {}, Disconnected: {}",
-                e.is_full(),
-                e.is_disconnected()
-            )
-        })?;
+    let _ = out
+        .send(OutgoingWorkerEvent::SetClientInfo(client_info.clone()))
+        .await;
 
     // Confirm Prompt
 
     let (sender, mut receiver) = mpsc::channel(4);
 
-    out.try_send(OutgoingWorkerEvent::SetConfirmConnectPromptSender(Some(
+    let _ = out.send(OutgoingWorkerEvent::SetConfirmConnectPromptSender(Some(
         sender,
-    )))
-    .map_err(|e| {
-        format!(
-            "TrySendError: Full: {}, Disconnected: {}",
-            e.is_full(),
-            e.is_disconnected()
-        )
-    })?;
+    ))).await;
+    
+    let _ = out.send(OutgoingWorkerEvent::SetHostState(
+        HostState::AwaitingConfirmation,
+    )).await;
 
     // Also read the p2p here to disconnect the host if the client closes the app or disconnects
     let confirmed = tokio::select! {
@@ -215,10 +199,9 @@ async fn handshake(
     };
 
     p2p.send(&server_hello.into_bytes()).await?;
-
     let codec_box = encoding::get_codec(codec)?;
-
     p2p::remote_key_store::delete(&pin).await;
+    let _ = out.send(OutgoingWorkerEvent::SetHostState(HostState::Connected)).await;
 
     Ok((p2p, codec_box, client_info))
 }

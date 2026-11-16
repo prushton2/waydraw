@@ -16,15 +16,24 @@ pub enum HostConnectedMessage {
     Disconnect(String),
     AnswerConfirmConnectionPrompt(bool),
 }
+#[derive(Clone, Debug, PartialEq)]
+pub enum HostState {
+    Registering,
+    AwaitingClient,
+    AwaitingConfirmation,
+    Connected,
+    Error(String),
+}
 
 pub struct HostConnected {
     key: String,
     pin: String,
-    error: String,
+    confirm_connect_prompt: Option<Sender<bool>>,
+
     pub sender: Option<Sender<host_worker::IncomingWorkerEvent>>,
     pub client_info: Option<protocol::ClientHello>,
     pub monitor: Option<Monitor>,
-    confirm_connect_prompt: Option<Sender<bool>>,
+    pub host_state: HostState,
 }
 
 impl HostConnected {
@@ -32,15 +41,15 @@ impl HostConnected {
         Self {
             key: String::from(""),
             pin: String::from(""),
-            error: if monitor.is_none() {
-                String::from("No monitor selected")
-            } else {
-                String::from("")
-            },
             sender: None,
             client_info: None,
-            monitor,
             confirm_connect_prompt: None,
+            host_state: if monitor.is_none() {
+                HostState::Error(String::from("No monitor selected"))
+            } else {
+                HostState::Registering
+            },
+            monitor,
         }
     }
 
@@ -58,7 +67,9 @@ impl HostConnected {
                     }
                     host_worker::OutgoingWorkerEvent::UpdateKey(key) => self.key = key,
                     host_worker::OutgoingWorkerEvent::UpdatePin(pin) => self.pin = pin,
-                    host_worker::OutgoingWorkerEvent::Failed(e) => self.error = e,
+                    host_worker::OutgoingWorkerEvent::Failed(e) => {
+                        self.host_state = HostState::Error(e);
+                    },
 
                     host_worker::OutgoingWorkerEvent::SetClientInfo(t) => {
                         self.client_info = Some(t);
@@ -67,6 +78,7 @@ impl HostConnected {
                     host_worker::OutgoingWorkerEvent::SetConfirmConnectPromptSender(sender) => {
                         self.confirm_connect_prompt = sender;
                     }
+                    host_worker::OutgoingWorkerEvent::SetHostState(s) => self.host_state = s,
                 }
                 Task::none()
             }
@@ -137,63 +149,68 @@ impl HostConnected {
 
         let mut card = column![].spacing(8).align_x(Alignment::Start);
 
-        if self.confirm_connect_prompt.is_some()
-            && let Some(info) = self.client_info.as_ref()
-        {
-            card = card
-                .push(text("Confirm Connection").size(22))
-                .push(text(
-                    "A waydraw client is attempting to connect to your device",
-                ))
-                .push(info_row("Device Name", deref(&info.host_name)))
-                .push(info_row("OS", deref(&info.name)))
-                .push(info_row("OS Version", deref(&info.os_version)))
-                .push(info_row("Kernel Version", deref(&info.kernel_version)))
-                .push(container(row![
-                    space().width(Length::Fill),
-                    button("Accept")
-                        .on_press(Message::HostConnectedMessage(
-                            HostConnectedMessage::AnswerConfirmConnectionPrompt(true)
-                        ))
-                        .style(button::primary),
-                    space().width(Length::Fixed(32.0)),
-                    button("Reject")
-                        .on_press(Message::HostConnectedMessage(
-                            HostConnectedMessage::AnswerConfirmConnectionPrompt(false)
-                        ))
-                        .style(button::secondary),
-                    space().width(Length::Fill),
-                ]));
-        } else if !self.error.is_empty() {
-            card = card
-                .push(text("Error Connecting").size(22))
-                .push(text(&self.error).style(text::danger))
-                .push(disconnect_button("Retry"));
-        } else if let Some(static_client_info) = self.client_info.as_ref() {
-            card = card
-                .push(text("Connected").size(22))
-                .push(info_row("Device", deref(&static_client_info.host_name)))
-                .push(info_row("OS", deref(&static_client_info.name)))
-                .push(info_row("Version", deref(&static_client_info.os_version)))
-                .push(info_row(
-                    "Kernel",
-                    deref(&static_client_info.kernel_version),
-                ))
-                .push(disconnect_button("Disconnect"));
-        } else if self.key.is_empty() {
-            card = card
-                .push(text("Registering...").size(22))
-                .push(textbox_row("Pin", &self.pin))
-                .push(textbox_row("Key", &self.key))
-                .push(text(&self.error).style(text::danger))
-                .push(disconnect_button("Cancel"));
-        } else {
-            card = card
-                .push(text("Awaiting Connection").size(22))
-                .push(textbox_row("Pin", &self.pin))
-                .push(textbox_row("Key", &self.key))
-                .push(text(&self.error).style(text::danger))
-                .push(disconnect_button("Cancel"));
+        match &self.host_state {
+            HostState::Registering => {
+                card = card
+                    .push(text("Registering...").size(22))
+                    .push(textbox_row("Pin", &self.pin))
+                    .push(textbox_row("Key", &self.key))
+                    .push(disconnect_button("Cancel"));
+            }
+            HostState::AwaitingClient => {
+                card = card
+                    .push(text("Awaiting Connection").size(22))
+                    .push(textbox_row("Pin", &self.pin))
+                    .push(textbox_row("Key", &self.key))
+                    .push(disconnect_button("Cancel"));
+            }
+            HostState::AwaitingConfirmation => {
+                let info = self.client_info.as_ref().unwrap();
+                card = card
+                    .push(text("Confirm Connection").size(22))
+                    .push(text(
+                        "A waydraw client is attempting to connect to your device",
+                    ))
+                    .push(info_row("Device Name", deref(&info.host_name)))
+                    .push(info_row("OS", deref(&info.name)))
+                    .push(info_row("OS Version", deref(&info.os_version)))
+                    .push(info_row("Kernel Version", deref(&info.kernel_version)))
+                    .push(container(row![
+                        space().width(Length::Fill),
+                        button("Accept")
+                            .on_press(Message::HostConnectedMessage(
+                                HostConnectedMessage::AnswerConfirmConnectionPrompt(true)
+                            ))
+                            .style(button::primary),
+                        space().width(Length::Fixed(32.0)),
+                        button("Reject")
+                            .on_press(Message::HostConnectedMessage(
+                                HostConnectedMessage::AnswerConfirmConnectionPrompt(false)
+                            ))
+                            .style(button::secondary),
+                        space().width(Length::Fill),
+                    ]));
+            }
+            HostState::Connected => {
+                let info = self.client_info.as_ref().unwrap();
+                card = card
+                   .push(text("Connected").size(22))
+                   .push(info_row("Device", deref(&info.host_name)))
+                   .push(info_row("OS", deref(&info.name)))
+                   .push(info_row("Version", deref(&info.os_version)))
+                   .push(info_row(
+                       "Kernel",
+                       deref(&info.kernel_version),
+                   ))
+                   .push(disconnect_button("Disconnect"));
+            }
+            HostState::Error(e) => {
+                card = card
+                    .push(text("Error Connecting").size(22))
+                    .push(text(e).style(text::danger))
+                    .push(disconnect_button("Retry"));
+            }
+            
         }
 
         container(

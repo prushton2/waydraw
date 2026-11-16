@@ -5,6 +5,8 @@ use iced::{
     widget::{button, column, container, row, space},
 };
 
+use crate::iced_window::screens::host_connected::HostState;
+
 use super::{Message, Screen, Window, screen_capture, screens, styles};
 
 impl Window {
@@ -110,8 +112,8 @@ pub fn subscription(window: &Window) -> Subscription<Message> {
                 }),
             ];
 
-            if let Some(sender) = &host.sender
-                && host.client_info.is_some()
+            if host.host_state == HostState::Connected
+                && let Some(sender) = &host.sender
             {
                 let params = screen_capture::Params {
                     monitor: host.monitor.clone().unwrap(),
@@ -119,7 +121,7 @@ pub fn subscription(window: &Window) -> Subscription<Message> {
                 };
 
                 s.push(iced::Subscription::run_with(params, screen_capture::worker));
-            };
+            }
 
             s
         }
