@@ -179,7 +179,17 @@ async fn handshake(
         )
     })?;
 
-    let confirmed = receiver.recv().await.unwrap_or(false);
+    // Also read the p2p here to disconnect the host if the client closes the app or disconnects
+    let confirmed = tokio::select! {
+        answer = receiver.recv() => answer.unwrap_or(false),
+        msg = p2p.read() => {
+            let _ = out.send(OutgoingWorkerEvent::SetConfirmConnectPromptSender(None)).await;
+            return Err(match msg {
+                Ok(_) => "Client cancelled the connection".to_string(),
+                Err(e) => e.to_string(),
+            });
+        }
+    };
 
     if !confirmed {
         let goodbye = protocol::Goodbye {};
@@ -191,7 +201,7 @@ async fn handshake(
     let _ = out
         .send(OutgoingWorkerEvent::SetConfirmConnectPromptSender(None))
         .await;
-    drop(receiver);
+    drop(receiver); // redundant, but this has the same vibe as a null pointer, so im dropping it.
 
     // Find a codec match
 

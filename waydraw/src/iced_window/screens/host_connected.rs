@@ -96,11 +96,11 @@ impl HostConnected {
                 }
             }
             HostConnectedMessage::AnswerConfirmConnectionPrompt(value) => {
-                if let Some(mut sender) = self.confirm_connect_prompt.clone() {
+                if let Some(mut sender) = self.confirm_connect_prompt.take() {
                     let _ = sender.try_send(value);
                     sender.disconnect();
                 }
-                self.confirm_connect_prompt = None;
+
                 if !value {
                     Task::done(Message::HostConnectedMessage(
                         HostConnectedMessage::Disconnect("Host refused connection".to_owned()),
@@ -135,6 +135,21 @@ impl HostConnected {
             .into()
         }
 
+        fn disconnect_button<'a>(label: &'a str) -> iced::Element<'a, Message> {
+            container(
+                button(
+                    text(label)
+                    .align_x(Alignment::Center),
+                )
+                .on_press(Message::HostConnectedMessage(
+                    HostConnectedMessage::Disconnect("Host initiated disconnect".to_string()),
+                )),
+            )
+            .center_x(Length::Fill)
+            .padding(iced::Padding::ZERO.top(12))
+            .into()
+        }
+
         let mut card = column![].spacing(8).align_x(Alignment::Start);
 
         if self.confirm_connect_prompt.is_some()
@@ -151,21 +166,24 @@ impl HostConnected {
                 .push(info_row("Kernel Version", deref(&info.kernel_version)))
                 .push(container(row![
                     space().width(Length::Fill),
-                    button("Accept").on_press(Message::HostConnectedMessage(
-                        HostConnectedMessage::AnswerConfirmConnectionPrompt(true)
-                    ))
-                    .style(button::primary),
+                    button("Accept")
+                        .on_press(Message::HostConnectedMessage(
+                            HostConnectedMessage::AnswerConfirmConnectionPrompt(true)
+                        ))
+                        .style(button::primary),
                     space().width(Length::Fixed(32.0)),
-                    button("Reject").on_press(Message::HostConnectedMessage(
-                        HostConnectedMessage::AnswerConfirmConnectionPrompt(false)
-                    ))
-                    .style(button::secondary),
+                    button("Reject")
+                        .on_press(Message::HostConnectedMessage(
+                            HostConnectedMessage::AnswerConfirmConnectionPrompt(false)
+                        ))
+                        .style(button::secondary),
                     space().width(Length::Fill),
                 ]));
         } else if !self.error.is_empty() {
             card = card
                 .push(text("Error Connecting").size(22))
-                .push(text(&self.error).style(text::danger));
+                .push(text(&self.error).style(text::danger))
+                .push(disconnect_button("Retry"));
         } else if let Some(static_client_info) = self.static_client_info.as_ref() {
             card = card
                 .push(text("Connected").size(22))
@@ -176,37 +194,21 @@ impl HostConnected {
                     "Kernel",
                     deref(&static_client_info.kernel_version),
                 ))
-                .push(
-                    container(
-                        button(
-                            text(if self.error.is_empty() {
-                                "Disconnect"
-                            } else {
-                                "Retry"
-                            })
-                            .align_x(Alignment::Center),
-                        )
-                        .on_press(Message::HostConnectedMessage(
-                            HostConnectedMessage::Disconnect(
-                                "Host initiated disconnect".to_string(),
-                            ),
-                        )),
-                    )
-                    .center_x(Length::Fill)
-                    .padding(iced::Padding::ZERO.top(12)),
-                );
+                .push(disconnect_button("Disconnect"));
         } else if self.key.is_empty() {
             card = card
                 .push(text("Registering...").size(22))
                 .push(textbox_row("Pin", &self.pin))
                 .push(textbox_row("Key", &self.key))
-                .push(text(&self.error).style(text::danger));
+                .push(text(&self.error).style(text::danger))
+                .push(disconnect_button("Cancel"));
         } else {
             card = card
                 .push(text("Awaiting Connection").size(22))
                 .push(textbox_row("Pin", &self.pin))
                 .push(textbox_row("Key", &self.key))
-                .push(text(&self.error).style(text::danger));
+                .push(text(&self.error).style(text::danger))
+                .push(disconnect_button("Cancel"));
         }
 
         container(
