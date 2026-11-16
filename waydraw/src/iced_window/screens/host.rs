@@ -14,7 +14,7 @@ pub struct Host {
 impl Host {
     pub fn new() -> Self {
         let monitors: Vec<(Monitor, String)> = read_monitors()
-            .unwrap()
+            .unwrap_or_default()
             .into_iter()
             .map(|e| {
                 (
@@ -40,7 +40,7 @@ impl Host {
     }
 
     pub fn view(&self) -> iced::Element<'_, Message> {
-        let buttons = self
+        let mut buttons: Vec<iced::Element<'_, Message>> = self
             .monitors
             .iter()
             .map(|e| {
@@ -56,6 +56,10 @@ impl Host {
                     .into()
             })
             .collect();
+
+        if buttons.is_empty() {
+            buttons.push(text("No monitors found").style(text::warning).into());
+        }
 
         column![
             text("Select a monitor")
