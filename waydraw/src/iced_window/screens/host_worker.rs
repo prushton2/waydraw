@@ -138,6 +138,8 @@ async fn handshake(
     // Check Version
 
     if crate::get_version().0 != client_info.version.0 {
+        let goodbye = protocol::Goodbye {};
+        let _ = p2p.send(&goodbye.into_bytes()).await;
         return Err(format!(
             "Could not connect to client. Host's major version ({}) does not match client's major version ({}). Update either app to the same major version",
             crate::get_version().0,
