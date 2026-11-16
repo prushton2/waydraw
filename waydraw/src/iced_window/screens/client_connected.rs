@@ -80,7 +80,6 @@ impl ClientConnected {
             .name("Key Process Thread".to_owned())
             .spawn(move || {
                 let mut lock = queue.lock().unwrap();
-                dbg!(&lock);
                 while active.load(std::sync::atomic::Ordering::Relaxed) {
                     if lock.is_empty() {
                         lock = condvar.wait(lock).unwrap();

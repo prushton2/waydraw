@@ -138,14 +138,6 @@ async fn handshake(
         _ => return Err("Did not receive server info".to_string()),
     };
 
-    if crate::get_version().0 != server_info.version.0 {
-        return Err(format!(
-            "Could not connect to host. Client's major version ({}) does not match host's major version ({}). Update either app to the same major version",
-            crate::get_version().0,
-            server_info.version.0
-        ));
-    }
-
     let _ = out
         .send(OutgoingWorkerEvent::UpdateKnownHosts(
             server_info.name.clone(),
