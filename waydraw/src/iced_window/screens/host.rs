@@ -122,9 +122,9 @@ fn read_monitors() -> Result<Vec<Monitor>, String> {
                 position: (displayinfo_source.x, displayinfo_source.y),
                 resolution: (pinray_source.width, pinray_source.height),
                 label: format!("{} {}x{}", pinray_source.name, pinray_source.width, pinray_source.height),
-                #[cfg(target_os = "macos")] // Macos reports points, not pixels, which are already scaled, so we set the scale to 1.0
+                #[cfg(any(target_os = "macos", target_os = "windows"))] // Macos reports points, not pixels, which are already scaled, so we set the scale to 1.0
                 scale: 1.0,
-                #[cfg(not(target_os = "macos"))]
+                #[cfg(not(any(target_os = "macos", target_os = "windows")))]
                 scale: pinray_source.scale_factor_milli as f32 / 1000.0,
             }
         })
