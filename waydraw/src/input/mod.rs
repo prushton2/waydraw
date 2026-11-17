@@ -5,7 +5,7 @@ pub use dummy_input::DummyInput;
 pub use enigo_input::EnigoInput;
 use serde::{Deserialize, Serialize};
 
-pub trait Input: Send {
+pub trait Input: Send + Sync {
     fn move_mouse(&mut self, x: i32, y: i32);
     fn click_mouse(&mut self, button: MouseButton, state: MouseState);
     fn key_event(&mut self, key: Key, state: KeyState);
@@ -34,10 +34,16 @@ pub enum Key {
     Unicode(char),
     Named(Named),
     Other(u32),
+    None,
 }
 
 #[derive(Debug, Copy, Clone, Serialize, Deserialize)]
 pub enum Named {
+    Escape,
+    Home,
+    End,
+    PageUp,
+    PageDown,
     Super,
     Alt,
     Ctrl,
@@ -117,19 +123,34 @@ impl From<iced::keyboard::Key> for Key {
             iced::keyboard::Key::Named(iced::keyboard::key::Named::F11) => Self::Named(Named::F11),
             iced::keyboard::Key::Named(iced::keyboard::key::Named::F12) => Self::Named(Named::F12),
 
-            _ => Key::Other(0),
+            iced::keyboard::Key::Named(iced::keyboard::key::Named::Escape) => {
+                Self::Named(Named::Escape)
+            }
+            iced::keyboard::Key::Named(iced::keyboard::key::Named::Home) => {
+                Self::Named(Named::Home)
+            }
+            iced::keyboard::Key::Named(iced::keyboard::key::Named::End) => Self::Named(Named::End),
+            iced::keyboard::Key::Named(iced::keyboard::key::Named::PageUp) => {
+                Self::Named(Named::PageUp)
+            }
+            iced::keyboard::Key::Named(iced::keyboard::key::Named::PageDown) => {
+                Self::Named(Named::PageDown)
+            }
+
+            _ => Key::None,
         }
     }
 }
 
-impl From<Key> for enigo::Key {
-    fn from(value: Key) -> Self {
-        match value {
+impl TryFrom<Key> for enigo::Key {
+    type Error = Option<()>;
+    fn try_from(value: Key) -> Result<Self, Self::Error> {
+        let v = match value {
             Key::Unicode(c) => enigo::Key::Unicode(c),
             Key::Other(c) => enigo::Key::Other(c),
 
-            Key::Named(Named::ArrowUp) => enigo::Key::DownArrow,
-            Key::Named(Named::ArrowDown) => enigo::Key::UpArrow,
+            Key::Named(Named::ArrowUp) => enigo::Key::UpArrow,
+            Key::Named(Named::ArrowDown) => enigo::Key::DownArrow,
             Key::Named(Named::ArrowLeft) => enigo::Key::LeftArrow,
             Key::Named(Named::ArrowRight) => enigo::Key::RightArrow,
             Key::Named(Named::Super) => enigo::Key::Meta,
@@ -153,6 +174,14 @@ impl From<Key> for enigo::Key {
             Key::Named(Named::F10) => enigo::Key::F10,
             Key::Named(Named::F11) => enigo::Key::F11,
             Key::Named(Named::F12) => enigo::Key::F12,
-        }
+
+            Key::Named(Named::Escape) => enigo::Key::Escape,
+            Key::Named(Named::Home) => enigo::Key::Home,
+            Key::Named(Named::End) => enigo::Key::End,
+            Key::Named(Named::PageUp) => enigo::Key::PageUp,
+            Key::Named(Named::PageDown) => enigo::Key::PageDown,
+            Key::None => return Err(None),
+        };
+        Ok(v)
     }
 }

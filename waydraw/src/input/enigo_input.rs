@@ -38,13 +38,17 @@ impl super::Input for EnigoInput {
         self.enigo.move_mouse(x, y, Abs).unwrap();
     }
 
+    //BUG Keys can remain held on host if client tabs away or disconnects.
+    // This issue will remain unresolved until i have a "release all held keys" method
     fn key_event(&mut self, key: super::Key, state: super::KeyState) {
-        let _ = self.enigo.key(
-            key.into(),
-            match state {
-                super::KeyState::Pressed => enigo::Direction::Press,
-                super::KeyState::Released => enigo::Direction::Release,
-            },
-        );
+        if let Ok(key) = key.try_into() {
+            let _ = self.enigo.key(
+                key,
+                match state {
+                    super::KeyState::Pressed => enigo::Direction::Press,
+                    super::KeyState::Released => enigo::Direction::Release,
+                },
+            );
+        }
     }
 }

@@ -28,12 +28,11 @@ async fn main() {
         .route("/keys/{name}", delete(delete_key))
         .with_state(store);
 
-    let _thread = std::thread::spawn(async move || {
+    let _cleanup = tokio::spawn(async move {
         loop {
-            std::thread::sleep(time::Duration::from_mins(1));
+            tokio::time::sleep(time::Duration::from_mins(1)).await;
             let now = time::Instant::now();
-            let store = store_clone.write().await;
-            let _ = store.iter().filter(|(_, v)| now < v.expiry);
+            store_clone.write().await.retain(|_, v| now < v.expiry);
         }
     });
 

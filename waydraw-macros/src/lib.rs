@@ -18,12 +18,12 @@ pub fn derive_into_bytes(input: TokenStream) -> TokenStream {
         impl crate::p2p::protocol::IntoBytes for #name {
             fn into_bytes(self) -> Vec<u8> {
                 let mut buf: Vec<u8> = vec![#opcode];
-                buf.extend_from_slice(&rmp_serde::to_vec(&self).unwrap()[..]);
+                let bytes: Vec<u8> = rmp_serde::to_vec(&self).unwrap_or(vec![]);
+                buf.extend_from_slice(&bytes[..]);
                 buf
             }
-            fn from_bytes(bytes: &[u8]) -> Self {
-                let message: Self = rmp_serde::from_slice(&bytes).unwrap();
-                message
+            fn from_bytes(bytes: &[u8]) -> Result<Self, String> {
+                rmp_serde::from_slice(&bytes).map_err(|e| e.to_string())
             }
         }
     };

@@ -2,7 +2,9 @@ pub mod h264;
 pub use h264::H264;
 
 pub trait Codec: Send + Sync {
+    /// Takes in RGBA bytes and outputs an encoded image. Assume the codec is stateful, so one instance must be used per video stream
     fn encode(&mut self, bytes: &[u8], window_size: (u32, u32)) -> Vec<u8>;
+    /// Takes in encoded bytes and outputs an RGBA image. Assume the codec is stateful, so one instance must be used per video stream
     fn decode(&mut self, bytes: &[u8]) -> Vec<u8>;
 }
 
